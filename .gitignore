@@ -49,6 +49,9 @@ logs/
 # Vector store
 vectorstore/
 
+# Models cache
+models/
+
 # Cache
 .cache/
 *.cache

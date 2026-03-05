@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "BAAI/bge-base-zh-v1.5"
     RERANKER_MODEL: str = "BAAI/bge-reranker-base"
 
+    # HuggingFace Cache (must be within project directory)
+    HF_HOME: str = "../models/huggingface"
+    TRANSFORMERS_CACHE: str = "../models/transformers"
+
     # Cache TTL (seconds)
     CACHE_TTL_PRICE: int = 60
     CACHE_TTL_HISTORY: int = 86400  # 24 hours

@@ -10,8 +10,13 @@ class Settings(BaseSettings):
 
     # API Keys
     ANTHROPIC_API_KEY: str
+    ANTHROPIC_BASE_URL: Optional[str] = None
     TAVILY_API_KEY: Optional[str] = None
     ALPHA_VANTAGE_API_KEY: Optional[str] = None
+
+    # Multi-Model Support
+    DEEPSEEK_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
 
     # Redis Configuration
     REDIS_HOST: str = "localhost"
@@ -51,6 +56,9 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        env_file_encoding = 'utf-8'
+        # Prioritize .env file over system environment variables
+        env_prefix = ""
 
 
 settings = Settings()

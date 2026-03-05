@@ -19,9 +19,9 @@ class RAGPipeline:
         persist_dir = Path(settings.CHROMA_PERSIST_DIR)
         persist_dir.mkdir(parents=True, exist_ok=True)
 
-        self.chroma_client = chromadb.Client(
-            ChromaSettings(
-                persist_directory=str(persist_dir),
+        self.chroma_client = chromadb.PersistentClient(
+            path=str(persist_dir),
+            settings=ChromaSettings(
                 anonymized_telemetry=False
             )
         )

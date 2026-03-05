@@ -1,15 +1,18 @@
 """
-Agent Core - Claude Tool Use with streaming
+Agent Core - Multi-Model Tool Use with streaming
 """
 import anthropic
 import json
 import uuid
-from typing import AsyncGenerator, Dict, Any, List
+from typing import AsyncGenerator, Dict, Any, List, Optional
 from datetime import datetime
 from app.config import settings
 from app.models import SSEEvent, Source, ToolResult
+from app.models.multi_model import model_manager, QueryComplexity, ModelProvider
+from app.models.model_adapter import ModelAdapterFactory
 from app.market import MarketDataService
-from app.rag import RAGPipeline
+from app.rag.hybrid_pipeline import HybridRAGPipeline
+from app.rag.confidence import ConfidenceScorer
 from app.search import WebSearchService
 
 
@@ -29,16 +32,26 @@ class ResponseGuard:
 
 class AgentCore:
     """
-    Claude Agent with Tool Use
+    Multi-Model Agent with Tool Use
+    Supports Claude, DeepSeek, GPT, and other models
     Handles streaming responses and tool execution
     """
 
-    def __init__(self):
-        self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    def __init__(self, preferred_model: Optional[str] = None):
+        # Multi-model manager
+        self.model_manager = model_manager
+        self.preferred_model = preferred_model
+
+        # Services
         self.market_service = MarketDataService()
-        self.rag_pipeline = RAGPipeline()
+        self.rag_pipeline = HybridRAGPipeline()
+        self.confidence_scorer = ConfidenceScorer()
         self.search_service = WebSearchService()
         self.guard = ResponseGuard()
+
+        # Current adapter (will be set per request)
+        self.current_adapter = None
+        self.current_model_name = None
 
         # Define tools for Claude
         self.tools = [
@@ -166,8 +179,19 @@ class AgentCore:
                 data = result.model_dump()
 
             elif tool_name == "search_knowledge":
-                result = await self.rag_pipeline.search(tool_input["query"])
+                result = await self.rag_pipeline.search(tool_input["query"], use_hybrid=True)
+
+                # 计算置信度
+                confidence = 0.0
+                if result.documents:
+                    confidence = self.confidence_scorer.calculate(
+                        tool_input["query"],
+                        result.documents
+                    )
+
                 data = result.model_dump()
+                data["confidence"] = confidence
+                data["confidence_level"] = self.confidence_scorer.get_confidence_level(confidence)
 
             elif tool_name == "search_web":
                 result = await self.search_service.search(tool_input["query"])
@@ -192,14 +216,56 @@ class AgentCore:
                 "latency_ms": latency
             }
 
-    async def run(self, query: str) -> AsyncGenerator[SSEEvent, None]:
+    def _select_model(self, query: str) -> str:
+        """选择合适的模型"""
+        if self.preferred_model:
+            return self.preferred_model
+
+        # 自动分类查询复杂度
+        complexity = self.model_manager.classify_query(query)
+        model_name = self.model_manager.select_model(complexity)
+
+        print(f"[AgentCore] Query complexity: {complexity}, Selected model: {model_name}")
+        return model_name
+
+    async def run(self, query: str, model_name: Optional[str] = None) -> AsyncGenerator[SSEEvent, None]:
         """
         Run agent with streaming response
         Yields SSE events: tool_start, tool_data, chunk, done, error
+
+        Args:
+            query: 用户查询
+            model_name: 指定模型名称（可选，不指定则自动选择）
         """
         request_id = str(uuid.uuid4())
         tool_results = []
         sources = []
+
+        # 选择模型
+        if not model_name:
+            model_name = self._select_model(query)
+
+        self.current_model_name = model_name
+        model_config = self.model_manager.models.get(model_name)
+
+        if not model_config:
+            yield SSEEvent(
+                type="error",
+                message=f"Model {model_name} not found",
+                code="MODEL_NOT_FOUND"
+            )
+            return
+
+        # 创建适配器
+        self.current_adapter = ModelAdapterFactory.create_adapter(model_config)
+
+        # 发送模型选择事件
+        yield SSEEvent(
+            type="model_selected",
+            model=model_name,
+            provider=model_config.provider,
+            complexity=self.model_manager.classify_query(query)
+        )
 
         # System prompt
         system_prompt = """你是一个专业的金融资产问答助手。
@@ -220,74 +286,119 @@ class AgentCore:
 
         messages = [{"role": "user", "content": query}]
 
-        try:
-            # Call Claude with streaming
-            with self.client.messages.stream(
-                model=settings.CLAUDE_MODEL,
-                max_tokens=2048,
-                system=system_prompt,
-                messages=messages,
-                tools=self.tools
-            ) as stream:
-                for event in stream:
-                    # Tool use event
-                    if event.type == "content_block_start":
-                        if hasattr(event, "content_block") and event.content_block.type == "tool_use":
-                            tool_name = event.content_block.name
-                            yield SSEEvent(
-                                type="tool_start",
-                                name=tool_name,
-                                display=f"正在调用 {tool_name}..."
-                            )
+        # 记录token使用（初始估算）
+        tokens_input = len(query) // 4  # 粗略估算
+        tokens_output = 0
 
-                    # Tool input complete
-                    elif event.type == "content_block_stop":
-                        if hasattr(stream.current_message_snapshot, "content"):
-                            for block in stream.current_message_snapshot.content:
-                                if block.type == "tool_use":
-                                    # Execute tool
-                                    tool_result = await self._execute_tool(
-                                        block.name,
-                                        block.input
+        try:
+            # 使用适配器创建流式响应
+            stream = self.current_adapter.create_message_stream(
+                messages=messages,
+                system=system_prompt,
+                tools=self.tools,
+                max_tokens=2048
+            )
+
+            async for event in stream:
+                # 处理最终消息（包含完整信息）
+                if isinstance(event, dict) and "final_message" in event:
+                    final_message = event["final_message"]
+
+                    # 处理工具调用
+                    if hasattr(final_message, "content"):
+                        for block in final_message.content:
+                            if block.type == "tool_use":
+                                # Execute tool
+                                tool_result = await self._execute_tool(
+                                    block.name,
+                                    block.input
+                                )
+
+                                if tool_result["success"]:
+                                    tool_results.append(tool_result)
+                                    sources.append(Source(
+                                        name=tool_result["data"].get("source", block.name),
+                                        timestamp=datetime.utcnow().isoformat()
+                                    ))
+
+                                    # Send tool data
+                                    yield SSEEvent(
+                                        type="tool_data",
+                                        tool=block.name,
+                                        data=tool_result["data"]
                                     )
 
-                                    if tool_result["success"]:
-                                        tool_results.append(tool_result)
-                                        sources.append(Source(
-                                            name=tool_result["data"].get("source", block.name),
-                                            timestamp=datetime.utcnow().isoformat()
-                                        ))
+                    # 获取最终文本
+                    final_text = ""
+                    if hasattr(final_message, "content"):
+                        for block in final_message.content:
+                            if block.type == "text":
+                                final_text += block.text
 
-                                        # Send tool data
-                                        yield SSEEvent(
-                                            type="tool_data",
-                                            tool=block.name,
-                                            data=tool_result["data"]
-                                        )
+                    tokens_output = len(final_text) // 4
+                    continue
 
-                    # Text delta
-                    elif event.type == "content_block_delta":
-                        if hasattr(event, "delta") and event.delta.type == "text_delta":
-                            yield SSEEvent(
-                                type="chunk",
-                                text=event.delta.text
-                            )
+                # Tool use event
+                if hasattr(event, "type") and event.type == "content_block_start":
+                    if hasattr(event, "content_block") and event.content_block.type == "tool_use":
+                        tool_name = event.content_block.name
+                        yield SSEEvent(
+                            type="tool_start",
+                            name=tool_name,
+                            display=f"正在调用 {tool_name}..."
+                        )
+
+                # Text delta
+                elif hasattr(event, "type") and event.type == "content_block_delta":
+                    if hasattr(event, "delta") and event.delta.type == "text_delta":
+                        tokens_output += len(event.delta.text) // 4
+                        yield SSEEvent(
+                            type="chunk",
+                            text=event.delta.text
+                        )
+
+            # 记录使用情况
+            self.model_manager.record_usage(
+                model_name=model_name,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
+                success=True
+            )
 
             # Validate response
-            final_text = stream.get_final_text()
-            verified = self.guard.validate(final_text, tool_results)
+            verified = self.guard.validate(final_text if 'final_text' in locals() else "", tool_results)
 
             # Send done event
             yield SSEEvent(
                 type="done",
                 verified=verified,
                 sources=sources,
-                request_id=request_id
+                request_id=request_id,
+                model=model_name,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output
             )
 
         except Exception as e:
+            # 记录失败
+            self.model_manager.record_usage(
+                model_name=model_name,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
+                success=False
+            )
+
             yield SSEEvent(
                 type="error",
                 message=str(e),
-                code="LLM_ERROR"
+                code="LLM_ERROR",
+                model=model_name
             )
+
+    def get_available_models(self) -> List[Dict[str, Any]]:
+        """获取可用模型列表"""
+        return self.model_manager.list_models()
+
+    def get_usage_report(self) -> Dict[str, Any]:
+        """获取使用报告"""
+        return self.model_manager.get_usage_report()

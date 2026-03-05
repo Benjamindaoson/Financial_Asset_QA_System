@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 import json
 from datetime import datetime
+from typing import Optional
 from app.models import ChatRequest, HealthResponse, ChartResponse
 from app.agent import AgentCore
 from app.enricher import QueryEnricher
@@ -21,9 +22,14 @@ market_service = MarketDataService()
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, model: Optional[str] = None):
     """
     Chat endpoint with SSE streaming
+
+    Args:
+        request: Chat request with query
+        model: Optional model name to use (e.g., "claude-opus", "deepseek-chat")
+
     Returns: text/event-stream
     """
     # Enrich query with hints
@@ -32,7 +38,7 @@ async def chat(request: ChatRequest):
     async def event_generator():
         """Generate SSE events"""
         try:
-            async for event in agent.run(enriched_query):
+            async for event in agent.run(enriched_query, model_name=model):
                 # Convert event to SSE format
                 event_data = event.model_dump(exclude_none=True)
                 yield {
@@ -50,6 +56,17 @@ async def chat(request: ChatRequest):
             }
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/models")
+async def list_models():
+    """
+    List available models
+    """
+    return {
+        "models": agent.get_available_models(),
+        "usage": agent.get_usage_report()
+    }
 
 
 @router.get("/health")

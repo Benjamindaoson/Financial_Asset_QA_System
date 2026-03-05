@@ -6,7 +6,21 @@
       "Bash(venv/Scripts/python:*)",
       "Bash(curl:*)",
       "Bash(netstat:*)",
-      "Bash(HF_HOME=D:/Financial_Asset_QA_System/models/huggingface TRANSFORMERS_CACHE=D:/Financial_Asset_QA_System/models/transformers HF_HUB_CACHE=D:/Financial_Asset_QA_System/models/huggingface/hub PYTHONPATH=. venv/Scripts/python:*)"
+      "Bash(HF_HOME=D:/Financial_Asset_QA_System/models/huggingface TRANSFORMERS_CACHE=D:/Financial_Asset_QA_System/models/transformers HF_HUB_CACHE=D:/Financial_Asset_QA_System/models/huggingface/hub PYTHONPATH=. venv/Scripts/python:*)",
+      "Bash(taskkill:*)",
+      "Bash(pip install:*)",
+      "Bash(HF_HOME=D:/Financial_Asset_QA_System/models/huggingface TRANSFORMERS_CACHE=D:/Financial_Asset_QA_System/models/transformers PYTHONPATH=. venv/Scripts/python:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(tasklist:*)",
+      "Bash(powershell:*)",
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(mv:*)",
+      "Bash(tests/test_market_service.py:*)",
+      "Bash(tests/test_multi_model.py:*)",
+      "Bash(tests/test_enricher.py:*)"
     ]
   }
 }

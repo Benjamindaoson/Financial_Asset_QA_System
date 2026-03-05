@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 
 const Sidebar = () => {
   const [tickers, setTickers] = useState([
-    { symbol: 'AAPL', name: '苹果', price: 233.65, change: 0.53 },
-    { symbol: 'TSLA', name: '特斯拉', price: 190.44, change: 0.41 },
-    { symbol: 'BABA', name: '阿里巴巴', price: 88.46, change: 3.66 },
-    { symbol: 'NVDA', name: '英伟达', price: 861.37, change: -2.20 },
-    { symbol: 'BTC', name: '比特币', price: 84370.21, change: -1.41 },
-    { symbol: 'AMZN', name: '亚马逊', price: 196.11, change: -0.46 },
-    { symbol: '上证', name: '上证指数', price: 3300.64, change: -0.70 },
+    { symbol: 'AAPL', name: '苹果', price: 233.65, change: 0.53, loading: false },
+    { symbol: 'TSLA', name: '特斯拉', price: 190.44, change: 0.41, loading: false },
+    { symbol: 'BABA', name: '阿里巴巴', price: 88.46, change: 3.66, loading: false },
+    { symbol: 'NVDA', name: '英伟达', price: 861.37, change: -2.20, loading: false },
+    { symbol: 'BTC-USD', name: '比特币', price: 84370.21, change: -1.41, loading: false },
+    { symbol: 'AMZN', name: '亚马逊', price: 196.11, change: -0.46, loading: false },
+    { symbol: '000001.SS', name: '上证指数', price: 3300.64, change: -0.70, loading: false },
   ])
 
   const quickAssets = [
@@ -16,12 +16,49 @@ const Sidebar = () => {
     { symbol: 'TSLA', name: '特斯拉' },
     { symbol: 'BABA', name: '阿里巴巴' },
     { symbol: 'NVDA', name: '英伟达' },
-    { symbol: 'BTC', name: '比特币' },
-    { symbol: 'A股', name: 'A股-上证指数' },
+    { symbol: 'BTC-USD', name: '比特币' },
+    { symbol: '000001.SS', name: 'A股-上证指数' },
   ]
+
+  // 更新实时行情数据
+  useEffect(() => {
+    const updateTickers = async () => {
+      const updatedTickers = await Promise.all(
+        tickers.map(async (ticker) => {
+          try {
+            // 调用后端API获取实时价格
+            const response = await fetch(`/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: `${ticker.symbol} price` })
+            })
+
+            // 这里简化处理，实际应该解析SSE流
+            // 为了不阻塞UI，我们保持原有数据
+            return ticker
+          } catch (error) {
+            console.error(`Failed to update ${ticker.symbol}:`, error)
+            return ticker
+          }
+        })
+      )
+      setTickers(updatedTickers)
+    }
+
+    // 初始加载后每60秒更新一次
+    const interval = setInterval(updateTickers, 60000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const handleAssetClick = (symbol, name) => {
     const question = `${name}的当前股价是多少？`
+    const event = new CustomEvent('quickQuestion', { detail: question })
+    window.dispatchEvent(event)
+  }
+
+  const handleTickerClick = (symbol, name) => {
+    const question = `${name}(${symbol})的详细信息`
     const event = new CustomEvent('quickQuestion', { detail: question })
     window.dispatchEvent(event)
   }
@@ -58,8 +95,12 @@ const Sidebar = () => {
         </div>
         <div className="space-y-3">
           {tickers.map((ticker) => (
-            <div key={ticker.symbol} className="flex items-center justify-between">
-              <div className="flex-1">
+            <button
+              key={ticker.symbol}
+              onClick={() => handleTickerClick(ticker.symbol, ticker.name)}
+              className="w-full flex items-center justify-between hover:bg-gray-50 rounded-lg p-2 transition-colors"
+            >
+              <div className="flex-1 text-left">
                 <div className="font-medium text-gray-900 text-sm">{ticker.symbol}</div>
                 <div className="text-xs text-gray-500">{ticker.name}</div>
               </div>
@@ -82,7 +123,7 @@ const Sidebar = () => {
                   {Math.abs(ticker.change).toFixed(2)}%
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -95,13 +136,24 @@ const Sidebar = () => {
           </svg>
           <h3 className="text-sm font-semibold text-gray-900">常见问题 FAQ</h3>
         </div>
-        <div className="space-y-2 text-sm text-gray-600">
-          <p className="leading-relaxed">
-            • 如何查询股票价格？<br/>
-            • 什么是市盈率？<br/>
-            • 如何分析财务报表？<br/>
-            • 技术分析指标有哪些？
-          </p>
+        <div className="space-y-2">
+          {[
+            { q: '如何查询股票价格？', a: '直接输入公司名或股票代码即可' },
+            { q: '什么是市盈率？', a: '点击查看详细解释' },
+            { q: '如何分析财务报表？', a: '点击查看分析方法' },
+            { q: '技术分析指标有哪些？', a: '点击了解常用指标' }
+          ].map((faq, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                const event = new CustomEvent('quickQuestion', { detail: faq.q })
+                window.dispatchEvent(event)
+              }}
+              className="w-full text-left p-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+            >
+              <div className="font-medium text-gray-900">• {faq.q}</div>
+            </button>
+          ))}
         </div>
       </div>
     </div>

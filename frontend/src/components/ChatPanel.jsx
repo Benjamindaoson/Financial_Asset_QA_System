@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import StockCard from './StockCard'
 import TrendChart from './TrendChart'
 
-const ChatPanel = ({ onQuickQuestion }) => {
+const ChatPanel = ({ onQuickQuestion, selectedModel, onMessagesChange }) => {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -39,9 +39,26 @@ const ChatPanel = ({ onQuickQuestion }) => {
       }, 100)
     }
 
+    const handleClearHistory = () => {
+      setMessages([])
+      setStreamingMessage(null)
+      setError(null)
+    }
+
     window.addEventListener('quickQuestion', handleQuickQuestion)
-    return () => window.removeEventListener('quickQuestion', handleQuickQuestion)
+    window.addEventListener('clearHistory', handleClearHistory)
+    return () => {
+      window.removeEventListener('quickQuestion', handleQuickQuestion)
+      window.removeEventListener('clearHistory', handleClearHistory)
+    }
   }, [])
+
+  // 通知父组件消息变化
+  useEffect(() => {
+    if (onMessagesChange) {
+      onMessagesChange(messages)
+    }
+  }, [messages, onMessagesChange])
 
   // 自动滚动到底部
   const scrollToBottom = () => {
@@ -89,16 +106,24 @@ const ChatPanel = ({ onQuickQuestion }) => {
     })
 
     try {
+      // 构建请求体，包含选中的模型
+      const requestBody = {
+        query: userMessage.content,
+        session_id: 'default-session'
+      }
+
+      // 构建URL，如果有选中的模型则添加到查询参数
+      const url = selectedModel
+        ? `/api/chat?model=${encodeURIComponent(selectedModel)}`
+        : '/api/chat'
+
       // 发送POST请求获取SSE连接
-      const response = await fetch('/api/chat', {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: userMessage.content,
-          session_id: 'default-session'
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
@@ -336,7 +361,7 @@ const ChatPanel = ({ onQuickQuestion }) => {
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            Shift + Enter 换行
+            Shift + Enter 换行 {selectedModel && `• 当前模型: ${selectedModel}`}
           </p>
         </div>
       </div>

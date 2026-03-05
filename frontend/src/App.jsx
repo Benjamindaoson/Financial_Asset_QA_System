@@ -1,14 +1,34 @@
 import { useState } from 'react'
 import ChatPanel from './components/ChatPanel'
 import Sidebar from './components/Sidebar'
+import ModelSelector from './components/ModelSelector'
+import HealthStatus from './components/HealthStatus'
+import { HelpModal, FeedbackModal } from './components/Modals'
 
 function App() {
   const [messages, setMessages] = useState([])
+  const [selectedModel, setSelectedModel] = useState(null)
+  const [showHelp, setShowHelp] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   const handleQuickQuestion = (question) => {
     // 触发快速问题
     const event = new CustomEvent('quickQuestion', { detail: question })
     window.dispatchEvent(event)
+  }
+
+  const handleClearHistory = () => {
+    if (messages.length === 0) return
+    setShowClearConfirm(true)
+  }
+
+  const confirmClearHistory = () => {
+    // 触发清除历史事件
+    const event = new CustomEvent('clearHistory')
+    window.dispatchEvent(event)
+    setMessages([])
+    setShowClearConfirm(false)
   }
 
   return (
@@ -28,21 +48,45 @@ function App() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <button className="flex items-center space-x-1 text-gray-600 hover:text-gray-900">
+            {/* Health Status */}
+            <HealthStatus />
+
+            {/* Model Selector */}
+            <ModelSelector
+              currentModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
+
+            {/* Feedback Button */}
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="flex items-center space-x-1 text-gray-600 hover:text-gray-900"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
               <span className="text-sm">反馈</span>
             </button>
-            <button className="flex items-center space-x-1 text-gray-600 hover:text-gray-900">
+
+            {/* Help Button */}
+            <button
+              onClick={() => setShowHelp(true)}
+              className="flex items-center space-x-1 text-gray-600 hover:text-gray-900"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-sm">帮助</span>
             </button>
-            <button className="flex items-center space-x-1 text-gray-600 hover:text-gray-900">
+
+            {/* Clear History Button */}
+            <button
+              onClick={handleClearHistory}
+              className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={messages.length === 0}
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
               <span className="text-sm">清除记录</span>
             </button>
@@ -67,13 +111,47 @@ function App() {
         <div className="h-full flex">
           {/* Chat Area */}
           <div className="flex-1 overflow-hidden">
-            <ChatPanel onQuickQuestion={handleQuickQuestion} />
+            <ChatPanel
+              onQuickQuestion={handleQuickQuestion}
+              selectedModel={selectedModel}
+              onMessagesChange={setMessages}
+            />
           </div>
 
           {/* Sidebar */}
           <Sidebar />
         </div>
       </main>
+
+      {/* Modals */}
+      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
+
+      {/* Clear Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">确认清除历史记录？</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              此操作将清除所有聊天记录，且无法恢复。
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmClearHistory}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                确认清除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { fetchChart } from "../../services/api";
-import { C, F } from "../../theme";
+import { fetchChart } from "../services/api";
+import { C, F } from "../theme";
 
 export function Chart({ symbol, days = 30 }) {
   const [data, setData] = useState([]);

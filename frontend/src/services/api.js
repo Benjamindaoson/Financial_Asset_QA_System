@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "http://127.0.0.1:8001/api";
 
 export async function fetchChat(query, sessionId = null) {
   const response = await fetch(`${API_BASE}/chat`, {
@@ -19,20 +19,33 @@ export async function fetchChat(query, sessionId = null) {
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
+    
+    // Split on double newlines or single newlines depending on SSE format
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
 
-    for (const line of lines) {
+    for (let line of lines) {
       if (line.startsWith("data: ")) {
         try {
-          const data = JSON.parse(line.slice(6));
-          events.push(data);
+          const dataStr = line.slice(6).trim();
+          if (dataStr) {
+            const data = JSON.parse(dataStr);
+            events.push(data);
+          }
         } catch (e) {
-          console.error("Failed to parse SSE:", e);
+          console.error("Failed to parse SSE line:", line, e);
         }
       }
     }
   }
+
+  // Handle remaining buffer if any
+  if (buffer.startsWith("data: ")) {
+      try {
+          events.push(JSON.parse(buffer.slice(6).trim()));
+      } catch (e) {}
+  }
+
 
   return events;
 }

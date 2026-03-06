@@ -35,7 +35,9 @@
       "Bash(./backend/venv/Scripts/python.exe:*)",
       "Bash(mkdir:*)",
       "Bash(do taskkill:*)",
-      "Bash(Get-Process:*)"
+      "Bash(Get-Process:*)",
+      "Bash(git push:*)",
+      "Bash(NO_PROXY=localhost curl:*)"
     ]
   }
 }

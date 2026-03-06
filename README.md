@@ -8,92 +8,98 @@
 [![React 18+](https://img.shields.io/badge/react-18.0+-61dafb.svg)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
 
+---
+**🏆 本项目特点：无需配置复杂的数据库容器，只要您有网有环境，填入 API 密钥即可直接体验防幻觉的金融 AI 问答。**
 </div>
 
 ---
 
-## 🌟 核心能力概览
+## 🚀 极速本地部署指南 (保姆级教程)
 
-本项目是一整套达到企业级生产标准的金融 AI 应用，针对金融领域严格的"拒绝对外幻觉"等红线需求，采取了**确定义数据管线 + 强制工具校验**的最优方案：
+本指南针对**零基础环境**。如果您是一线开发/面试验收人员，请直接按顺序复制命令即可！由于这是一个调用了真实大模型和股价数据的全栈系统，**您必须运行后端和前端两块服务。**
 
-- 📈 **资产价格与走势问答 (核心)**: 原生集成 Yahoo Finance 实时引擎，能够精准回答 "阿里巴巴当前股价是多少？" 或 "特斯拉最近的走势如何？" 并由大模型结合客观数据生成走势分析。
-- 📚 **金融知识问答 (RAG)**: 支持纯双路检索 (ChromaDB 向量 + BM25 稀疏) 融合架构。安全回答 "什么是市盈率？" 等专业百科术语。
-- 🛡️ **抗幻觉拦截 (ResponseGuard)**: 自带极强的数字校验层。引擎在对外发包前强制核对大模型输出的所有数字，确认其完全来自于 API 获取的历史真实财报数组中，强力杜绝“编造股价”。
-- 🚦 **透明链路追踪 (Trace View)**: 前端应用能在毫秒级响应展示当前触发的 LLM 型号、分析复杂度和背后调用的工具（如 `get_price` 或 `search_knowledge`）。
-
----
-
-## 🚀 极速一键部署 (本地双端联动运行)
-
-本项目的架构已彻底做到前后解耦。按照以下步骤，您可以立刻将它运行在您的电脑上！
-
-### 🔧 环境要求
-- **Python**: `3.11` 或更高版本。
-- **Node.js**: `v18.x` 或更高版本。
-- **Redis** *(可选但强烈推荐)*: 用于缓存市场行情 API 数据以防封禁。
-
-### 📌 步骤 1: 准备后端引擎 (FastAPI & AgentCore)
-
-1. 打开您的终端（如果是 Windows 推荐使用 PowerShell 或 CMD）：
-2. 进入后端根目录：
-   ```bash
-   cd backend
-   ```
-3. 创建并激活虚拟环境 (强烈建议)：
-   ```bash
-   python -m venv venv
-   # Windows 激活方式:
-   venv\Scripts\activate
-   # Mac/Linux 激活方式:
-   source venv/bin/activate
-   ```
-4. 安装核心依赖包：
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. 配置大模型 API 密钥：
-   - 将后端文件夹里的 `.env.example` 复制并重命名为 `.env`。
-   - 打开 `.env`，**填入您的真实模型 API Keys**（支持 `ANTHROPIC_API_KEY`, 或配置 `OPENAI_API_KEY` 等）。
-6. **启动后端服务器**：
-   ```bash
-   python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
-   ```
-*(注：如果运行遭遇 502/端口占用，请确保杀掉所有残存的僵尸 Python 进程，或更改监听端口并在前端文件中对应同步 URL。)*
+### 第一步：确认基础环境准备
+您的电脑必须安装好以下两个基础运行环境。如果没有，请点击链接下载并安装：
+1. **Python 环境**: 推荐 `Python 3.11` 及以上。[点击下载 Python](https://www.python.org/downloads/) (注意部分 Windows 安装时务必勾选 `"Add Python to PATH"`)。在命令行输入 `python --version` 必须能输出版本号。
+2. **Node.js 环境**: 用于运行网页前端。[点击下载 Node.js 的 LTS 稳定版](https://nodejs.org/)。在命令行输入 `npm --version` 必须能输出版本号。
 
 ---
 
-### 📌 步骤 2: 准备前端交互界面 (Vite & React)
+### 第二步：启动 API 后端服务 (提供 AI 思考及爬虫数据)
 
-1. 新开一个终端窗口，进入前端目录：
-   ```bash
-   cd frontend
-   ```
-2. 安装 NPM 依赖：
-   ```bash
-   npm install
-   ```
-3. （如修改过后端端口）打开 `src/services/api.js`：
-   确保首行的 `API_BASE` 指向您的真实后端端口，例如：`const API_BASE = "http://127.0.0.1:8001/api";`
-4. **启动前端开发服务器**：
-   ```bash
-   npm run dev
-   ```
+打开您的终端/命令提示符（Terminal / CMD / PowerShell），**一行一行运行以下命令**：
 
-### 🎈 完成！
+```bash
+# 1. 克隆代码仓库到您的本地 (如果您下载的是 ZIP 文件并解压了，直接进入解压后的文件夹)
+git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
+cd Financial_Asset_QA_System
 
-打开您的浏览器，输入刚才控制台提示的地址（例如 `http://127.0.0.1:3000` 或 `http://localhost:5173`），深色模式极客风的金融助手将展现在您面前！
+# 2. 进入后端文件夹
+cd backend
 
-您可以尝试询问：
-- `"苹果股票今天表现如何？"`
-- `"特斯拉近30天走势"`
-- `"什么是市净率（PB）？"`
+# 3. 创建纯净的独立 Python 运行环境 (这一步非常重要，能防止代码跑不起来)
+python -m venv venv
+
+# 4. 激活运行环境 (重点：Windows和Mac/Linux的激活命令不同！)
+# 【Windows 系统请复制这行】: 
+venv\Scripts\activate
+# 【Mac / Linux 系统请复制这行】: 
+source venv/bin/activate
+
+# 5. 等待命令行开头出现 (venv) 字样后，安装所有需要的组件 (大概需要等待 1~3 分钟，取决于网速)
+pip install -r requirements.txt
+
+# 6. 【最重要的一步：填入 AI 钥匙】如果缺少这一步页面会永远处于"请求失败"状态！
+# - 找到 backend 文件夹下的 `.env.example` 文件
+# - 将其复制一份并重命名为 `.env` 
+# - 用记事本打开 `.env` 文件，在里面填入您的真实大模型 API 密钥。例如替换掉: 
+#   ANTHROPIC_API_KEY=您的真实秘钥 
+#   (如果没有 Anthropic 也可以填您的 OPENAI 秘钥甚至 DeepSeek，在内部代码中均已做好兼容路由，请参考里面的注释)
+
+# 7. 开启后端服务器引擎！
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
+
+> **成功标志**：当您在终端看到 `Uvicorn running on http://127.0.0.1:8001` 字样时，**不要关闭这个黑框**，把它最小化，您的引擎已经发动了！
 
 ---
 
-## ©️ 代码结构简析
+### 第三步：启动前端可视化网页 (最终交互界面)
 
-- `/backend/app/agent/core.py` -> 包含核心决策工作流。
-- `/backend/app/routing/` -> 包含由大模型意图加持的异步混合路由 (LLM Semantic Router + Regex)。
-- `/backend/app/rag/hybrid_pipeline.py` -> 高级混合召回链路引擎。
-- `/frontend/src/App.jsx` -> 核心前端应用聚合展示区。
-- `/frontend/src/components/` -> 高度分离的 Chat UI, 图表 (Chart) 和渲染套件。
+**不要关闭刚才运行后端的那个窗口。**我们单独**再新开一个命令提示符/终端窗口**：
+
+```bash
+# 1. 确保您在项目的根目录下，如果不在，请先 cd 进去。然后进入前端目录：
+cd frontend
+
+# 2. 安装前端网页的所有组件 (大概需要 1 分钟)
+npm install
+
+# 3. 立即启动前端本地页面
+npm run dev
+```
+
+> **成功标志**：当终端打印出绿色的 `➜ Local: http://127.0.0.1:3000/` 或者 `localhost:xxxx` 地址时，大功告成！
+
+---
+
+### 第四步：在浏览器里直接体验！
+
+**网页会自动弹出，如果没有弹出，请手动复制命令提示符里的局域网地址（如 `http://localhost:3000` 或 `http://127.0.0.1:3000` ）粘贴到您的独立浏览器（如 Chrome / Edge）打开。**
+
+你可以向它提问以下例子来验收成果：
+1. **测试查询最新股价与走势能力**：输入 `苹果股票今天涨了多少？` （系统会拉取真实市场数据，并在页面左侧直接绘出行情雷达图。绝无大模型自己的胡编乱造）
+2. **测试金融词条 RAG 检索能力**：输入 `什么是市盈率？它和市净率有什么区别？`（系统会自动从金融领域知识库中召回专业解答，格式非常严谨）
+3. **亮点——体验专业链路可视化**：在任何回答出现前，都会展示 **"💡 分析链路追踪"**，向你毫无保留地证明背后正在进行严谨的数据抓取 (如 Fetching price API)，彻底解决面试官/用户对 "Agent 到底干了什么" 的质疑。
+
+---
+
+## ©️ 疑问排查 FAQ
+
+- **Q: 网页打开一片空白或疯狂报错 `Failed to fetch` 分支失败？**
+  - **A:** 99% 的可能是您的第二步后端没有启动成功，或者端口 `8001` 被您的防火墙拦截了导致 CORS。请保证你开了两份黑框终端：一个跑着 `python -m uvicorn`，另一个跑着 `npm run dev`，二者缺一不可。
+- **Q: 我打出来的汉字全是乱码，模型好像疯了？**
+  - **A:** 大模型没有疯，是您的 `.env` 配置文件里的秘钥配错了或者欠费了，导致报错信息被捕捉。认真检查第二步的第 6 环节！
+
+---
+🌟 **如果这套严谨落地防幻觉的系统赢得了您的认可，欢迎在右上角点个 Star 鼓励！**

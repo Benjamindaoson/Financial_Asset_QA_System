@@ -178,33 +178,76 @@ class TestQueryEnricherAdvanced:
     def test_enrich_multiple_symbols(self):
         """测试多个股票代码"""
         enricher = QueryEnricher()
-        
+
         query = "比较AAPL和TSLA的表现"
         enriched = enricher.enrich(query)
-        
+
         assert isinstance(enriched, str)
         assert len(enriched) > 0
 
     def test_enrich_with_dates(self):
         """测试包含日期的查询"""
         enricher = QueryEnricher()
-        
+
         query = "2024年3月5日的股价"
         enriched = enricher.enrich(query)
-        
+
         assert isinstance(enriched, str)
 
     def test_enrich_question_format(self):
         """测试问题格式"""
         enricher = QueryEnricher()
-        
+
         queries = [
             "什么是市盈率？",
             "如何计算市净率？",
             "为什么股价下跌？"
         ]
-        
+
         for query in queries:
             enriched = enricher.enrich(query)
             assert isinstance(enriched, str)
             assert len(enriched) > 0
+
+    def test_extract_symbols_uppercase(self):
+        """测试提取大写股票代码"""
+        symbols = QueryEnricher.extract_symbols("AAPL TSLA MSFT")
+
+        assert "AAPL" in symbols
+        assert "TSLA" in symbols
+        assert "MSFT" in symbols
+
+    def test_extract_symbols_a_share(self):
+        """测试提取A股代码"""
+        symbols = QueryEnricher.extract_symbols("600519 000001 300750")
+
+        assert "600519" in symbols
+        assert "000001" in symbols
+        assert "300750" in symbols
+
+    def test_extract_symbols_mixed(self):
+        """测试提取混合代码"""
+        symbols = QueryEnricher.extract_symbols("AAPL 和 600519 的对比")
+
+        assert "AAPL" in symbols
+        assert "600519" in symbols
+
+    def test_extract_symbols_no_match(self):
+        """测试无匹配代码"""
+        symbols = QueryEnricher.extract_symbols("什么是市盈率")
+
+        assert len(symbols) == 0
+
+    def test_extract_symbols_edge_cases(self):
+        """测试边界情况"""
+        # 太短的大写字母
+        symbols = QueryEnricher.extract_symbols("A B C")
+        assert len(symbols) == 0
+
+        # 太长的大写字母
+        symbols = QueryEnricher.extract_symbols("TOOLONG")
+        assert len(symbols) == 0
+
+        # 非6位数字
+        symbols = QueryEnricher.extract_symbols("12345 1234567")
+        assert len(symbols) == 0

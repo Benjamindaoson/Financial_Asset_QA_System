@@ -3,6 +3,7 @@
 """
 import pytest
 from unittest.mock import Mock, patch
+from fastapi.testclient import TestClient
 
 
 class TestMainApplication:
@@ -32,3 +33,16 @@ class TestMainApplication:
         # Check routes are registered
         routes = [route.path for route in app.routes]
         assert len(routes) > 0
+
+    def test_root_endpoint(self):
+        """测试根路径端点"""
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.get("/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Financial Asset QA System"
+        assert data["version"] == "1.0.0"
+        assert data["status"] == "running"

@@ -23,10 +23,69 @@ class ResponseGuard:
     def validate(response_text: str, tool_results: List[ToolResult]) -> bool:
         """
         Check if numbers in response match tool results
-        Simple heuristic: extract numbers from both and compare
+
+        Args:
+            response_text: LLM generated response text
+            tool_results: List of tool execution results
+
+        Returns:
+            bool: True if validation passes, False if hallucination detected
         """
-        # For now, return True (basic implementation)
-        # Production would do more sophisticated validation
+        import re
+
+        if not tool_results:
+            return True
+
+        # Extract numbers from response (prices, percentages, etc.)
+        response_numbers = []
+        for match in re.finditer(r'\d+\.?\d*', response_text):
+            num = float(match.group())
+            if num > 0.01:  # Ignore very small numbers
+                response_numbers.append(num)
+
+        # Extract key numbers from tool results
+        tool_numbers = []
+        for result in tool_results:
+            if not hasattr(result, 'data') or not result.data:
+                continue
+
+            data = result.data
+
+            # Price
+            if 'price' in data and data['price']:
+                tool_numbers.append(float(data['price']))
+
+            # Change percentage (absolute value)
+            if 'change_pct' in data and data['change_pct'] is not None:
+                tool_numbers.append(abs(float(data['change_pct'])))
+
+            # Market cap (convert to billions)
+            if 'market_cap' in data and data['market_cap']:
+                tool_numbers.append(float(data['market_cap']) / 1e9)
+
+            # PE ratio
+            if 'pe_ratio' in data and data['pe_ratio']:
+                tool_numbers.append(float(data['pe_ratio']))
+
+        if not tool_numbers:
+            return True
+
+        # Check if response numbers match tool results (within 5% tolerance)
+        for rn in response_numbers:
+            matched = False
+            for tn in tool_numbers:
+                if tn == 0:
+                    continue
+                error_rate = abs(rn - tn) / tn
+                if error_rate < 0.05:  # 5% tolerance
+                    matched = True
+                    break
+
+            # If large number doesn't match, validation fails
+            if not matched and rn > 10:
+                print(f"[ResponseGuard] Validation failed: {rn} doesn't match tool results")
+                return False
+
         return True
 
 
@@ -205,7 +264,8 @@ class AgentCore:
             return {
                 "success": True,
                 "data": data,
-                "latency_ms": latency
+                "latency_ms": latency,
+                "tool": tool_name
             }
 
         except Exception as e:
@@ -213,8 +273,51 @@ class AgentCore:
             return {
                 "success": False,
                 "error": str(e),
-                "latency_ms": latency
+                "latency_ms": latency,
+                "tool": tool_name
             }
+
+    async def _execute_tools_parallel(
+        self,
+        tool_calls: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute multiple tools in parallel
+
+        Args:
+            tool_calls: List of tool calls, format: [{"name": "get_price", "input": {...}}, ...]
+
+        Returns:
+            List of tool execution results
+        """
+        import asyncio
+
+        if not tool_calls:
+            return []
+
+        # Create parallel tasks
+        tasks = [
+            self._execute_tool(call['name'], call['input'])
+            for call in tool_calls
+        ]
+
+        # Execute in parallel, catch exceptions
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process exception results
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    'success': False,
+                    'error': str(result),
+                    'tool': tool_calls[i]['name'],
+                    'latency_ms': 0
+                })
+            else:
+                processed_results.append(result)
+
+        return processed_results
 
     def _select_model(self, query: str) -> str:
         """选择合适的模型"""
@@ -268,21 +371,50 @@ class AgentCore:
         )
 
         # System prompt
-        system_prompt = """你是一个专业的金融资产问答助手。
+        system_prompt = """你是专业的金融分析助手，为专业投资者提供决策参考。
 
-核心原则：
+【核心原则】
 1. 所有金融数字必须来自工具调用，不要编造数据
 2. 使用工具获取事实数据后，再组织回答
-3. 回答要结构化：📊 数据摘要 → 📈 趋势分析 → 🔍 影响因素
-4. 引用数据来源
+3. 回答必须结构化，按以下格式组织
+4. 明确标注数据来源
 
-可用工具：
+【回答结构】（必须遵循）
+
+📊 数据摘要
+- 当前价格：[从 get_price 工具获取]
+- 涨跌幅：[从 get_change 工具获取]
+- 成交量：[如有数据则展示]
+
+📈 技术分析
+- RSI 指标：[从历史数据计算并解读：超买/超卖/正常]
+- MACD 指标：[从历史数据计算并解读：金叉/死叉/震荡]
+- 趋势判断：[上涨/下跌/震荡]
+
+💡 参考观点
+- 基于以上数据的客观分析
+- 可能的交易机会或风险点
+- 【重要】明确说明"以上内容仅供参考，不构成投资建议"
+
+⚠️ 风险提示
+- 技术风险：[如 RSI 超买则提示回调风险]
+- 市场风险：[大盘走势、行业风险等]
+- 其他风险：[政策、估值等]
+
+【可用工具】
 - get_price: 查询当前价格
-- get_history: 查询历史数据
+- get_history: 查询历史数据（用于计算技术指标，建议获取 30 天数据）
 - get_change: 计算涨跌幅
 - get_info: 查询公司信息
 - search_knowledge: 检索金融知识
-- search_web: 搜索新闻事件"""
+- search_web: 搜索新闻事件
+
+【重要提示】
+- 必须先调用工具获取数据，再组织回答
+- 技术指标需要历史数据，记得调用 get_history
+- 回答要专业但易懂，避免过度使用术语
+- 永远不要直接推荐"买入"或"卖出"，只提供"参考观点"
+- 所有建议都要加上免责声明"""
 
         messages = [{"role": "user", "content": query}]
 

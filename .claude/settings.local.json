@@ -20,7 +20,20 @@
       "Bash(mv:*)",
       "Bash(tests/test_market_service.py:*)",
       "Bash(tests/test_multi_model.py:*)",
-      "Bash(tests/test_enricher.py:*)"
+      "Bash(tests/test_enricher.py:*)",
+      "Bash(npm install:*)",
+      "Bash(start Backend Server:*)",
+      "Bash(start Frontend Server:*)",
+      "Bash(timeout /t 5:*)",
+      "Bash(start:*)",
+      "Bash(./venv/Scripts/pip.exe install:*)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(chmod +x:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(rm:*)",
+      "Bash(./backend/venv/Scripts/python.exe:*)",
+      "Bash(mkdir:*)"
     ]
   }
 }

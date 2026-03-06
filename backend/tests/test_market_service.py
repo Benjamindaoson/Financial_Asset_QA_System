@@ -274,3 +274,62 @@ class TestTickerMapper:
 
         assert TickerMapper.normalize("AAPL") == "AAPL"
         assert TickerMapper.normalize("TSLA") == "TSLA"
+
+
+class TestMarketDataServiceCaching:
+    """测试市场数据服务缓存"""
+
+    @pytest.fixture
+    def service(self):
+        """创建服务实例"""
+        with patch('app.market.service.redis.Redis'):
+            return MarketDataService()
+
+    @pytest.mark.asyncio
+    async def test_cache_set_and_get(self, service):
+        """测试缓存设置和获取"""
+        test_data = {"symbol": "AAPL", "price": 150.0}
+
+        # Set cache
+        service._set_cache("test_key", test_data, 60)
+
+        # Mock get to return the data
+        import json
+        service.redis_client.get = Mock(return_value=json.dumps(test_data))
+
+        # Get cache
+        cached = service._get_cache("test_key")
+
+        assert cached is not None
+        assert cached["symbol"] == "AAPL"
+        assert cached["price"] == 150.0
+
+    @pytest.mark.asyncio
+    async def test_cache_expiry(self, service):
+        """测试缓存过期"""
+        # Mock expired cache
+        service.redis_client.get = Mock(return_value=None)
+
+        cached = service._get_cache("expired_key")
+
+        assert cached is None
+
+    @pytest.mark.asyncio
+    async def test_cache_error_handling(self, service):
+        """测试缓存错误处理"""
+        # Mock cache error
+        service.redis_client.get = Mock(side_effect=Exception("Redis error"))
+
+        # Should return None on error
+        cached = service._get_cache("error_key")
+
+        assert cached is None
+
+    @pytest.mark.asyncio
+    async def test_set_cache_error_handling(self, service):
+        """测试设置缓存错误处理"""
+        # Mock set error
+        service.redis_client.setex = Mock(side_effect=Exception("Redis error"))
+
+        # Should not raise exception
+        service._set_cache("error_key", {"test": "data"}, 60)

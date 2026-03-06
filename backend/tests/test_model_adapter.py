@@ -198,3 +198,133 @@ class TestAdapterIntegration:
             assert isinstance(adapters[0], AnthropicAdapter)
             assert isinstance(adapters[1], OpenAIAdapter)
             assert isinstance(adapters[2], OpenAIAdapter)
+
+
+class TestAnthropicAdapterStreaming:
+    """测试Anthropic适配器流式功能"""
+
+    @pytest.mark.asyncio
+    async def test_anthropic_stream_with_text(self):
+        """测试Anthropic流式文本响应"""
+        config = ModelConfig(
+            model_name="claude-3-5-sonnet-20241022",
+            provider=ModelProvider.ANTHROPIC,
+            api_key="test-key"
+        )
+
+        with patch('app.models.model_adapter.anthropic.Anthropic') as mock_anthropic:
+            # Mock stream context manager
+            mock_stream = MagicMock()
+            mock_stream.__enter__ = Mock(return_value=mock_stream)
+            mock_stream.__exit__ = Mock(return_value=None)
+            mock_stream.__iter__ = Mock(return_value=iter([Mock(type="text")]))
+            mock_stream.current_message_snapshot = Mock()
+
+            mock_anthropic.return_value.messages.stream.return_value = mock_stream
+
+            adapter = AnthropicAdapter(config)
+            events = []
+            async for event in adapter.create_message_stream(
+                messages=[{"role": "user", "content": "test"}],
+                system="test system",
+                tools=[],
+                max_tokens=100
+            ):
+                events.append(event)
+
+            assert len(events) > 0
+
+    @pytest.mark.asyncio
+    async def test_anthropic_adapter_with_base_url(self):
+        """测试带base_url的Anthropic适配器"""
+        config = ModelConfig(
+            model_name="claude-3-5-sonnet-20241022",
+            provider=ModelProvider.ANTHROPIC,
+            api_key="test-key",
+            base_url="https://custom.api.com"
+        )
+
+        with patch('app.models.model_adapter.anthropic.Anthropic') as mock_anthropic:
+            adapter = AnthropicAdapter(config)
+
+            # Verify base_url was passed
+            mock_anthropic.assert_called_once_with(
+                api_key="test-key",
+                base_url="https://custom.api.com"
+            )
+
+
+class TestOpenAIAdapterStreaming:
+    """测试OpenAI适配器流式功能"""
+
+    @pytest.mark.asyncio
+    async def test_openai_stream_with_text(self):
+        """测试OpenAI流式文本响应"""
+        config = ModelConfig(
+            model_name="deepseek-chat",
+            provider=ModelProvider.DEEPSEEK,
+            api_key="test-key",
+            base_url="https://api.deepseek.com"
+        )
+
+        with patch('app.models.model_adapter.OpenAI') as mock_openai:
+            # Mock streaming response
+            mock_chunk = Mock()
+            mock_chunk.choices = [Mock()]
+            mock_chunk.choices[0].delta = Mock()
+            mock_chunk.choices[0].delta.content = "测试文本"
+            mock_chunk.choices[0].delta.tool_calls = None
+
+            mock_openai.return_value.chat.completions.create.return_value = iter([mock_chunk])
+
+            adapter = OpenAIAdapter(config)
+            events = []
+            async for event in adapter.create_message_stream(
+                messages=[{"role": "user", "content": "test"}],
+                system="test system",
+                tools=[],
+                max_tokens=100
+            ):
+                events.append(event)
+
+            assert len(events) > 0
+            assert events[0]["type"] == "content_block_delta"
+            assert events[0]["delta"]["text"] == "测试文本"
+
+    @pytest.mark.asyncio
+    async def test_openai_stream_with_tool_calls(self):
+        """测试OpenAI流式工具调用"""
+        config = ModelConfig(
+            model_name="deepseek-chat",
+            provider=ModelProvider.DEEPSEEK,
+            api_key="test-key",
+            base_url="https://api.deepseek.com"
+        )
+
+        with patch('app.models.model_adapter.OpenAI') as mock_openai:
+            # Mock tool call chunk
+            mock_chunk = Mock()
+            mock_chunk.choices = [Mock()]
+            mock_chunk.choices[0].delta = Mock()
+            mock_chunk.choices[0].delta.content = None
+
+            mock_tool_call = Mock()
+            mock_tool_call.function = Mock()
+            mock_tool_call.function.name = "get_price"
+            mock_chunk.choices[0].delta.tool_calls = [mock_tool_call]
+
+            mock_openai.return_value.chat.completions.create.return_value = iter([mock_chunk])
+
+            adapter = OpenAIAdapter(config)
+            events = []
+            async for event in adapter.create_message_stream(
+                messages=[{"role": "user", "content": "test"}],
+                system="test system",
+                tools=[{"name": "get_price", "description": "test", "input_schema": {}}],
+                max_tokens=100
+            ):
+                events.append(event)
+
+            assert len(events) > 0
+            assert events[0]["type"] == "content_block_start"
+            assert events[0]["content_block"]["name"] == "get_price"

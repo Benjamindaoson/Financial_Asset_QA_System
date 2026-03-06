@@ -299,3 +299,115 @@ class TestToolExecutionExtended:
 
         assert result["success"] is True
         assert "results" in result["data"]
+
+
+class TestAgentRunStreaming:
+    """测试Agent流式运行"""
+
+    @pytest.fixture
+    def agent(self):
+        """创建agent实例"""
+        with patch('app.agent.core.MarketDataService'), \
+             patch('app.agent.core.HybridRAGPipeline'), \
+             patch('app.agent.core.ConfidenceScorer'), \
+             patch('app.agent.core.WebSearchService'):
+            return AgentCore()
+
+    @pytest.mark.asyncio
+    async def test_run_streaming_with_text_chunks(self, agent):
+        """测试流式响应文本块"""
+        # Mock adapter
+        mock_adapter = Mock()
+
+        # Create mock events
+        async def mock_stream():
+            # Text delta event
+            text_event = Mock()
+            text_event.type = "content_block_delta"
+            text_event.delta = Mock()
+            text_event.delta.type = "text_delta"
+            text_event.delta.text = "测试文本"
+            yield text_event
+
+            # Final message
+            final_msg = Mock()
+            final_msg.content = [Mock(type="text", text="测试文本")]
+            yield {"final_message": final_msg}
+
+        mock_adapter.create_message_stream = Mock(return_value=mock_stream())
+
+        with patch('app.agent.core.ModelAdapterFactory.create_adapter', return_value=mock_adapter):
+            events = []
+            async for event in agent.run("测试查询"):
+                events.append(event)
+
+            # Should have model_selected, chunk, and done events
+            assert len(events) >= 3
+            assert any(e.type == "model_selected" for e in events)
+            assert any(e.type == "chunk" for e in events)
+            assert any(e.type == "done" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_run_streaming_with_tool_calls(self, agent):
+        """测试流式响应工具调用"""
+        mock_adapter = Mock()
+
+        async def mock_stream():
+            # Tool start event
+            tool_event = Mock()
+            tool_event.type = "content_block_start"
+            tool_event.content_block = Mock()
+            tool_event.content_block.type = "tool_use"
+            tool_event.content_block.name = "get_price"
+            yield tool_event
+
+            # Final message with tool use
+            final_msg = Mock()
+            tool_block = Mock()
+            tool_block.type = "tool_use"
+            tool_block.name = "get_price"
+            tool_block.input = {"symbol": "AAPL"}
+            final_msg.content = [tool_block]
+            yield {"final_message": final_msg}
+
+        mock_adapter.create_message_stream = Mock(return_value=mock_stream())
+
+        # Mock tool execution
+        agent.market_service.get_price = AsyncMock(return_value=MarketData(
+            symbol="AAPL",
+            price=150.0,
+            currency="USD",
+            name="Apple Inc.",
+            source="yfinance",
+            timestamp="2024-03-05T10:00:00"
+        ))
+
+        with patch('app.agent.core.ModelAdapterFactory.create_adapter', return_value=mock_adapter):
+            events = []
+            async for event in agent.run("AAPL价格"):
+                events.append(event)
+
+            # Should have tool_start and tool_data events
+            assert any(e.type == "tool_start" for e in events)
+            assert any(e.type == "tool_data" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_run_with_exception_handling(self, agent):
+        """测试异常处理"""
+        mock_adapter = Mock()
+
+        async def mock_stream():
+            raise Exception("API Error")
+            yield  # Make it a generator
+
+        mock_adapter.create_message_stream = Mock(return_value=mock_stream())
+
+        with patch('app.agent.core.ModelAdapterFactory.create_adapter', return_value=mock_adapter):
+            events = []
+            async for event in agent.run("测试"):
+                events.append(event)
+
+            # Should have error event
+            assert any(e.type == "error" for e in events)
+            error_event = next(e for e in events if e.type == "error")
+            assert "API Error" in error_event.message or "LLM_ERROR" in error_event.code

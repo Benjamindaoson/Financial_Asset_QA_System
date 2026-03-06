@@ -139,9 +139,69 @@ class MarketDataService:
         )
 
     async def _fetch_alpha_vantage(self, symbol: str) -> Optional[MarketData]:
-        """Fetch from Alpha Vantage API (fallback)"""
-        # Stub implementation - would call Alpha Vantage API
-        return None
+        """
+        Fetch from Alpha Vantage API (fallback)
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            MarketData or None if failed
+        """
+        if not settings.ALPHA_VANTAGE_API_KEY:
+            return None
+
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    "https://www.alphavantage.co/query",
+                    params={
+                        "function": "GLOBAL_QUOTE",
+                        "symbol": symbol,
+                        "apikey": settings.ALPHA_VANTAGE_API_KEY
+                    }
+                )
+
+                if response.status_code != 200:
+                    print(f"[AlphaVantage] HTTP {response.status_code}")
+                    return None
+
+                data = response.json()
+
+                # Check for errors
+                if "Error Message" in data:
+                    print(f"[AlphaVantage] Error: {data['Error Message']}")
+                    return None
+
+                if "Note" in data:
+                    print(f"[AlphaVantage] Rate limit: {data['Note']}")
+                    return None
+
+                # Parse Global Quote
+                if "Global Quote" not in data:
+                    return None
+
+                quote = data["Global Quote"]
+
+                if not quote or "05. price" not in quote:
+                    return None
+
+                price = float(quote.get("05. price", 0))
+
+                return MarketData(
+                    symbol=symbol,
+                    price=price,
+                    currency="USD",
+                    name=symbol,
+                    source="alpha_vantage",
+                    timestamp=datetime.utcnow().isoformat()
+                )
+
+        except Exception as e:
+            print(f"[AlphaVantage] Request failed: {e}")
+            return None
 
     async def get_history(self, symbol: str, days: int = 30) -> HistoryData:
         """

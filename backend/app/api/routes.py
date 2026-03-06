@@ -80,21 +80,23 @@ async def health() -> HealthResponse:
     try:
         market_service.redis_client.ping()
         components["redis"] = "connected"
-    except:
+    except Exception:
         components["redis"] = "disconnected"
 
     # Check ChromaDB
     try:
         agent.rag_pipeline.get_collection_count()
         components["chromadb"] = "ready"
-    except:
+    except Exception:
         components["chromadb"] = "unavailable"
 
-    # Check Claude API (assume reachable if key is set)
+    # Check model configuration
     components["claude_api"] = "configured" if settings.ANTHROPIC_API_KEY else "not_configured"
+    components["alpha_vantage"] = "configured" if settings.ALPHA_VANTAGE_API_KEY else "not_configured"
+    components["tavily"] = "configured" if settings.TAVILY_API_KEY else "not_configured"
 
-    # Check yfinance (always available as library)
-    components["yfinance"] = "available"
+    # Library-level probe
+    components["yfinance"] = "available" if hasattr(market_service, "_fetch_yfinance_info") else "unavailable"
 
     # Determine overall status
     critical_down = components["redis"] == "disconnected" or components["claude_api"] == "not_configured"

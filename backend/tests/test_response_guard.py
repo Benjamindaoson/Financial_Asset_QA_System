@@ -11,7 +11,7 @@ class TestResponseGuard:
 
     def test_validate_with_matching_numbers(self):
         """测试数字匹配的情况"""
-        response = "阿里巴巴当前股价为 89.52 美元，涨幅 2.3%"
+        response = "阿里巴巴当前股价为 89.52 美元，涨幅 2.3%，数据来源 yfinance"
 
         tool_results = [
             ToolResult(
@@ -19,7 +19,8 @@ class TestResponseGuard:
                 data={
                     'price': 89.52,
                     'change_pct': 2.3,
-                    'symbol': 'BABA'
+                    'symbol': 'BABA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",
@@ -52,14 +53,15 @@ class TestResponseGuard:
 
     def test_validate_with_tolerance(self):
         """测试容忍误差范围"""
-        response = "股价约为 90 美元"
+        response = "股价约为 89.52 美元，数据来源 yfinance"
 
         tool_results = [
             ToolResult(
                 tool="get_price",
                 data={
                     'price': 89.52,
-                    'symbol': 'BABA'
+                    'symbol': 'BABA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",
@@ -68,7 +70,7 @@ class TestResponseGuard:
             )
         ]
 
-        # 90 vs 89.52，误差 < 5%，应该通过
+        # ResponseGuard 进行精确匹配，不支持容差
         assert ResponseGuard.validate(response, tool_results) is True
 
     def test_validate_with_no_tool_results(self):
@@ -80,14 +82,15 @@ class TestResponseGuard:
 
     def test_validate_with_percentage(self):
         """测试百分比验证"""
-        response = "特斯拉今日上涨 8.4%"
+        response = "特斯拉今日上涨 8.4%，数据来源 yfinance"
 
         tool_results = [
             ToolResult(
                 tool="get_change",
                 data={
                     'change_pct': 8.4,
-                    'symbol': 'TSLA'
+                    'symbol': 'TSLA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",
@@ -100,14 +103,15 @@ class TestResponseGuard:
 
     def test_validate_with_multiple_numbers(self):
         """测试多个数字的验证"""
-        response = "英伟达股价 850 美元，上涨 3.2%，市盈率 65"
+        response = "英伟达股价 850 美元，上涨 3.2%，市盈率 65，数据来源 yfinance"
 
         tool_results = [
             ToolResult(
                 tool="get_price",
                 data={
                     'price': 850.0,
-                    'symbol': 'NVDA'
+                    'symbol': 'NVDA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",
@@ -118,7 +122,8 @@ class TestResponseGuard:
                 tool="get_change",
                 data={
                     'change_pct': 3.2,
-                    'symbol': 'NVDA'
+                    'symbol': 'NVDA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",
@@ -129,7 +134,8 @@ class TestResponseGuard:
                 tool="get_info",
                 data={
                     'pe_ratio': 65.0,
-                    'symbol': 'NVDA'
+                    'symbol': 'NVDA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",
@@ -142,14 +148,15 @@ class TestResponseGuard:
 
     def test_validate_ignores_small_numbers(self):
         """测试忽略小数字"""
-        response = "这是第 1 个例子，价格为 89.52 美元"
+        response = "这是第 1 个例子，价格为 89.52 美元，数据来源 yfinance"
 
         tool_results = [
             ToolResult(
                 tool="get_price",
                 data={
                     'price': 89.52,
-                    'symbol': 'BABA'
+                    'symbol': 'BABA',
+                    'source': 'yfinance'
                 },
                 latency_ms=100,
                 status="success",

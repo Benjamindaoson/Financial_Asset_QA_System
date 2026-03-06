@@ -1,536 +1,561 @@
-"""
-Agent Core - Multi-Model Tool Use with streaming
-"""
-import anthropic
+"""Agent core with deterministic routing and grounded response synthesis."""
+
 import json
+import re
 import uuid
-from typing import AsyncGenerator, Dict, Any, List, Optional
 from datetime import datetime
-from app.config import settings
-from app.models import SSEEvent, Source, ToolResult
-from app.models.multi_model import model_manager, QueryComplexity, ModelProvider
-from app.models.model_adapter import ModelAdapterFactory
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
 from app.market import MarketDataService
-from app.rag.hybrid_pipeline import HybridRAGPipeline
+from app.models import SSEEvent, Source, ToolResult
+from app.models.model_adapter import ModelAdapterFactory
+from app.models.multi_model import model_manager
 from app.rag.confidence import ConfidenceScorer
+from app.rag.hybrid_pipeline import HybridRAGPipeline
+from app.routing import QueryRouter, QueryType
 from app.search import WebSearchService
 
 
 class ResponseGuard:
-    """Validates LLM output against tool results"""
+    """Validates the final answer against tool output."""
 
     @staticmethod
     def validate(response_text: str, tool_results: List[ToolResult]) -> bool:
-        """
-        Check if numbers in response match tool results
+        if not response_text.strip():
+            return False
 
-        Args:
-            response_text: LLM generated response text
-            tool_results: List of tool execution results
+        normalized_text = response_text.lower()
 
-        Returns:
-            bool: True if validation passes, False if hallucination detected
-        """
-        import re
-
-        if not tool_results:
-            return True
-
-        # Extract numbers from response (prices, percentages, etc.)
-        response_numbers = []
-        for match in re.finditer(r'\d+\.?\d*', response_text):
-            num = float(match.group())
-            if num > 0.01:  # Ignore very small numbers
-                response_numbers.append(num)
-
-        # Extract key numbers from tool results
-        tool_numbers = []
+        grounded_numbers: set[str] = set()
+        grounded_sources: set[str] = set()
         for result in tool_results:
-            if not hasattr(result, 'data') or not result.data:
-                continue
+            ResponseGuard._collect_numbers(result.data, grounded_numbers)
+            source_name = result.data.get("source")
+            if source_name:
+                grounded_sources.add(str(source_name).lower())
+            grounded_sources.add(result.data_source.lower())
 
-            data = result.data
-
-            # Price
-            if 'price' in data and data['price']:
-                tool_numbers.append(float(data['price']))
-
-            # Change percentage (absolute value)
-            if 'change_pct' in data and data['change_pct'] is not None:
-                tool_numbers.append(abs(float(data['change_pct'])))
-
-            # Market cap (convert to billions)
-            if 'market_cap' in data and data['market_cap']:
-                tool_numbers.append(float(data['market_cap']) / 1e9)
-
-            # PE ratio
-            if 'pe_ratio' in data and data['pe_ratio']:
-                tool_numbers.append(float(data['pe_ratio']))
-
-        if not tool_numbers:
+        if not grounded_numbers:
             return True
 
-        # Check if response numbers match tool results (within 5% tolerance)
-        for rn in response_numbers:
-            matched = False
-            for tn in tool_numbers:
-                if tn == 0:
+        text_numbers = ResponseGuard._extract_numeric_tokens(response_text)
+        allowed_numbers = grounded_numbers | ResponseGuard._allowable_numbers(tool_results)
+        unsupported_numbers = {
+            number
+            for number in text_numbers
+            if number not in allowed_numbers and not ResponseGuard._is_ignorable_number(number)
+        }
+        matched_number = any(number in text_numbers for number in grounded_numbers if number)
+        has_source_section = "source" in normalized_text or "来源" in response_text
+        matched_source = True
+        if has_source_section and grounded_sources:
+            matched_source = any(source in normalized_text for source in grounded_sources)
+        return matched_number and matched_source and not unsupported_numbers
+
+    @staticmethod
+    def _collect_numbers(value: Any, bucket: set[str]):
+        if isinstance(value, dict):
+            for item in value.values():
+                ResponseGuard._collect_numbers(item, bucket)
+            return
+        if isinstance(value, list):
+            for item in value:
+                ResponseGuard._collect_numbers(item, bucket)
+            return
+        if isinstance(value, (int, float)):
+            bucket.add(f"{value}")
+            bucket.add(f"{value:.2f}")
+            bucket.add(f"{int(value)}")
+
+    @staticmethod
+    def _extract_numeric_tokens(text: str) -> set[str]:
+        tokens = set()
+        for raw_token in re.findall(r"\d+(?:\.\d+)?", text):
+            normalized = raw_token.lstrip("0") or "0"
+            tokens.add(normalized)
+            if "." in normalized:
+                try:
+                    number = float(normalized)
+                    tokens.add(f"{number:.2f}")
+                    tokens.add(str(int(number)))
+                except ValueError:
                     continue
-                error_rate = abs(rn - tn) / tn
-                if error_rate < 0.05:  # 5% tolerance
-                    matched = True
-                    break
+            else:
+                try:
+                    number = int(normalized)
+                    tokens.add(str(number))
+                    tokens.add(f"{float(number):.2f}")
+                except ValueError:
+                    continue
+        return tokens
 
-            # If large number doesn't match, validation fails
-            if not matched and rn > 10:
-                print(f"[ResponseGuard] Validation failed: {rn} doesn't match tool results")
+    @staticmethod
+    def _allowable_numbers(tool_results: List[ToolResult]) -> set[str]:
+        allowed = set()
+        for result in tool_results:
+            payload = result.data
+            if "timestamp" in payload and isinstance(payload["timestamp"], str):
+                allowed.update(ResponseGuard._extract_numeric_tokens(payload["timestamp"]))
+            if "published" in payload and isinstance(payload["published"], str):
+                allowed.update(ResponseGuard._extract_numeric_tokens(payload["published"]))
+        return allowed
+
+    @staticmethod
+    def _is_ignorable_number(token: str) -> bool:
+        try:
+            value = float(token)
+            if not value.is_integer():
                 return False
-
-        return True
+            return int(value) <= 5
+        except ValueError:
+            return False
 
 
 class AgentCore:
     """
-    Multi-Model Agent with Tool Use
-    Supports Claude, DeepSeek, GPT, and other models
-    Handles streaming responses and tool execution
+    Deterministic financial QA agent.
+
+    The backend decides the workflow and tools. The LLM only explains verified
+    results and never decides whether to fetch facts.
     """
 
     def __init__(self, preferred_model: Optional[str] = None):
-        # Multi-model manager
         self.model_manager = model_manager
         self.preferred_model = preferred_model
 
-        # Services
         self.market_service = MarketDataService()
         self.rag_pipeline = HybridRAGPipeline()
         self.confidence_scorer = ConfidenceScorer()
         self.search_service = WebSearchService()
+        self.query_router = QueryRouter()
         self.guard = ResponseGuard()
+        self.tools = self._build_tools()
 
-        # Current adapter (will be set per request)
-        self.current_adapter = None
-        self.current_model_name = None
-
-        # Define tools for Claude
-        self.tools = [
+    def _build_tools(self) -> List[Dict[str, Any]]:
+        return [
             {
                 "name": "get_price",
-                "description": "获取股票/资产的当前价格。支持美股、A股、港股、加密货币。",
+                "description": "Get the latest market price for an asset symbol.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码，如 AAPL, BABA, 600519.SS, BTC-USD"
-                        }
+                        "symbol": {"type": "string", "description": "Asset symbol such as AAPL or BABA"}
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             },
             {
                 "name": "get_history",
-                "description": "获取股票的历史价格数据（K线）。",
+                "description": "Get historical OHLCV price data.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码"
-                        },
-                        "days": {
-                            "type": "integer",
-                            "description": "历史天数，默认30天",
-                            "default": 30
-                        }
+                        "symbol": {"type": "string"},
+                        "days": {"type": "integer", "default": 30},
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             },
             {
                 "name": "get_change",
-                "description": "计算股票在指定时间段内的涨跌幅。",
+                "description": "Calculate price change for a recent window.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码"
-                        },
-                        "days": {
-                            "type": "integer",
-                            "description": "统计天数，默认7天",
-                            "default": 7
-                        }
+                        "symbol": {"type": "string"},
+                        "days": {"type": "integer", "default": 7},
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             },
             {
                 "name": "get_info",
-                "description": "获取公司基本面信息（行业、市值、PE等）。",
+                "description": "Get company or asset profile information.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码"
-                        }
+                        "symbol": {"type": "string"},
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             },
             {
                 "name": "search_knowledge",
-                "description": "检索金融知识库，回答概念性问题（如：什么是市盈率）。",
+                "description": "Search the internal financial knowledge base.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "检索关键词"
-                        }
+                        "query": {"type": "string"},
                     },
-                    "required": ["query"]
-                }
+                    "required": ["query"],
+                },
             },
             {
                 "name": "search_web",
-                "description": "搜索网络新闻和事件，用于分析市场动态。",
+                "description": "Search external web and news sources.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "搜索关键词"
-                        }
+                        "query": {"type": "string"},
                     },
-                    "required": ["query"]
-                }
-            }
+                    "required": ["query"],
+                },
+            },
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a tool and return result"""
+        """Execute a tool and return a normalized result payload."""
         start_time = datetime.now()
 
         try:
             if tool_name == "get_price":
                 result = await self.market_service.get_price(tool_input["symbol"])
                 data = result.model_dump()
-
             elif tool_name == "get_history":
-                result = await self.market_service.get_history(
-                    tool_input["symbol"],
-                    tool_input.get("days", 30)
-                )
+                result = await self.market_service.get_history(tool_input["symbol"], tool_input.get("days", 30))
                 data = result.model_dump()
-
             elif tool_name == "get_change":
-                result = await self.market_service.get_change(
-                    tool_input["symbol"],
-                    tool_input.get("days", 7)
-                )
+                result = await self.market_service.get_change(tool_input["symbol"], tool_input.get("days", 7))
                 data = result.model_dump()
-
             elif tool_name == "get_info":
                 result = await self.market_service.get_info(tool_input["symbol"])
                 data = result.model_dump()
-
             elif tool_name == "search_knowledge":
                 result = await self.rag_pipeline.search(tool_input["query"], use_hybrid=True)
-
-                # 计算置信度
                 confidence = 0.0
                 if result.documents:
-                    confidence = self.confidence_scorer.calculate(
-                        tool_input["query"],
-                        result.documents
-                    )
-
+                    confidence = self.confidence_scorer.calculate(tool_input["query"], result.documents)
                 data = result.model_dump()
                 data["confidence"] = confidence
                 data["confidence_level"] = self.confidence_scorer.get_confidence_level(confidence)
-
             elif tool_name == "search_web":
                 result = await self.search_service.search(tool_input["query"])
                 data = result.model_dump()
-
             else:
-                data = {"error": f"Unknown tool: {tool_name}"}
+                latency = int((datetime.now() - start_time).total_seconds() * 1000)
+                return {
+                    "success": True,
+                    "tool": tool_name,
+                    "data": {"error": f"Unknown tool: {tool_name}"},
+                    "latency_ms": latency,
+                    "status": "error",
+                    "data_source": tool_name,
+                    "cache_hit": False,
+                    "error_message": f"Unknown tool: {tool_name}",
+                }
 
             latency = int((datetime.now() - start_time).total_seconds() * 1000)
-
+            data_source = data.get("source", tool_name) if isinstance(data, dict) else tool_name
             return {
                 "success": True,
+                "tool": tool_name,
                 "data": data,
                 "latency_ms": latency,
-                "tool": tool_name
+                "status": "success",
+                "data_source": data_source,
+                "cache_hit": False,
+                "error_message": None,
             }
-
-        except Exception as e:
+        except Exception as exc:
             latency = int((datetime.now() - start_time).total_seconds() * 1000)
             return {
                 "success": False,
-                "error": str(e),
+                "tool": tool_name,
+                "data": {"error": str(exc)},
                 "latency_ms": latency,
-                "tool": tool_name
+                "status": "error",
+                "data_source": tool_name,
+                "cache_hit": False,
+                "error_message": str(exc),
+                "error": str(exc),
             }
 
-    async def _execute_tools_parallel(
-        self,
-        tool_calls: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Execute multiple tools in parallel
-
-        Args:
-            tool_calls: List of tool calls, format: [{"name": "get_price", "input": {...}}, ...]
-
-        Returns:
-            List of tool execution results
-        """
-        import asyncio
-
-        if not tool_calls:
-            return []
-
-        # Create parallel tasks
-        tasks = [
-            self._execute_tool(call['name'], call['input'])
-            for call in tool_calls
-        ]
-
-        # Execute in parallel, catch exceptions
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Process exception results
-        processed_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                processed_results.append({
-                    'success': False,
-                    'error': str(result),
-                    'tool': tool_calls[i]['name'],
-                    'latency_ms': 0
-                })
-            else:
-                processed_results.append(result)
-
-        return processed_results
-
     def _select_model(self, query: str) -> str:
-        """选择合适的模型"""
         if self.preferred_model:
             return self.preferred_model
 
-        # 自动分类查询复杂度
         complexity = self.model_manager.classify_query(query)
         model_name = self.model_manager.select_model(complexity)
-
         print(f"[AgentCore] Query complexity: {complexity}, Selected model: {model_name}")
         return model_name
 
+    def _build_tool_plan(self, query: str) -> List[Dict[str, Any]]:
+        route = self.query_router.classify(query)
+        primary_symbol = route.symbols[0] if route.symbols else None
+        days = route.days or 30
+        plan: List[Dict[str, Any]] = []
+
+        def add_tool(name: str, params: Dict[str, Any], display: str):
+            plan.append({"name": name, "params": params, "display": display})
+
+        if route.query_type == QueryType.MARKET and primary_symbol:
+            if route.requires_price:
+                add_tool("get_price", {"symbol": primary_symbol}, f"Fetching latest price for {primary_symbol}...")
+            if route.requires_change:
+                add_tool("get_change", {"symbol": primary_symbol, "days": route.days or 7}, f"Calculating {route.days or 7} day change for {primary_symbol}...")
+            if route.requires_history:
+                add_tool("get_history", {"symbol": primary_symbol, "days": days}, f"Loading price history for {primary_symbol}...")
+            if route.requires_info:
+                add_tool("get_info", {"symbol": primary_symbol}, f"Loading profile for {primary_symbol}...")
+        elif route.query_type == QueryType.KNOWLEDGE:
+            if self._looks_like_generic_chat(route.cleaned_query):
+                return []
+            add_tool("search_knowledge", {"query": route.cleaned_query}, "Searching the financial knowledge base...")
+        elif route.query_type == QueryType.NEWS:
+            add_tool("search_web", {"query": route.cleaned_query}, "Searching recent market news...")
+        elif route.query_type == QueryType.HYBRID:
+            if primary_symbol:
+                add_tool("get_change", {"symbol": primary_symbol, "days": route.days or 7}, f"Calculating price move for {primary_symbol}...")
+                if route.requires_price:
+                    add_tool("get_price", {"symbol": primary_symbol}, f"Fetching latest price for {primary_symbol}...")
+                if route.requires_history:
+                    add_tool("get_history", {"symbol": primary_symbol, "days": days}, f"Loading price history for {primary_symbol}...")
+            if route.requires_knowledge:
+                add_tool("search_knowledge", {"query": route.cleaned_query}, "Searching supporting background knowledge...")
+            if route.requires_web or not primary_symbol:
+                add_tool("search_web", {"query": route.cleaned_query}, "Searching recent market news...")
+
+        return plan
+
+    @staticmethod
+    def _looks_like_generic_chat(query: str) -> bool:
+        lowered = query.lower()
+        generic_markers = {
+            "\u6d4b\u8bd5",
+            "\u4f60\u597d",
+            "hello",
+            "hi",
+        }
+        finance_markers = {
+            "\u5e02\u76c8\u7387",
+            "\u51c0\u5229\u6da6",
+            "\u6536\u5165",
+            "\u73b0\u91d1\u6d41",
+            "\u80a1\u4ef7",
+            "\u4ef7\u683c",
+            "\u8d22\u62a5",
+            "pe",
+            "eps",
+            "revenue",
+            "profit",
+            "market",
+            "stock",
+            "price",
+        }
+        if any(marker in lowered or marker in query for marker in generic_markers):
+            return True
+        return not any(marker in lowered or marker in query for marker in finance_markers)
+
+    def _normalize_tool_result(self, raw_result: Dict[str, Any]) -> ToolResult:
+        return ToolResult(
+            tool=raw_result["tool"],
+            data=raw_result["data"],
+            latency_ms=raw_result["latency_ms"],
+            status=raw_result["status"],
+            data_source=raw_result["data_source"],
+            cache_hit=raw_result["cache_hit"],
+            error_message=raw_result["error_message"],
+        )
+
+    def _build_grounded_messages(self, query: str, tool_results: List[ToolResult]) -> List[Dict[str, str]]:
+        tool_payload = [
+            {
+                "tool": result.tool,
+                "data_source": result.data_source,
+                "latency_ms": result.latency_ms,
+                "data": result.data,
+            }
+            for result in tool_results
+        ]
+        content = (
+            f"User question: {query}\n\n"
+            "You must answer only from the verified tool results below.\n"
+            "Do not invent prices, percentages, dates, or news events.\n"
+            "Output exactly these four sections:\n"
+            "1. Data Summary\n"
+            "2. Analysis\n"
+            "3. Sources\n"
+            "4. Uncertainty\n"
+            "If evidence is insufficient, explicitly say so.\n\n"
+            f"Tool results JSON:\n{json.dumps(tool_payload, ensure_ascii=False, indent=2)}"
+        )
+        return [{"role": "user", "content": content}]
+
+    def _fallback_response(self, tool_results: List[ToolResult]) -> str:
+        lines = ["## Data Summary"]
+        for result in tool_results:
+            payload = result.data
+            if result.tool == "get_price":
+                lines.append(f"- {payload.get('symbol')}: {payload.get('price')} {payload.get('currency', '')}".strip())
+            elif result.tool == "get_change":
+                lines.append(f"- {payload.get('symbol')} {payload.get('days')} day change: {payload.get('change_pct')}%")
+            elif result.tool == "get_info":
+                lines.append(f"- {payload.get('symbol')} sector: {payload.get('sector') or 'unknown'}")
+            elif result.tool == "search_knowledge":
+                docs = payload.get("documents", [])
+                if docs:
+                    lines.append(f"- Knowledge: {docs[0].get('content', '')[:120]}")
+            elif result.tool == "search_web":
+                results = payload.get("results", [])
+                if results:
+                    lines.append(f"- News: {results[0].get('title', '')}")
+
+        lines.extend(
+            [
+                "",
+                "## Analysis",
+                "- This answer is generated only from verified tool outputs.",
+                "",
+                "## Sources",
+            ]
+        )
+        for result in tool_results:
+            lines.append(f"- {result.data_source}")
+        lines.extend(
+            [
+                "",
+                "## Uncertainty",
+                "- If you need a stronger conclusion, confirm that both market data and news providers are available.",
+            ]
+        )
+        return "\n".join(lines)
+
+    async def _stream_grounded_answer(
+        self,
+        query: str,
+        model_name: str,
+        tool_results: List[ToolResult],
+    ) -> AsyncGenerator[SSEEvent, None]:
+        model_config = self.model_manager.models[model_name]
+        adapter = ModelAdapterFactory.create_adapter(model_config)
+        messages = self._build_grounded_messages(query, tool_results) if tool_results else [{"role": "user", "content": query}]
+        system_prompt = (
+            "You are a financial QA assistant. "
+            "If tool results are provided, stay grounded in them. "
+            "If no tool results are provided, answer conservatively and do not invent financial facts."
+        )
+
+        final_text = ""
+        try:
+            stream = adapter.create_message_stream(
+                messages=messages,
+                system=system_prompt,
+                tools=[],
+                max_tokens=1200,
+            )
+
+            async for event in stream:
+                if isinstance(event, dict) and "final_message" in event:
+                    final_message = event["final_message"]
+                    if hasattr(final_message, "content"):
+                        for block in final_message.content:
+                            if getattr(block, "type", None) == "text" and block.text and block.text not in final_text:
+                                final_text += block.text
+                    continue
+
+                event_type = getattr(event, "type", None)
+                if event_type == "content_block_delta" and getattr(event, "delta", None):
+                    if getattr(event.delta, "type", None) == "text_delta":
+                        final_text += event.delta.text
+                        yield SSEEvent(type="chunk", text=event.delta.text)
+                elif isinstance(event, dict) and event.get("type") == "content_block_delta":
+                    delta = event.get("delta", {})
+                    text = delta.get("text", "")
+                    if text:
+                        final_text += text
+                        yield SSEEvent(type="chunk", text=text)
+        except Exception:
+            if not tool_results:
+                raise
+            final_text = ""
+
+        if not final_text and tool_results:
+            yield SSEEvent(type="chunk", text=self._fallback_response(tool_results))
+
     async def run(self, query: str, model_name: Optional[str] = None) -> AsyncGenerator[SSEEvent, None]:
-        """
-        Run agent with streaming response
-        Yields SSE events: tool_start, tool_data, chunk, done, error
-
-        Args:
-            query: 用户查询
-            model_name: 指定模型名称（可选，不指定则自动选择）
-        """
+        """Run the grounded workflow with streaming response."""
         request_id = str(uuid.uuid4())
-        tool_results = []
-        sources = []
+        tool_results: List[ToolResult] = []
+        sources: List[Source] = []
 
-        # 选择模型
         if not model_name:
             model_name = self._select_model(query)
 
-        self.current_model_name = model_name
         model_config = self.model_manager.models.get(model_name)
-
         if not model_config:
             yield SSEEvent(
                 type="error",
                 message=f"Model {model_name} not found",
-                code="MODEL_NOT_FOUND"
+                code="MODEL_NOT_FOUND",
             )
             return
 
-        # 创建适配器
-        self.current_adapter = ModelAdapterFactory.create_adapter(model_config)
-
-        # 发送模型选择事件
         yield SSEEvent(
             type="model_selected",
             model=model_name,
             provider=model_config.provider,
-            complexity=self.model_manager.classify_query(query)
+            complexity=self.model_manager.classify_query(query),
         )
 
-        # System prompt
-        system_prompt = """你是专业的金融分析助手，为专业投资者提供决策参考。
-
-【核心原则】
-1. 所有金融数字必须来自工具调用，不要编造数据
-2. 使用工具获取事实数据后，再组织回答
-3. 回答必须结构化，按以下格式组织
-4. 明确标注数据来源
-
-【回答结构】（必须遵循）
-
-📊 数据摘要
-- 当前价格：[从 get_price 工具获取]
-- 涨跌幅：[从 get_change 工具获取]
-- 成交量：[如有数据则展示]
-
-📈 技术分析
-- RSI 指标：[从历史数据计算并解读：超买/超卖/正常]
-- MACD 指标：[从历史数据计算并解读：金叉/死叉/震荡]
-- 趋势判断：[上涨/下跌/震荡]
-
-💡 参考观点
-- 基于以上数据的客观分析
-- 可能的交易机会或风险点
-- 【重要】明确说明"以上内容仅供参考，不构成投资建议"
-
-⚠️ 风险提示
-- 技术风险：[如 RSI 超买则提示回调风险]
-- 市场风险：[大盘走势、行业风险等]
-- 其他风险：[政策、估值等]
-
-【可用工具】
-- get_price: 查询当前价格
-- get_history: 查询历史数据（用于计算技术指标，建议获取 30 天数据）
-- get_change: 计算涨跌幅
-- get_info: 查询公司信息
-- search_knowledge: 检索金融知识
-- search_web: 搜索新闻事件
-
-【重要提示】
-- 必须先调用工具获取数据，再组织回答
-- 技术指标需要历史数据，记得调用 get_history
-- 回答要专业但易懂，避免过度使用术语
-- 永远不要直接推荐"买入"或"卖出"，只提供"参考观点"
-- 所有建议都要加上免责声明"""
-
-        messages = [{"role": "user", "content": query}]
-
-        # 记录token使用（初始估算）
-        tokens_input = len(query) // 4  # 粗略估算
+        tokens_input = len(query) // 4
         tokens_output = 0
 
         try:
-            # 使用适配器创建流式响应
-            stream = self.current_adapter.create_message_stream(
-                messages=messages,
-                system=system_prompt,
-                tools=self.tools,
-                max_tokens=2048
-            )
+            tool_plan = self._build_tool_plan(query)
+            for step in tool_plan:
+                yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
+                raw_result = await self._execute_tool(step["name"], step["params"])
+                if not raw_result["success"]:
+                    raise RuntimeError(raw_result["error"])
 
-            async for event in stream:
-                # 处理最终消息（包含完整信息）
-                if isinstance(event, dict) and "final_message" in event:
-                    final_message = event["final_message"]
+                tool_result = self._normalize_tool_result(raw_result)
+                tool_results.append(tool_result)
 
-                    # 处理工具调用
-                    if hasattr(final_message, "content"):
-                        for block in final_message.content:
-                            if block.type == "tool_use":
-                                # Execute tool
-                                tool_result = await self._execute_tool(
-                                    block.name,
-                                    block.input
-                                )
+                payload = tool_result.data
+                timestamp = payload.get("timestamp") or datetime.utcnow().isoformat()
+                sources.append(Source(name=payload.get("source", step["name"]), timestamp=timestamp))
+                yield SSEEvent(type="tool_data", tool=step["name"], data=payload)
 
-                                if tool_result["success"]:
-                                    tool_results.append(tool_result)
-                                    sources.append(Source(
-                                        name=tool_result["data"].get("source", block.name),
-                                        timestamp=datetime.utcnow().isoformat()
-                                    ))
+            answer_chunks: List[str] = []
+            async for answer_event in self._stream_grounded_answer(query, model_name, tool_results):
+                if answer_event.text:
+                    answer_chunks.append(answer_event.text)
+                    tokens_output += len(answer_event.text) // 4
+                yield answer_event
 
-                                    # Send tool data
-                                    yield SSEEvent(
-                                        type="tool_data",
-                                        tool=block.name,
-                                        data=tool_result["data"]
-                                    )
-
-                    # 获取最终文本
-                    final_text = ""
-                    if hasattr(final_message, "content"):
-                        for block in final_message.content:
-                            if block.type == "text":
-                                final_text += block.text
-
-                    tokens_output = len(final_text) // 4
-                    continue
-
-                # Tool use event
-                if hasattr(event, "type") and event.type == "content_block_start":
-                    if hasattr(event, "content_block") and event.content_block.type == "tool_use":
-                        tool_name = event.content_block.name
-                        yield SSEEvent(
-                            type="tool_start",
-                            name=tool_name,
-                            display=f"正在调用 {tool_name}..."
-                        )
-
-                # Text delta
-                elif hasattr(event, "type") and event.type == "content_block_delta":
-                    if hasattr(event, "delta") and event.delta.type == "text_delta":
-                        tokens_output += len(event.delta.text) // 4
-                        yield SSEEvent(
-                            type="chunk",
-                            text=event.delta.text
-                        )
-
-            # 记录使用情况
+            final_text = "".join(answer_chunks)
             self.model_manager.record_usage(
                 model_name=model_name,
                 tokens_input=tokens_input,
                 tokens_output=tokens_output,
-                success=True
+                success=True,
             )
 
-            # Validate response
-            verified = self.guard.validate(final_text if 'final_text' in locals() else "", tool_results)
-
-            # Send done event
             yield SSEEvent(
                 type="done",
-                verified=verified,
+                verified=self.guard.validate(final_text, tool_results),
                 sources=sources,
                 request_id=request_id,
                 model=model_name,
                 tokens_input=tokens_input,
-                tokens_output=tokens_output
+                tokens_output=tokens_output,
             )
-
-        except Exception as e:
-            # 记录失败
+        except Exception as exc:
             self.model_manager.record_usage(
                 model_name=model_name,
                 tokens_input=tokens_input,
                 tokens_output=tokens_output,
-                success=False
+                success=False,
             )
-
             yield SSEEvent(
                 type="error",
-                message=str(e),
+                message=str(exc),
                 code="LLM_ERROR",
-                model=model_name
+                model=model_name,
             )
 
     def get_available_models(self) -> List[Dict[str, Any]]:
-        """获取可用模型列表"""
         return self.model_manager.list_models()
 
     def get_usage_report(self) -> Dict[str, Any]:
-        """获取使用报告"""
         return self.model_manager.get_usage_report()

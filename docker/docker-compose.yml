@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
@@ -10,14 +8,21 @@ services:
 
   backend:
     build:
-      context: ../backend
-      dockerfile: ../docker/Dockerfile.backend
+      context: ..
+      dockerfile: docker/Dockerfile.backend
     ports:
       - "8000:8000"
     environment:
-      - REDIS_URL=redis://redis:6379
-    env_file:
-      - ../backend/.env
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-your_anthropic_api_key_here}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-your_tavily_api_key_here}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-your_alpha_vantage_api_key_here}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      LOG_LEVEL: INFO
     depends_on:
       - redis
     volumes:
@@ -27,8 +32,8 @@ services:
 
   frontend:
     build:
-      context: ../frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
     ports:
       - "5173:5173"
     volumes:

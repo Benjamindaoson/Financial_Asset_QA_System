@@ -1,6 +1,11 @@
 """
 FastAPI Main Application
 """
+import os
+
+# Set HuggingFace mirror for users in restricted network environments BEFORE any model imports
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import router

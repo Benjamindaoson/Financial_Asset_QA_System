@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings"""
 
     # API Keys
-    ANTHROPIC_API_KEY: str
+    ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_BASE_URL: Optional[str] = None
     TAVILY_API_KEY: Optional[str] = None
     ALPHA_VANTAGE_API_KEY: Optional[str] = None

@@ -320,7 +320,7 @@ class TestAgentRunStreaming:
         mock_adapter = Mock()
 
         # Create mock events
-        async def mock_stream():
+        async def mock_stream(*args, **kwargs):
             # Text delta event
             text_event = Mock()
             text_event.type = "content_block_delta"
@@ -334,7 +334,7 @@ class TestAgentRunStreaming:
             final_msg.content = [Mock(type="text", text="测试文本")]
             yield {"final_message": final_msg}
 
-        mock_adapter.create_message_stream = Mock(return_value=mock_stream())
+        mock_adapter.create_message_stream = Mock(side_effect=mock_stream)
 
         with patch('app.agent.core.ModelAdapterFactory.create_adapter', return_value=mock_adapter):
             events = []
@@ -352,7 +352,7 @@ class TestAgentRunStreaming:
         """测试流式响应工具调用"""
         mock_adapter = Mock()
 
-        async def mock_stream():
+        async def mock_stream(*args, **kwargs):
             # Tool start event
             tool_event = Mock()
             tool_event.type = "content_block_start"
@@ -370,7 +370,7 @@ class TestAgentRunStreaming:
             final_msg.content = [tool_block]
             yield {"final_message": final_msg}
 
-        mock_adapter.create_message_stream = Mock(return_value=mock_stream())
+        mock_adapter.create_message_stream = Mock(side_effect=mock_stream)
 
         # Mock tool execution
         agent.market_service.get_price = AsyncMock(return_value=MarketData(
@@ -396,11 +396,11 @@ class TestAgentRunStreaming:
         """测试异常处理"""
         mock_adapter = Mock()
 
-        async def mock_stream():
+        async def mock_stream(*args, **kwargs):
             raise Exception("API Error")
             yield  # Make it a generator
 
-        mock_adapter.create_message_stream = Mock(return_value=mock_stream())
+        mock_adapter.create_message_stream = Mock(side_effect=mock_stream)
 
         with patch('app.agent.core.ModelAdapterFactory.create_adapter', return_value=mock_adapter):
             events = []

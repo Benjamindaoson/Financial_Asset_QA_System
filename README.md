@@ -10,7 +10,7 @@
 
 **基于 AI 的智能金融问答系统，融合实时市场数据、RAG 知识检索和高级推理能力**
 
-[功能特性](#-功能特性) • [系统架构](#-系统架构) • [快速开始](#-快速开始) • [文档](#-文档) • [贡献指南](#-贡献指南)
+[功能特性](#-功能特性) • [快速开始](#-快速开始一键部署) • [详细安装](#-详细安装步骤) • [使用说明](#-使用说明) • [故障排除](#-故障排除)
 
 </div>
 
@@ -38,11 +38,6 @@
 - **置信度评分**: 自动答案质量评估
 - **本地重排**: 隐私保护的文档重排序
 
-### 🔍 网络搜索集成
-- **实时新闻**: Tavily 驱动的网络搜索获取市场事件
-- **上下文感知**: 结合市场数据和新闻进行综合分析
-- **来源归属**: 完整透明的来源追踪
-
 ### 🎨 现代化用户界面
 - **流式响应**: React 18 实时 SSE 流式传输
 - **交互式图表**: Recharts 驱动的 OHLCV 可视化
@@ -51,7 +46,426 @@
 
 ---
 
-## 🏗️ 系统架构
+## 🚀 快速开始（一键部署）
+
+### Windows 用户
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
+cd Financial_Asset_QA_System
+
+# 2. 运行一键安装脚本
+.\install.bat
+```
+
+### Linux/Mac 用户
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
+cd Financial_Asset_QA_System
+
+# 2. 运行一键安装脚本
+chmod +x install.sh
+./install.sh
+```
+
+安装脚本会自动：
+- ✅ 检查并安装 Python 3.11+
+- ✅ 检查并安装 Node.js 18+
+- ✅ 安装 Redis（Docker）
+- ✅ 安装后端依赖
+- ✅ 安装前端依赖
+- ✅ 配置环境变量
+- ✅ 启动所有服务
+- ✅ 自动打开浏览器
+
+---
+
+## 📋 详细安装步骤
+
+### 前置要求
+
+#### 必需软件
+
+| 软件 | 版本要求 | 下载地址 | 用途 |
+|------|---------|---------|------|
+| **Python** | 3.11+ | [python.org](https://www.python.org/downloads/) | 后端运行环境 |
+| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) | 前端运行环境 |
+| **Redis** | 7+ | [redis.io](https://redis.io/download) 或 Docker | 缓存服务 |
+| **Git** | 最新版 | [git-scm.com](https://git-scm.com/) | 代码管理 |
+
+#### 可选软件
+
+| 软件 | 用途 |
+|------|------|
+| **Docker** | 简化 Redis 安装 |
+| **VS Code** | 推荐的代码编辑器 |
+
+### 第一步：安装 Python 3.11+
+
+#### Windows
+1. 访问 https://www.python.org/downloads/
+2. 下载 Python 3.11 或更高版本
+3. 安装时**勾选** "Add Python to PATH"
+4. 验证安装：
+```bash
+python --version
+# 应显示: Python 3.11.x
+```
+
+#### Linux (Ubuntu/Debian)
+```bash
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3-pip
+```
+
+#### Mac
+```bash
+brew install python@3.11
+```
+
+### 第二步：安装 Node.js 18+
+
+#### Windows
+1. 访问 https://nodejs.org/
+2. 下载 LTS 版本（18.x 或更高）
+3. 运行安装程序
+4. 验证安装：
+```bash
+node --version
+# 应显示: v18.x.x 或更高
+
+npm --version
+# 应显示: 9.x.x 或更高
+```
+
+#### Linux (Ubuntu/Debian)
+```bash
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+#### Mac
+```bash
+brew install node@18
+```
+
+### 第三步：安装 Redis
+
+#### 方式 1: Docker（推荐）
+
+```bash
+# 安装 Docker Desktop
+# Windows/Mac: https://www.docker.com/products/docker-desktop
+# Linux: https://docs.docker.com/engine/install/
+
+# 启动 Redis
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# 验证 Redis 运行
+docker ps | grep redis
+```
+
+#### 方式 2: 直接安装
+
+**Windows:**
+1. 下载 Redis for Windows: https://github.com/tporadowski/redis/releases
+2. 解压并运行 `redis-server.exe`
+
+**Linux:**
+```bash
+sudo apt install redis-server
+sudo systemctl start redis
+sudo systemctl enable redis
+```
+
+**Mac:**
+```bash
+brew install redis
+brew services start redis
+```
+
+### 第四步：克隆项目
+
+```bash
+git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
+cd Financial_Asset_QA_System
+```
+
+### 第五步：配置后端
+
+```bash
+cd backend
+
+# 创建虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 复制环境变量模板
+cp .env.example .env
+```
+
+### 第六步：配置环境变量
+
+编辑 `backend/.env` 文件：
+
+```env
+# ============================================
+# 必需配置（必须填写）
+# ============================================
+
+# Anthropic Claude API Key（必需）
+# 获取地址: https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxx
+
+# Tavily 搜索 API Key（必需）
+# 获取地址: https://tavily.com/
+TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxxxxxxx
+
+# ============================================
+# 可选配置（可以使用默认值）
+# ============================================
+
+# Alpha Vantage API Key（可选，用于降级）
+# 获取地址: https://www.alphavantage.co/support/#api-key
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+
+# Redis 配置
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# 缓存 TTL（秒）
+CACHE_TTL_PRICE=60
+CACHE_TTL_HISTORY=86400
+CACHE_TTL_INFO=604800
+
+# 日志级别
+LOG_LEVEL=INFO
+
+# RAG 配置
+CHROMA_PERSIST_DIR=../vectorstore
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+TOP_K=5
+SIMILARITY_THRESHOLD=0.7
+
+# 模型配置
+DEFAULT_MODEL=claude-opus
+MAX_TOKENS=1500
+TEMPERATURE=0.7
+```
+
+### 第七步：安装前端依赖
+
+```bash
+cd ../frontend
+npm install
+```
+
+### 第八步：启动服务
+
+#### 启动 Redis（如果还没启动）
+
+```bash
+# Docker 方式
+docker start redis
+
+# 或直接运行
+redis-server
+```
+
+#### 启动后端
+
+```bash
+cd backend
+
+# 激活虚拟环境（如果还没激活）
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# 启动后端服务
+python -m app.main
+```
+
+后端将运行在: `http://localhost:8000`
+
+#### 启动前端（新终端）
+
+```bash
+cd frontend
+npm run dev
+```
+
+前端将运行在: `http://localhost:5173` 或其他可用端口
+
+### 第九步：访问应用
+
+打开浏览器访问前端显示的地址（通常是 `http://localhost:5173`）
+
+---
+
+## 🎯 使用说明
+
+### 市场查询示例
+
+```
+用户: 苹果股票今天涨了多少
+系统:
+  ✅ 实时获取 AAPL 价格数据
+  ✅ 显示涨跌幅和百分比
+  ✅ 展示 30 日价格走势图
+  ✅ 标注数据来源（yfinance）
+```
+
+```
+用户: 特斯拉最近走势如何
+系统:
+  ✅ 分析 TSLA 近期表现
+  ✅ 技术指标分析（RSI、MACD）
+  ✅ 趋势判断和投资参考
+  ✅ 相关新闻整合
+```
+
+### 知识问答示例
+
+```
+用户: 什么是市盈率
+系统:
+  ✅ RAG 知识库检索
+  ✅ Claude AI 详细解释
+  ✅ 公式和计算方法
+  ✅ 实际应用案例
+```
+
+### 对比分析示例
+
+```
+用户: 苹果和特斯拉哪个更值得投资
+系统:
+  ✅ 获取两只股票数据
+  ✅ 多维度对比分析
+  ✅ 技术面和基本面评估
+  ✅ 风险提示
+```
+
+---
+
+## 🔧 故障排除
+
+### 问题 1: 后端启动失败
+
+**错误信息:** `ModuleNotFoundError: No module named 'xxx'`
+
+**解决方案:**
+```bash
+cd backend
+pip install -r requirements.txt --upgrade
+```
+
+### 问题 2: Redis 连接失败
+
+**错误信息:** `redis.exceptions.ConnectionError`
+
+**解决方案:**
+```bash
+# 检查 Redis 是否运行
+docker ps | grep redis
+
+# 如果没有运行，启动 Redis
+docker start redis
+
+# 或重新创建
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+```
+
+### 问题 3: 前端无法连接后端
+
+**错误信息:** `Failed to fetch` 或 `Network Error`
+
+**解决方案:**
+1. 确认后端正在运行: `http://localhost:8000/api/health`
+2. 检查 CORS 配置
+3. 确认防火墙没有阻止 8000 端口
+
+### 问题 4: API Key 无效
+
+**错误信息:** `401 Unauthorized` 或 `Invalid API Key`
+
+**解决方案:**
+1. 检查 `.env` 文件中的 API Key 是否正确
+2. 确认 API Key 没有过期
+3. 重新获取 API Key:
+   - Anthropic: https://console.anthropic.com/
+   - Tavily: https://tavily.com/
+
+### 问题 5: 端口被占用
+
+**错误信息:** `Address already in use` 或 `Port 8000 is already in use`
+
+**解决方案:**
+
+**Windows:**
+```bash
+# 查找占用端口的进程
+netstat -ano | findstr :8000
+
+# 结束进程（替换 PID）
+taskkill /F /PID <PID>
+```
+
+**Linux/Mac:**
+```bash
+# 查找占用端口的进程
+lsof -i :8000
+
+# 结束进程
+kill -9 <PID>
+```
+
+### 问题 6: 虚拟环境激活失败
+
+**Windows PowerShell 错误:** `无法加载文件，因为在此系统上禁止运行脚本`
+
+**解决方案:**
+```powershell
+# 以管理员身份运行 PowerShell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 然后重新激活虚拟环境
+venv\Scripts\activate
+```
+
+### 问题 7: npm 安装依赖失败
+
+**错误信息:** `EACCES` 或 `Permission denied`
+
+**解决方案:**
+```bash
+# 清除 npm 缓存
+npm cache clean --force
+
+# 删除 node_modules 和 package-lock.json
+rm -rf node_modules package-lock.json
+
+# 重新安装
+npm install
+```
+
+---
+
+## 📊 系统架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -80,271 +494,99 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 核心组件
-
-#### 🎯 推理层（第二阶段）
-- **QueryRouter**: 智能查询分类和参数提取
-- **DataIntegrator**: 多源数据融合与质量评分
-- **FastAnalyzer**: 简单查询快速分析（1-2秒响应）
-- **DecisionEngine**: 技术面评分和投资参考生成
-- **ResponseGenerator**: 结构化 4 章节响应格式化
-
-#### 🛠️ 增强代理（第一阶段）
-- **ResponseGuard**: 验证响应与工具输出，防止幻觉
-- **并行执行**: asyncio.gather 实现 50% 性能提升
-- **Alpha Vantage 降级**: 自动故障转移保证高可用
-- **技术指标**: RSI、MACD、布林带信号解读
-
 ---
 
-## 🚀 快速开始
-
-### 前置要求
-
-- Python 3.11+
-- Node.js 18+
-- Redis 7+
-- Docker（可选）
-
-### 1. 克隆仓库
-
-```bash
-git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
-cd Financial_Asset_QA_System
-```
-
-### 2. 后端设置
+## 🧪 运行测试
 
 ```bash
 cd backend
-python -m venv venv
 
-# Windows
-venv\Scripts\activate
+# 运行所有测试
+pytest tests/ -v
 
-# Linux/Mac
-source venv/bin/activate
+# 运行特定测试文件
+pytest tests/test_agent_core.py -v
 
-pip install -r requirements.txt
-cp .env.example .env
+# 生成覆盖率报告
+pytest tests/ --cov=app --cov-report=html
+
+# 查看覆盖率报告
+open htmlcov/index.html  # Mac
+start htmlcov/index.html  # Windows
 ```
 
-配置 `.env`:
-
-```env
-# 必需
-ANTHROPIC_API_KEY=你的_anthropic_api_密钥
-TAVILY_API_KEY=你的_tavily_api_密钥
-
-# 可选（用于降级）
-ALPHA_VANTAGE_API_KEY=你的_alpha_vantage_api_密钥
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
-
-# 日志
-LOG_LEVEL=INFO
-```
-
-启动 Redis:
-
-```bash
-docker run -d -p 6379:6379 redis:7-alpine
-```
-
-启动后端:
-
-```bash
-python -m app.main
-```
-
-后端运行于: `http://localhost:8000`
-
-### 3. 前端设置
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-前端运行于: `http://localhost:5173`
-
-### 4. Docker 部署（替代方案）
-
-```bash
-docker compose -f docker/docker-compose.yml up --build
-```
-
-访问:
-- 前端: `http://localhost:5173`
-- 后端: `http://localhost:8000`
-- API 文档: `http://localhost:8000/docs`
+**当前测试状态:**
+- ✅ 252 个测试全部通过
+- ✅ 85% 代码覆盖率
+- ✅ 单元测试 + 集成测试
 
 ---
 
-## 📖 文档
+## 📚 API 文档
 
-### API 端点
+启动后端后，访问交互式 API 文档:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+### 主要端点
 
 #### `POST /api/chat`
-基于 SSE 的流式聊天端点。
+流式聊天接口
 
 **请求:**
 ```json
 {
   "query": "苹果股票今天涨了多少？",
-  "session_id": "可选会话ID",
+  "session_id": "optional-session-id",
   "model": "claude-opus"
 }
 ```
 
 **响应:** `text/event-stream`
-```
-event: model_selected
-data: {"model": "claude-opus", "provider": "anthropic"}
-
-event: tool_start
-data: {"name": "get_change", "display": "正在计算价格变化..."}
-
-event: tool_data
-data: {"tool": "get_change", "data": {...}}
-
-event: chunk
-data: {"text": "苹果股票今日上涨"}
-
-event: done
-data: {"verified": true, "sources": [...]}
-```
 
 #### `GET /api/chart/{symbol}?days=30`
-获取历史 OHLCV 数据用于图表展示。
+获取历史价格数据
 
 **响应:**
 ```json
 {
   "symbol": "AAPL",
   "days": 30,
-  "data": [
-    {
-      "date": "2024-01-01",
-      "open": 150.0,
-      "high": 152.0,
-      "low": 149.0,
-      "close": 151.0,
-      "volume": 1000000
-    }
-  ]
+  "data": [...]
 }
 ```
 
 #### `GET /api/health`
-系统健康检查。
-
-**响应:**
-```json
-{
-  "status": "healthy",
-  "components": {
-    "redis": "healthy",
-    "vector_store": "healthy",
-    "llm": "configured",
-    "market_data": "available"
-  }
-}
-```
+系统健康检查
 
 #### `GET /api/models`
-列出可用的 AI 模型和使用统计。
+列出可用模型
 
 ---
 
-## 🧪 测试
+## 🔐 安全建议
 
-### 运行所有测试
+1. **不要提交 .env 文件到 Git**
+   ```bash
+   # .env 已在 .gitignore 中
+   ```
 
-```bash
-cd backend
-pytest tests/ -v
-```
+2. **定期更新依赖**
+   ```bash
+   pip install --upgrade -r requirements.txt
+   npm update
+   ```
 
-### 测试覆盖率
+3. **使用环境变量管理敏感信息**
+   - 不要在代码中硬编码 API Key
+   - 使用 `.env` 文件管理配置
 
-```bash
-pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
-```
-
-**当前覆盖率: 85%**（252 个测试通过）
-
-### 测试分类
-
-- **单元测试**: 200+ 个测试覆盖各个组件
-- **集成测试**: 5 个端到端工作流测试
-- **API 测试**: 10 个 REST 端点测试
-- **性能测试**: 响应时间验证
-
-详见 [TEST_COVERAGE_SUMMARY.md](backend/TEST_COVERAGE_SUMMARY.md) 获取详细覆盖率报告。
-
----
-
-## 📊 性能指标
-
-| 指标 | 数值 |
-|------|------|
-| 快速模式响应时间 | 1-2 秒 |
-| 深度模式响应时间 | 3-5 秒 |
-| 缓存命中率 | 85%+ |
-| 测试通过率 | 100% (252/252) |
-| 代码覆盖率 | 85% |
-| 并发用户数 | 100+ |
-
----
-
-## 🛣️ 路线图
-
-### ✅ 已完成
-- [x] 第一阶段: 增强代理与 ResponseGuard
-- [x] 第二阶段: 推理层（5 个模块）
-- [x] Alpha Vantage 降级集成
-- [x] 技术指标（RSI、MACD、布林带）
-- [x] 混合 RAG（BM25 + 向量搜索）
-- [x] 85% 测试覆盖率
-
-### 🚧 进行中
-- [ ] 第三阶段: DeepAnalyzer 和 RiskAssessor
-- [ ] 多资产对比
-- [ ] 投资组合风险分析
-- [ ] 预测和预报
-
-### 🔮 未来计划
-- [ ] 实时 WebSocket 流式传输
-- [ ] 多语言支持（中英文）
-- [ ] 移动应用（React Native）
-- [ ] 高级图表（TradingView 集成）
-- [ ] 回测框架
-- [ ] 社交情绪分析
-
----
-
-## 🤝 贡献指南
-
-我们欢迎贡献！请查看我们的 [贡献指南](CONTRIBUTING.md) 了解详情。
-
-### 开发工作流
-
-1. Fork 仓库
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'feat: 添加惊艳功能'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 开启 Pull Request
-
-### 代码风格
-
-- **Python**: Black 格式化、isort、flake8
-- **JavaScript**: ESLint、Prettier
-- **提交**: 遵循 Conventional Commits 格式
+4. **生产环境建议**
+   - 使用 HTTPS
+   - 配置防火墙规则
+   - 启用 Redis 密码认证
+   - 使用反向代理（Nginx）
 
 ---
 
@@ -370,6 +612,17 @@ pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 - **作者**: Benjamin Daoson
 - **GitHub**: [@Benjamindaoson](https://github.com/Benjamindaoson)
 - **项目**: [Financial_Asset_QA_System](https://github.com/Benjamindaoson/Financial_Asset_QA_System)
+
+---
+
+## 🆘 获取帮助
+
+遇到问题？
+
+1. 查看 [故障排除](#-故障排除) 部分
+2. 搜索 [GitHub Issues](https://github.com/Benjamindaoson/Financial_Asset_QA_System/issues)
+3. 创建新的 Issue 描述问题
+4. 加入讨论 [GitHub Discussions](https://github.com/Benjamindaoson/Financial_Asset_QA_System/discussions)
 
 ---
 

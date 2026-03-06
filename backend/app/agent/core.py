@@ -279,8 +279,8 @@ class AgentCore:
         print(f"[AgentCore] Query complexity: {complexity}, Selected model: {model_name}")
         return model_name
 
-    def _build_tool_plan(self, query: str) -> List[Dict[str, Any]]:
-        route = self.query_router.classify(query)
+    async def _build_tool_plan(self, query: str) -> List[Dict[str, Any]]:
+        route = await self.query_router.classify_async(query)
         primary_symbol = route.symbols[0] if route.symbols else None
         days = route.days or 30
         plan: List[Dict[str, Any]] = []
@@ -501,7 +501,7 @@ class AgentCore:
         tokens_output = 0
 
         try:
-            tool_plan = self._build_tool_plan(query)
+            tool_plan = await self._build_tool_plan(query)
             for step in tool_plan:
                 yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
                 raw_result = await self._execute_tool(step["name"], step["params"])

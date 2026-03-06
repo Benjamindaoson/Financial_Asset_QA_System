@@ -1,385 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-
-/* ================================================================
-   API SERVICE
-   ================================================================ */
-const API_BASE = "http://localhost:8000/api";
-
-async function fetchChat(query, sessionId = null) {
-  const response = await fetch(`${API_BASE}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, session_id: sessionId }),
-  });
-
-  if (!response.ok) throw new Error("API request failed");
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  const events = [];
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          events.push(data);
-        } catch (e) {
-          console.error("Failed to parse SSE:", e);
-        }
-      }
-    }
-  }
-
-  return events;
-}
-
-async function fetchChart(symbol, days = 30) {
-  const response = await fetch(`${API_BASE}/chart/${symbol}?days=${days}`);
-  if (!response.ok) return null;
-  return response.json();
-}
-
-/* ================================================================
-   TOKENS
-   ================================================================ */
-const C = {
-  bg: "#F4F6FA",
-  white: "#FFFFFF",
-  border: "#E3E8F0",
-  borderL: "#EEF1F6",
-  text: "#1A2332",
-  ts: "#5A6B80",
-  td: "#94A3B8",
-  accent: "#1A6EF5",
-  accentL: "#EBF3FE",
-  up: "#D93A3A",
-  upL: "rgba(217,58,58,.08)",
-  dn: "#0D9B53",
-  dnL: "rgba(13,155,83,.08)",
-  warn: "#D97706",
-  warnBg: "#FFFBEB",
-  purple: "#7C3AED",
-  purpleL: "#F3EFFE",
-  sk: "#E6EAF0",
-};
-const F = {
-  s: "'PingFang SC','Helvetica Neue',system-ui,sans-serif",
-  m: "'JetBrains Mono','SF Mono',monospace",
-};
-const cc = (v) => (v >= 0 ? C.up : C.dn);
-
-/* ================================================================
-   TINY COMPONENTS
-   ================================================================ */
-function LoadSteps({ currentStep }) {
-  const steps = ["识别问题类型...", "获取市场数据...", "生成分析报告..."];
-  return (
-    <div style={{ padding: "10px 0" }}>
-      {steps.map((t, i) => (
-        <div
-          key={i}
-          style={{
-            fontSize: 12,
-            color: i <= currentStep ? C.accent : C.td,
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            marginBottom: 3,
-            opacity: i <= currentStep ? 1 : 0.4,
-            transition: "all .3s",
-          }}
-        >
-          {i < currentStep ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="3">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          ) : i === currentStep ? (
-            <span style={{ width: 13, height: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: "50%",
-                  background: C.accent,
-                  animation: "pls 1s infinite",
-                }}
-              />
-            </span>
-          ) : (
-            <span style={{ width: 13, height: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.td }} />
-            </span>
-          )}
-          {t}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Skel() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ background: C.white, borderRadius: 12, padding: 18, border: `1px solid ${C.border}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ width: 55, height: 12, background: C.sk, borderRadius: 4, marginBottom: 7 }} />
-            <div style={{ width: 90, height: 16, background: C.sk, borderRadius: 4 }} />
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ width: 80, height: 22, background: C.sk, borderRadius: 4, marginBottom: 5 }} />
-            <div style={{ width: 50, height: 10, background: C.sk, borderRadius: 4, marginLeft: "auto" }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================
-   ANSWER COMPONENTS
-   ================================================================ */
-function StreamingText({ text }) {
-  return (
-    <div
-      style={{
-        background: "#FAFCFF",
-        borderRadius: 12,
-        padding: "18px 18px 14px",
-        border: `1px solid #D6E4F7`,
-        position: "relative",
-        fontSize: 13,
-        lineHeight: 1.85,
-        color: C.text,
-        whiteSpace: "pre-wrap",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: -9,
-          left: 12,
-          background: C.accentL,
-          color: C.accent,
-          fontSize: 9.5,
-          fontWeight: 700,
-          padding: "2px 8px",
-          borderRadius: 8,
-          border: `1px solid #BFD5F0`,
-        }}
-      >
-        AI 分析
-      </div>
-      {text}
-      <span
-        style={{
-          display: "inline-block",
-          width: 6,
-          height: 12,
-          background: C.accent,
-          marginLeft: 2,
-          animation: "blink 1s infinite",
-        }}
-      />
-    </div>
-  );
-}
-
-function Chart({ symbol, days = 30 }) {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchChart(symbol, days)
-      .then((res) => {
-        if (res?.data) {
-          const formatted = res.data.map((d) => ({
-            date: d.date.slice(5),
-            price: d.close,
-          }));
-          setData(formatted);
-        }
-      })
-      .finally(() => setLoading(false));
-  }, [symbol, days]);
-
-  if (loading || data.length === 0) return null;
-
-  const up = data[data.length - 1].price >= data[0].price;
-  const col = up ? C.up : C.dn;
-
-  return (
-    <div style={{ background: C.white, borderRadius: 12, padding: "12px 16px", border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,.04)" }}>
-      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.ts, marginBottom: 4 }}>
-        {symbol} · 价格走势 ({days}日)
-      </div>
-      <ResponsiveContainer width="100%" height={140}>
-        <AreaChart data={data} margin={{ top: 4, right: 2, left: -22, bottom: 0 }}>
-          <defs>
-            <linearGradient id={`g${symbol}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={col} stopOpacity={0.12} />
-              <stop offset="100%" stopColor={col} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <XAxis dataKey="date" tick={{ fill: C.td, fontSize: 9, fontFamily: F.m }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: C.td, fontSize: 9, fontFamily: F.m }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
-          <Tooltip
-            contentStyle={{
-              background: C.white,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 11,
-              fontFamily: F.m,
-            }}
-            formatter={(v) => [`$${v.toFixed(2)}`, "价格"]}
-          />
-          <Area type="monotone" dataKey="price" stroke={col} strokeWidth={1.8} fill={`url(#g${symbol})`} dot={false} />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function Src({ items }) {
-  return (
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-      {items.map((s, i) => (
-        <span
-          key={i}
-          style={{
-            fontSize: 9.5,
-            padding: "3px 8px",
-            borderRadius: 10,
-            background: C.bg,
-            border: `1px solid ${C.border}`,
-            color: C.ts,
-            fontFamily: F.m,
-          }}
-        >
-          <span style={{ color: C.accent, marginRight: 2 }}>●</span>
-          {s.name}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function Disc() {
-  return (
-    <div
-      style={{
-        fontSize: 10.5,
-        color: C.warn,
-        padding: "7px 11px",
-        background: C.warnBg,
-        borderRadius: 7,
-        borderLeft: `3px solid ${C.warn}`,
-        lineHeight: 1.5,
-      }}
-    >
-      ⚠️ 行情数据来自公开API，AI分析仅供参考，不构成投资建议。
-    </div>
-  );
-}
-
-/* ================================================================
-   INPUT BOX
-   ================================================================ */
-function InputBox({ value, onChange, onSend, onClear, loading }) {
-  return (
-    <div style={{ maxWidth: 740, width: "100%", margin: "0 auto" }}>
-      <div
-        style={{
-          background: C.white,
-          borderRadius: 14,
-          border: `1px solid ${C.border}`,
-          boxShadow: "0 2px 8px rgba(0,0,0,.04)",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", padding: "4px 5px 4px 16px", gap: 6 }}>
-          <input
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !loading && onSend()}
-            placeholder="输入股票名称、代码或金融问题，如「苹果股票」「什么是市盈率」..."
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: C.text,
-              fontSize: 13.5,
-              fontFamily: F.s,
-              padding: "9px 0",
-            }}
-          />
-          {value && (
-            <button
-              onClick={onClear}
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                border: "none",
-                background: C.bg,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.ts} strokeWidth="3" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={onSend}
-            disabled={!value?.trim() || loading}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              border: "none",
-              background: value?.trim() && !loading ? `linear-gradient(135deg,${C.accent},#3B82F6)` : C.bg,
-              cursor: value?.trim() && !loading ? "pointer" : "default",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: value?.trim() && !loading ? 1 : 0.35,
-            }}
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={value?.trim() && !loading ? "#fff" : C.td}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { fetchChat } from "./services/api";
+import { C, F } from "./theme";
+import { LoadSteps, Skel } from "./components/UI/LoadingComponents";
+import { StreamingText, Src, Disc } from "./components/Chat/ChatComponents";
+import { Chart } from "./components/Chart";
+import { InputBox } from "./components/UI/InputBox";
 
 /* ================================================================
    MAIN APP
@@ -414,12 +39,15 @@ export default function App() {
         let fullText = "";
         let symbol = null;
         let sources = [];
+        let trace = [];
 
         for (const event of events) {
           if (event.type === "model_selected") {
             setCurrentStep(0);
+            trace.push(`🧠 Using ${event.model} (Complexity: ${event.complexity || 'fast'})`);
           } else if (event.type === "tool_start") {
             setCurrentStep(1);
+            trace.push(`🔧 ${event.display || event.name}`);
           } else if (event.type === "tool_data") {
             setCurrentStep(2);
             if (event.data?.symbol) {
@@ -442,6 +70,7 @@ export default function App() {
             text: fullText,
             symbol,
             sources,
+            trace,
           },
         ]);
         setStreamingText("");
@@ -676,6 +305,23 @@ export default function App() {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {msg.trace && msg.trace.length > 0 && (
+                    <div style={{ 
+                      fontSize: 11, 
+                      color: C.ts, 
+                      background: C.white, 
+                      border: `1px solid ${C.border}`,
+                      padding: "8px 12px", 
+                      borderRadius: 8,
+                      marginBottom: 4,
+                      fontFamily: F.m
+                    }}>
+                      <div style={{ fontWeight: 600, color: C.text, marginBottom: 4 }}>💡 分析链路追踪</div>
+                      {msg.trace.map((t, idx) => (
+                        <div key={idx} style={{ padding: "2px 0" }}>{t}</div>
+                      ))}
+                    </div>
+                  )}
                   <div
                     style={{
                       background: "#FAFCFF",

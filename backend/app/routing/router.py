@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
@@ -9,6 +10,8 @@ from typing import List, Optional
 
 from app.enricher.enricher import QueryEnricher
 from app.market.service import TickerMapper
+from app.models.multi_model import model_manager
+from app.models.model_adapter import ModelAdapterFactory
 
 
 class QueryType(str, Enum):
@@ -129,6 +132,82 @@ class QueryRouter:
         "10-q",
         "quarter",
     }
+
+    async def classify_async(self, query: str) -> QueryRoute:
+        """Attempt LLM-based semantic routing, fallback to deterministic regex."""
+        try:
+            return await self._llm_classify(query)
+        except Exception as e:
+            print(f"[QueryRouter] LLM routing failed, falling back to regex: {e}")
+            return self.classify(query)
+
+    async def _llm_classify(self, query: str) -> QueryRoute:
+        # Request the fastest model for routing
+        model_name = model_manager.select_model(complexity=None, preferred_provider=None)
+        if not model_name:
+            raise ValueError("No model available for routing")
+            
+        config = model_manager.models[model_name]
+        adapter = ModelAdapterFactory.create_adapter(config)
+        
+        system = (
+            "You are a semantic query router for a financial QA agent.\n"
+            "Analyze the user's query and output a JSON object describing the intent.\n"
+            "Schema: \n"
+            "{\n"
+            '  "query_type": "market"| "knowledge"| "news"| "hybrid",\n'
+            '  "symbols": ["AAPL", "TSLA", ...],\n'
+            '  "days": 30,\n'
+            '  "requires_price": true/false,\n'
+            '  "requires_history": true/false,\n'
+            '  "requires_change": true/false,\n'
+            '  "requires_info": true/false,\n'
+            '  "requires_knowledge": true/false,\n'
+            '  "requires_web": true/false\n'
+            "}\n"
+            "Include your reasoning wrapped in <thought></thought> tags, then output the JSON."
+        )
+        
+        stream = adapter.create_message_stream(
+            messages=[{"role": "user", "content": query}],
+            system=system,
+            tools=[],
+            max_tokens=600
+        )
+        
+        text = ""
+        async for event in stream:
+            if isinstance(event, dict) and "final_message" in event:
+                fm = event["final_message"]
+                if hasattr(fm, "content"):
+                    for block in fm.content:
+                        if getattr(block, "type", None) == "text" and block.text:
+                            text += block.text
+            elif getattr(event, "type", None) == "content_block_delta" and getattr(event, "delta", None):
+                if getattr(event.delta, "type", None) == "text_delta":
+                    text += event.delta.text
+        
+        # parse json from text
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise ValueError("No JSON found in LLM response")
+            
+        data = json.loads(match.group(0))
+        cleaned = self._clean_query(query)
+        
+        route = QueryRoute(
+            query_type=QueryType(data.get("query_type", "market")),
+            cleaned_query=cleaned,
+            symbols=[TickerMapper.normalize(s) for s in data.get("symbols", [])],
+            days=data.get("days"),
+            requires_price=data.get("requires_price", False),
+            requires_history=data.get("requires_history", False),
+            requires_change=data.get("requires_change", False),
+            requires_info=data.get("requires_info", False),
+            requires_knowledge=data.get("requires_knowledge", False),
+            requires_web=data.get("requires_web", False)
+        )
+        return route
 
     def classify(self, query: str) -> QueryRoute:
         cleaned = self._clean_query(query)

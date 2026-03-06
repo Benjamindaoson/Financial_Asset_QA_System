@@ -33,7 +33,9 @@
       "Bash(git commit:*)",
       "Bash(rm:*)",
       "Bash(./backend/venv/Scripts/python.exe:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(do taskkill:*)",
+      "Bash(Get-Process:*)"
     ]
   }
 }

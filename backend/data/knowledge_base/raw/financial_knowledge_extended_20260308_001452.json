@@ -1,0 +1,926 @@
+[
+  {
+    "title": "A股",
+    "content": "A股是指在中国境内证券交易所上市的人民币普通股票。A股市场是中国资本市场的主体，包括上海证券交易所和深圳证券交易所上市的股票。",
+    "category": "stock_basics",
+    "keywords": [
+      "A股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "B股",
+    "content": "B股是指在中国境内证券交易所上市的外资股，以人民币标明面值，以外币认购和交易。B股市场主要面向境外投资者。",
+    "category": "stock_basics",
+    "keywords": [
+      "B股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "H股",
+    "content": "H股是指在香港联合交易所上市的中国内地注册公司的股票。H股为境外投资者提供了投资中国企业的渠道。",
+    "category": "stock_basics",
+    "keywords": [
+      "H股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "红筹股",
+    "content": "红筹股是指在境外注册、在香港上市，但主要业务在中国内地的中资企业股票。",
+    "category": "stock_basics",
+    "keywords": [
+      "红筹股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "蓝筹股",
+    "content": "蓝筹股是指经营业绩良好、现金股利稳定且较高的大型上市公司股票。蓝筹股通常具有较强的抗风险能力。",
+    "category": "stock_basics",
+    "keywords": [
+      "蓝筹股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "白马股",
+    "content": "白马股是指长期绩优、回报率高且风险较低的股票。白马股具有业绩稳定、成长性好的特点。",
+    "category": "stock_basics",
+    "keywords": [
+      "白马股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "黑马股",
+    "content": "黑马股是指价格可能脱离过去的价位而在短期内大幅上涨的股票。黑马股往往具有突发性利好。",
+    "category": "stock_basics",
+    "keywords": [
+      "黑马股",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "ST股票",
+    "content": "ST股票是指连续两年亏损被特别处理的股票。ST股票涨跌幅限制为5%，投资风险较高。",
+    "category": "stock_basics",
+    "keywords": [
+      "ST股票",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "*ST股票",
+    "content": "*ST股票是指连续三年亏损，有退市风险的股票。*ST股票投资风险极高，需谨慎对待。",
+    "category": "stock_basics",
+    "keywords": [
+      "*ST股票",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "科创板",
+    "content": "科创板是上海证券交易所设立的独立板块，主要服务于科技创新企业。科创板实行注册制，涨跌幅限制为20%。",
+    "category": "stock_basics",
+    "keywords": [
+      "科创板",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "创业板",
+    "content": "创业板是深圳证券交易所设立的板块，主要服务于成长型创新创业企业。创业板涨跌幅限制为20%。",
+    "category": "stock_basics",
+    "keywords": [
+      "创业板",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "主板市场",
+    "content": "主板市场是证券交易所的主要市场，上市标准较高，主要面向成熟的大型企业。",
+    "category": "stock_basics",
+    "keywords": [
+      "主板市场",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "中小板",
+    "content": "中小板是深圳证券交易所的板块，介于主板和创业板之间，主要服务于中小型企业。",
+    "category": "stock_basics",
+    "keywords": [
+      "中小板",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "新三板",
+    "content": "新三板是全国中小企业股份转让系统，为非上市股份公司提供股份转让平台。",
+    "category": "stock_basics",
+    "keywords": [
+      "新三板",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "北交所",
+    "content": "北京证券交易所是服务创新型中小企业的主阵地，与新三板统筹协调发展。",
+    "category": "stock_basics",
+    "keywords": [
+      "北交所",
+      "股票",
+      "市场"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "市销率 (PS)",
+    "content": "市销率是股票价格与每股销售收入的比率，用于评估公司估值。PS = 市值 / 销售收入。市销率适用于尚未盈利的成长型公司。",
+    "category": "valuation",
+    "keywords": [
+      "市销率",
+      "PS",
+      "估值"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "市现率 (PCF)",
+    "content": "市现率是股票价格与每股现金流的比率。PCF = 股价 / 每股现金流。市现率反映公司现金创造能力。",
+    "category": "valuation",
+    "keywords": [
+      "市现率",
+      "PCF",
+      "现金流"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "企业价值倍数 (EV/EBITDA)",
+    "content": "EV/EBITDA是企业价值与息税折旧摊销前利润的比率，常用于并购估值。该指标排除了资本结构和会计政策的影响。",
+    "category": "valuation",
+    "keywords": [
+      "EV/EBITDA",
+      "企业价值",
+      "估值"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "PEG指标",
+    "content": "PEG是市盈率相对盈利增长比率，计算公式：PEG = PE / 净利润增长率。PEG小于1通常被认为股票被低估。",
+    "category": "valuation",
+    "keywords": [
+      "PEG",
+      "市盈率",
+      "增长率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "股价净资产比",
+    "content": "股价净资产比即市净率(PB)，反映股价相对于每股净资产的倍数。PB越低，安全边际越高。",
+    "category": "valuation",
+    "keywords": [
+      "PB",
+      "净资产",
+      "安全边际"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "股息收益率",
+    "content": "股息收益率是年度股息与股价的比率，反映股票的现金回报。高股息收益率的股票适合长期投资。",
+    "category": "valuation",
+    "keywords": [
+      "股息",
+      "收益率",
+      "分红"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "留存收益率",
+    "content": "留存收益率是公司留存收益占净利润的比例。高留存收益率表明公司将利润用于再投资。",
+    "category": "valuation",
+    "keywords": [
+      "留存收益",
+      "再投资",
+      "增长"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "分红率",
+    "content": "分红率是现金分红占净利润的比例。稳定的高分红率是成熟企业的特征。",
+    "category": "valuation",
+    "keywords": [
+      "分红",
+      "股息",
+      "现金流"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "毛利率",
+    "content": "毛利率是毛利润占营业收入的比例，反映产品盈利能力。毛利率 = (营业收入 - 营业成本) / 营业收入 × 100%。",
+    "category": "financial_metrics",
+    "keywords": [
+      "毛利率",
+      "盈利能力",
+      "成本"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "净利率",
+    "content": "净利率是净利润占营业收入的比例，反映企业最终盈利能力。净利率 = 净利润 / 营业收入 × 100%。",
+    "category": "financial_metrics",
+    "keywords": [
+      "净利率",
+      "净利润",
+      "盈利"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "资产负债率",
+    "content": "资产负债率是负债总额占资产总额的比例，反映企业财务风险。资产负债率 = 负债总额 / 资产总额 × 100%。",
+    "category": "financial_metrics",
+    "keywords": [
+      "资产负债率",
+      "负债",
+      "风险"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "流动比率",
+    "content": "流动比率是流动资产与流动负债的比率，反映短期偿债能力。流动比率 = 流动资产 / 流动负债。一般认为流动比率应大于2。",
+    "category": "financial_metrics",
+    "keywords": [
+      "流动比率",
+      "偿债能力",
+      "流动性"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "速动比率",
+    "content": "速动比率是速动资产与流动负债的比率。速动比率 = (流动资产 - 存货) / 流动负债。速动比率更能反映企业即时偿债能力。",
+    "category": "financial_metrics",
+    "keywords": [
+      "速动比率",
+      "偿债",
+      "流动资产"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "现金比率",
+    "content": "现金比率是现金类资产与流动负债的比率，反映企业最直接的偿债能力。现金比率 = 现金及现金等价物 / 流动负债。",
+    "category": "financial_metrics",
+    "keywords": [
+      "现金比率",
+      "现金",
+      "偿债"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "存货周转率",
+    "content": "存货周转率反映存货周转速度。存货周转率 = 营业成本 / 平均存货。周转率越高，存货管理效率越高。",
+    "category": "financial_metrics",
+    "keywords": [
+      "存货周转率",
+      "周转",
+      "效率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "应收账款周转率",
+    "content": "应收账款周转率反映应收账款回收速度。应收账款周转率 = 营业收入 / 平均应收账款。",
+    "category": "financial_metrics",
+    "keywords": [
+      "应收账款",
+      "周转率",
+      "回收"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "总资产周转率",
+    "content": "总资产周转率反映资产运营效率。总资产周转率 = 营业收入 / 平均总资产。",
+    "category": "financial_metrics",
+    "keywords": [
+      "总资产",
+      "周转率",
+      "效率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "权益乘数",
+    "content": "权益乘数反映财务杠杆程度。权益乘数 = 总资产 / 股东权益。权益乘数越大，财务杠杆越高。",
+    "category": "financial_metrics",
+    "keywords": [
+      "权益乘数",
+      "杠杆",
+      "风险"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "货币基金",
+    "content": "货币基金主要投资于短期货币工具，如国债、央行票据、商业票据等。货币基金风险低、流动性好，适合现金管理。",
+    "category": "fund_types",
+    "keywords": [
+      "货币基金",
+      "低风险",
+      "流动性"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "债券基金",
+    "content": "债券基金主要投资于债券市场，包括国债、企业债、可转债等。债券基金风险低于股票基金，收益相对稳定。",
+    "category": "fund_types",
+    "keywords": [
+      "债券基金",
+      "固定收益",
+      "稳健"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "股票基金",
+    "content": "股票基金80%以上资产投资于股票市场。股票基金风险较高，但长期收益潜力大。",
+    "category": "fund_types",
+    "keywords": [
+      "股票基金",
+      "权益",
+      "高风险"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "混合基金",
+    "content": "混合基金同时投资股票和债券，灵活配置资产比例。混合基金风险收益特征介于股票基金和债券基金之间。",
+    "category": "fund_types",
+    "keywords": [
+      "混合基金",
+      "资产配置",
+      "平衡"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "指数基金",
+    "content": "指数基金被动跟踪特定指数，如沪深300、中证500等。指数基金费用低、透明度高。",
+    "category": "fund_types",
+    "keywords": [
+      "指数基金",
+      "被动投资",
+      "跟踪指数"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "主动基金",
+    "content": "主动基金由基金经理主动选股和择时，力求超越市场基准。主动基金费用较高，业绩差异大。",
+    "category": "fund_types",
+    "keywords": [
+      "主动基金",
+      "基金经理",
+      "超额收益"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "QDII基金",
+    "content": "QDII基金投资于境外市场，为投资者提供全球资产配置机会。QDII基金受汇率波动影响。",
+    "category": "fund_types",
+    "keywords": [
+      "QDII",
+      "海外投资",
+      "全球配置"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "FOF基金",
+    "content": "FOF基金是投资于其他基金的基金，通过分散投资降低风险。FOF基金适合不懂选基金的投资者。",
+    "category": "fund_types",
+    "keywords": [
+      "FOF",
+      "基金组合",
+      "分散风险"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "分级基金",
+    "content": "分级基金将基金份额分为A类和B类，A类获得固定收益，B类获得杠杆收益。分级基金已逐步退出市场。",
+    "category": "fund_types",
+    "keywords": [
+      "分级基金",
+      "杠杆",
+      "结构化"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "封闭式基金",
+    "content": "封闭式基金在封闭期内不能赎回，只能在二级市场交易。封闭式基金可能出现折价或溢价。",
+    "category": "fund_types",
+    "keywords": [
+      "封闭式基金",
+      "封闭期",
+      "折价"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "布林带 (BOLL)",
+    "content": "布林带由中轨、上轨和下轨组成，用于判断价格波动区间。价格触及上轨可能超买，触及下轨可能超卖。",
+    "category": "technical_analysis",
+    "keywords": [
+      "布林带",
+      "BOLL",
+      "波动"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "KDJ指标",
+    "content": "KDJ指标由K线、D线和J线组成，用于判断超买超卖。K值和D值在80以上为超买，20以下为超卖。",
+    "category": "technical_analysis",
+    "keywords": [
+      "KDJ",
+      "随机指标",
+      "超买超卖"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "成交量",
+    "content": "成交量反映市场活跃度和资金流向。价涨量增为健康上涨，价涨量缩需警惕。",
+    "category": "technical_analysis",
+    "keywords": [
+      "成交量",
+      "量价关系",
+      "资金"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "OBV指标",
+    "content": "OBV能量潮指标通过累计成交量变化判断资金流向。OBV上升表示资金流入，下降表示资金流出。",
+    "category": "technical_analysis",
+    "keywords": [
+      "OBV",
+      "能量潮",
+      "资金流向"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "威廉指标 (WR)",
+    "content": "威廉指标衡量超买超卖程度。WR值在-20以上为超买，-80以下为超卖。",
+    "category": "technical_analysis",
+    "keywords": [
+      "威廉指标",
+      "WR",
+      "超买超卖"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "ATR指标",
+    "content": "ATR平均真实波幅反映价格波动程度。ATR上升表示波动加大，下降表示波动减小。",
+    "category": "technical_analysis",
+    "keywords": [
+      "ATR",
+      "波动率",
+      "真实波幅"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "SAR指标",
+    "content": "SAR抛物线指标用于判断趋势转折点。SAR点位于价格下方为上涨趋势，上方为下跌趋势。",
+    "category": "technical_analysis",
+    "keywords": [
+      "SAR",
+      "抛物线",
+      "趋势"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "DMI指标",
+    "content": "DMI趋向指标包括PDI、MDI和ADX，用于判断趋势强度。ADX大于25表示趋势明显。",
+    "category": "technical_analysis",
+    "keywords": [
+      "DMI",
+      "趋向指标",
+      "趋势强度"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "锤子线",
+    "content": "锤子线是下影线很长、实体很小的K线，出现在下跌趋势中可能是见底信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "锤子线",
+      "K线",
+      "见底"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "上吊线",
+    "content": "上吊线形态类似锤子线，但出现在上涨趋势中，可能是见顶信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "上吊线",
+      "K线",
+      "见顶"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "十字星",
+    "content": "十字星开盘价和收盘价相同或接近，表示多空力量均衡，可能是趋势转折信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "十字星",
+      "K线",
+      "转折"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "早晨之星",
+    "content": "早晨之星由三根K线组成，出现在下跌趋势中，是强烈的见底信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "早晨之星",
+      "K线组合",
+      "见底"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "黄昏之星",
+    "content": "黄昏之星由三根K线组成，出现在上涨趋势中，是强烈的见顶信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "黄昏之星",
+      "K线组合",
+      "见顶"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "吞没形态",
+    "content": "吞没形态由两根K线组成，后一根完全吞没前一根，表示趋势可能反转。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "吞没",
+      "K线组合",
+      "反转"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "乌云盖顶",
+    "content": "乌云盖顶出现在上涨趋势中，第二根阴线深入第一根阳线实体，是见顶信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "乌云盖顶",
+      "K线组合",
+      "见顶"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "曙光初现",
+    "content": "曙光初现出现在下跌趋势中，第二根阳线深入第一根阴线实体，是见底信号。",
+    "category": "k_line_patterns",
+    "keywords": [
+      "曙光初现",
+      "K线组合",
+      "见底"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "趋势跟踪策略",
+    "content": "趋势跟踪策略顺应市场趋势，在上涨趋势中持有，下跌趋势中离场。该策略适合趋势明显的市场。",
+    "category": "investment_strategy",
+    "keywords": [
+      "趋势跟踪",
+      "顺势",
+      "策略"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "均值回归策略",
+    "content": "均值回归策略认为价格会回归均值，在价格偏离均值时进行反向操作。该策略适合震荡市场。",
+    "category": "investment_strategy",
+    "keywords": [
+      "均值回归",
+      "震荡",
+      "策略"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "网格交易策略",
+    "content": "网格交易在价格区间内设置多个买卖点，低买高卖赚取差价。网格策略适合震荡行情。",
+    "category": "investment_strategy",
+    "keywords": [
+      "网格交易",
+      "震荡",
+      "套利"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "动量策略",
+    "content": "动量策略买入近期表现强势的股票，卖出弱势股票。动量策略基于价格惯性原理。",
+    "category": "investment_strategy",
+    "keywords": [
+      "动量",
+      "强势",
+      "惯性"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "反转策略",
+    "content": "反转策略买入近期表现弱势的股票，卖出强势股票。反转策略基于均值回归原理。",
+    "category": "investment_strategy",
+    "keywords": [
+      "反转",
+      "弱势",
+      "回归"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "配对交易",
+    "content": "配对交易同时买入和卖出相关性高的两只股票，赚取相对价差。配对交易是市场中性策略。",
+    "category": "investment_strategy",
+    "keywords": [
+      "配对交易",
+      "对冲",
+      "套利"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "事件驱动策略",
+    "content": "事件驱动策略利用公司重大事件（并购、重组等）带来的投资机会。该策略需要深入研究。",
+    "category": "investment_strategy",
+    "keywords": [
+      "事件驱动",
+      "并购",
+      "重组"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "量化选股",
+    "content": "量化选股使用数学模型和计算机程序选择股票。量化选股可以消除情绪影响，提高效率。",
+    "category": "investment_strategy",
+    "keywords": [
+      "量化",
+      "选股",
+      "模型"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "因子投资",
+    "content": "因子投资基于价值、成长、质量等因子构建投资组合。因子投资是量化投资的重要方法。",
+    "category": "investment_strategy",
+    "keywords": [
+      "因子",
+      "多因子",
+      "量化"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "资产配置策略",
+    "content": "资产配置在不同资产类别间分配资金，平衡风险和收益。合理的资产配置是投资成功的关键。",
+    "category": "investment_strategy",
+    "keywords": [
+      "资产配置",
+      "分散",
+      "平衡"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "做多",
+    "content": "做多是指买入股票等待上涨获利。做多是最基本的投资方式。",
+    "category": "market_concepts",
+    "keywords": [
+      "做多",
+      "买入",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "做空",
+    "content": "做空是指借入股票卖出，等待下跌后买回获利。A股市场做空机制有限。",
+    "category": "market_concepts",
+    "keywords": [
+      "做空",
+      "卖空",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "融资融券",
+    "content": "融资融券包括融资买入和融券卖出，是杠杆交易方式。融资融券有较高风险。",
+    "category": "market_concepts",
+    "keywords": [
+      "融资融券",
+      "杠杆",
+      "两融"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "T+0交易",
+    "content": "T+0交易是指当天买入的股票当天可以卖出。A股实行T+1交易制度。",
+    "category": "market_concepts",
+    "keywords": [
+      "T+0",
+      "T+1",
+      "交易制度"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "涨停板",
+    "content": "涨停板是股票当日涨幅达到限制无法继续上涨。主板涨停幅度为10%，科创板为20%。",
+    "category": "market_concepts",
+    "keywords": [
+      "涨停",
+      "涨幅限制",
+      "停板"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "跌停板",
+    "content": "跌停板是股票当日跌幅达到限制无法继续下跌。跌停板保护投资者免受过度损失。",
+    "category": "market_concepts",
+    "keywords": [
+      "跌停",
+      "跌幅限制",
+      "停板"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "集合竞价",
+    "content": "集合竞价是开盘前的价格撮合过程。集合竞价时间为9:15-9:25。",
+    "category": "market_concepts",
+    "keywords": [
+      "集合竞价",
+      "开盘",
+      "撮合"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "连续竞价",
+    "content": "连续竞价是正常交易时段的价格撮合方式。连续竞价遵循价格优先、时间优先原则。",
+    "category": "market_concepts",
+    "keywords": [
+      "连续竞价",
+      "撮合",
+      "交易"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "大宗交易",
+    "content": "大宗交易是单笔交易数量或金额较大的交易。大宗交易不影响当日收盘价。",
+    "category": "market_concepts",
+    "keywords": [
+      "大宗交易",
+      "大单",
+      "协议转让"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "停牌",
+    "content": "停牌是股票暂停交易。停牌原因包括重大事项、异常波动等。",
+    "category": "market_concepts",
+    "keywords": [
+      "停牌",
+      "暂停交易",
+      "复牌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "退市",
+    "content": "退市是股票终止上市交易。退市分为主动退市和强制退市。",
+    "category": "market_concepts",
+    "keywords": [
+      "退市",
+      "摘牌",
+      "终止上市"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "IPO",
+    "content": "IPO是首次公开发行股票。IPO是企业上市融资的主要方式。",
+    "category": "market_concepts",
+    "keywords": [
+      "IPO",
+      "首发",
+      "上市"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "增发",
+    "content": "增发是上市公司再次发行股票融资。增发会稀释原有股东权益。",
+    "category": "market_concepts",
+    "keywords": [
+      "增发",
+      "再融资",
+      "定增"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "配股",
+    "content": "配股是向现有股东按比例配售新股。配股价格通常低于市价。",
+    "category": "market_concepts",
+    "keywords": [
+      "配股",
+      "配售",
+      "融资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "送股",
+    "content": "送股是用未分配利润转增股本。送股不改变股东权益总额。",
+    "category": "market_concepts",
+    "keywords": [
+      "送股",
+      "转增",
+      "分红"
+    ],
+    "source": "financial_encyclopedia"
+  }
+]

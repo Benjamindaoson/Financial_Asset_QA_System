@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
 
     # ChromaDB Configuration
-    CHROMA_PERSIST_DIR: str = "../vectorstore/chroma"
+    CHROMA_PERSIST_DIR: str = "./vectorstore"
 
     # Model Configuration
     CLAUDE_MODEL: str = "claude-sonnet-4-6"

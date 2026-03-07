@@ -71,7 +71,7 @@ class RAGPipeline:
 
         # Stage 2: Reranking
         pairs = [[query, cand['content']] for cand in candidates]
-        scores = self.reranker.compute_score(pairs, normalize=True)
+        scores = self.reranker.compute_score(pairs)
 
         # Convert to list if single score
         if not isinstance(scores, list):

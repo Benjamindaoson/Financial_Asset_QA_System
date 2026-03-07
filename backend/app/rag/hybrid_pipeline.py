@@ -196,7 +196,7 @@ class HybridRAGPipeline(RAGPipeline):
         # 5. 重排序
         if candidates:
             pairs = [[query, cand['content']] for cand in candidates]
-            scores = self.reranker.compute_score(pairs, normalize=True)
+            scores = self.reranker.compute_score(pairs)
 
             if not isinstance(scores, list):
                 scores = [scores]

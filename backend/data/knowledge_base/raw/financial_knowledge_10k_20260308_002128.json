@@ -1,0 +1,2081 @@
+[
+  {
+    "title": "MA5均线",
+    "content": "MA5是5日移动平均线，反映过去5个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA5上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA5",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MA10均线",
+    "content": "MA10是10日移动平均线，反映过去10个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA10上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA10",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MA20均线",
+    "content": "MA20是20日移动平均线，反映过去20个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA20上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA20",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MA30均线",
+    "content": "MA30是30日移动平均线，反映过去30个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA30上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA30",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MA60均线",
+    "content": "MA60是60日移动平均线，反映过去60个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA60上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA60",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MA120均线",
+    "content": "MA120是120日移动平均线，反映过去120个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA120上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA120",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MA250均线",
+    "content": "MA250是250日移动平均线，反映过去250个交易日的平均价格。短期均线反应灵敏，长期均线更稳定。价格在MA250上方为强势，下方为弱势。常用于判断趋势方向和支撑阻力位。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MA250",
+      "均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "EMA12指数均线",
+    "content": "EMA12是12日指数移动平均线，对近期价格赋予更高权重。比MA更敏感，能更快反映价格变化。常用于短线交易和趋势跟踪。EMA12是重要的技术参考线。",
+    "category": "technical_indicators",
+    "keywords": [
+      "EMA12",
+      "指数均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "EMA26指数均线",
+    "content": "EMA26是26日指数移动平均线，对近期价格赋予更高权重。比MA更敏感，能更快反映价格变化。常用于短线交易和趋势跟踪。EMA26是重要的技术参考线。",
+    "category": "technical_indicators",
+    "keywords": [
+      "EMA26",
+      "指数均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "EMA50指数均线",
+    "content": "EMA50是50日指数移动平均线，对近期价格赋予更高权重。比MA更敏感，能更快反映价格变化。常用于短线交易和趋势跟踪。EMA50是重要的技术参考线。",
+    "category": "technical_indicators",
+    "keywords": [
+      "EMA50",
+      "指数均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "EMA200指数均线",
+    "content": "EMA200是200日指数移动平均线，对近期价格赋予更高权重。比MA更敏感，能更快反映价格变化。常用于短线交易和趋势跟踪。EMA200是重要的技术参考线。",
+    "category": "technical_indicators",
+    "keywords": [
+      "EMA200",
+      "指数均线",
+      "技术分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "RSI6相对强弱指标",
+    "content": "RSI6是6日相对强弱指标，取值0-100。RSI>70为超买区，RSI<30为超卖区。RSI6周期较短，反应灵敏。可用于判断买卖时机和背离信号。",
+    "category": "technical_indicators",
+    "keywords": [
+      "RSI6",
+      "超买超卖",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "RSI12相对强弱指标",
+    "content": "RSI12是12日相对强弱指标，取值0-100。RSI>70为超买区，RSI<30为超卖区。RSI12周期较短，反应灵敏。可用于判断买卖时机和背离信号。",
+    "category": "technical_indicators",
+    "keywords": [
+      "RSI12",
+      "超买超卖",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "RSI14相对强弱指标",
+    "content": "RSI14是14日相对强弱指标，取值0-100。RSI>70为超买区，RSI<30为超卖区。RSI14周期较长，更稳定。可用于判断买卖时机和背离信号。",
+    "category": "technical_indicators",
+    "keywords": [
+      "RSI14",
+      "超买超卖",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "RSI24相对强弱指标",
+    "content": "RSI24是24日相对强弱指标，取值0-100。RSI>70为超买区，RSI<30为超卖区。RSI24周期较长，更稳定。可用于判断买卖时机和背离信号。",
+    "category": "technical_indicators",
+    "keywords": [
+      "RSI24",
+      "超买超卖",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MACD(12,26,9)指标",
+    "content": "MACD(12,26,9)由快线EMA12、慢线EMA26和信号线9日均线组成。DIF=EMA12-EMA26，DEA是DIF的9日均线，MACD柱=2×(DIF-DEA)。金叉看涨，死叉看跌。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MACD",
+      "12,26,9",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MACD(6,13,5)指标",
+    "content": "MACD(6,13,5)由快线EMA6、慢线EMA13和信号线5日均线组成。DIF=EMA6-EMA13，DEA是DIF的5日均线，MACD柱=2×(DIF-DEA)。金叉看涨，死叉看跌。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MACD",
+      "6,13,5",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MACD(19,39,9)指标",
+    "content": "MACD(19,39,9)由快线EMA19、慢线EMA39和信号线9日均线组成。DIF=EMA19-EMA39，DEA是DIF的9日均线，MACD柱=2×(DIF-DEA)。金叉看涨，死叉看跌。",
+    "category": "technical_indicators",
+    "keywords": [
+      "MACD",
+      "19,39,9",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "布林带BOLL(20,2)",
+    "content": "布林带BOLL(20,2)由20日均线和上下2倍标准差轨道组成。价格在上轨附近为超买，下轨附近为超卖。轨道收窄表示波动率降低，可能酝酿突破。",
+    "category": "technical_indicators",
+    "keywords": [
+      "布林带",
+      "BOLL(20,2)",
+      "波动率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "布林带BOLL(26,2)",
+    "content": "布林带BOLL(26,2)由26日均线和上下2倍标准差轨道组成。价格在上轨附近为超买，下轨附近为超卖。轨道收窄表示波动率降低，可能酝酿突破。",
+    "category": "technical_indicators",
+    "keywords": [
+      "布林带",
+      "BOLL(26,2)",
+      "波动率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "布林带BOLL(20,2.5)",
+    "content": "布林带BOLL(20,2.5)由20日均线和上下2.5倍标准差轨道组成。价格在上轨附近为超买，下轨附近为超卖。轨道收窄表示波动率降低，可能酝酿突破。",
+    "category": "technical_indicators",
+    "keywords": [
+      "布林带",
+      "BOLL(20,2.5)",
+      "波动率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "KDJ(9,3,3)随机指标",
+    "content": "KDJ(9,3,3)由K、D、J三条线组成。K值=3日RSV平滑，D值=K值的3日平滑，J=3K-2D。K>80超买，K<20超卖。金叉看涨，死叉看跌。",
+    "category": "technical_indicators",
+    "keywords": [
+      "KDJ",
+      "(9,3,3)",
+      "随机指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "KDJ(14,3,3)随机指标",
+    "content": "KDJ(14,3,3)由K、D、J三条线组成。K值=3日RSV平滑，D值=K值的3日平滑，J=3K-2D。K>80超买，K<20超卖。金叉看涨，死叉看跌。",
+    "category": "technical_indicators",
+    "keywords": [
+      "KDJ",
+      "(14,3,3)",
+      "随机指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "KDJ(9,5,5)随机指标",
+    "content": "KDJ(9,5,5)由K、D、J三条线组成。K值=5日RSV平滑，D值=K值的5日平滑，J=3K-2D。K>80超买，K<20超卖。金叉看涨，死叉看跌。",
+    "category": "technical_indicators",
+    "keywords": [
+      "KDJ",
+      "(9,5,5)",
+      "随机指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "OBV能量潮",
+    "content": "OBV通过累计成交量变化判断资金流向。价涨量增OBV上升，价跌量增OBV下降。OBV与价格背离是重要信号。",
+    "category": "technical_indicators",
+    "keywords": [
+      "OBV能量潮",
+      "成交量",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "VOL成交量",
+    "content": "VOL显示每日成交量。放量上涨为健康，缩量上涨需警惕。天量见天价，地量见地价。",
+    "category": "technical_indicators",
+    "keywords": [
+      "VOL成交量",
+      "成交量",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "VRSI量相对强弱",
+    "content": "VRSI是成交量的RSI指标。VRSI>70表示成交量过大，<30表示成交量萎缩。",
+    "category": "technical_indicators",
+    "keywords": [
+      "VRSI量相对强弱",
+      "成交量",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "VR成交量比率",
+    "content": "VR=(N日上涨日成交量和)/(N日下跌日成交量和)。VR>1表示买盘强，<1表示卖盘强。",
+    "category": "technical_indicators",
+    "keywords": [
+      "VR成交量比率",
+      "成交量",
+      "技术指标"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "大阳线",
+    "content": "实体很长的阳线，表示多方力量强大。出现在底部是见底信号，出现在上涨途中表示趋势延续。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "大阳线",
+      "K线",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "大阴线",
+    "content": "实体很长的阴线，表示空方力量强大。出现在顶部是见顶信号，出现在下跌途中表示趋势延续。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "大阴线",
+      "K线",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "小阳线",
+    "content": "实体较小的阳线，表示多空力量均衡，多方略占优。需结合位置和趋势判断。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "小阳线",
+      "K线",
+      "中性"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "小阴线",
+    "content": "实体较小的阴线，表示多空力量均衡，空方略占优。需结合位置和趋势判断。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "小阴线",
+      "K线",
+      "中性"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "上影阳线",
+    "content": "上影线较长的阳线，表示上方抛压重。在高位需警惕见顶。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "上影阳线",
+      "K线",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "下影阳线",
+    "content": "下影线较长的阳线，表示下方支撑强。在低位是见底信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "下影阳线",
+      "K线",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "上影阴线",
+    "content": "上影线较长的阴线，表示上方抛压重，多头反攻失败。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "上影阴线",
+      "K线",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "下影阴线",
+    "content": "下影线较长的阴线，表示下方有支撑，空头打压受阻。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "下影阴线",
+      "K线",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "光头阳线",
+    "content": "没有上影线的阳线，表示多方力量强劲，收盘价等于最高价。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "光头阳线",
+      "K线",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "光脚阳线",
+    "content": "没有下影线的阳线，表示多方一路上攻，开盘价等于最低价。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "光脚阳线",
+      "K线",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "光头阴线",
+    "content": "没有上影线的阴线，表示空方力量强劲，开盘即最高价。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "光头阴线",
+      "K线",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "光脚阴线",
+    "content": "没有下影线的阴线，表示空方一路打压，收盘即最低价。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "光脚阴线",
+      "K线",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "看涨吞没",
+    "content": "第二根阳线完全吞没第一根阴线，表示多方力量强大。出现在底部是强烈的反转信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "看涨吞没",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "看跌吞没",
+    "content": "第二根阴线完全吞没第一根阳线，表示空方力量强大。出现在顶部是强烈的反转信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "看跌吞没",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "乌云盖顶",
+    "content": "第二根阴线深入第一根阳线实体，表示上涨受阻。出现在顶部是见顶信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "乌云盖顶",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "曙光初现",
+    "content": "第二根阳线深入第一根阴线实体，表示下跌受阻。出现在底部是见底信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "曙光初现",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "平顶",
+    "content": "两根K线最高价相同，形成平顶。表示上方阻力强，可能见顶。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "平顶",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "平底",
+    "content": "两根K线最低价相同，形成平底。表示下方支撑强，可能见底。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "平底",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "孕线",
+    "content": "第二根K线完全在第一根K线实体内，表示趋势可能反转。需结合位置判断。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "孕线",
+      "K线组合",
+      "反转"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "十字孕线",
+    "content": "第二根为十字星且在第一根实体内，反转信号更强。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "十字孕线",
+      "K线组合",
+      "反转"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "早晨之星",
+    "content": "由大阴线、小K线、大阳线组成。出现在底部是强烈的见底信号，表示趋势反转向上。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "早晨之星",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "黄昏之星",
+    "content": "由大阳线、小K线、大阴线组成。出现在顶部是强烈的见顶信号，表示趋势反转向下。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "黄昏之星",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "红三兵",
+    "content": "连续三根阳线，每根收盘价高于前一根。表示多方力量强大，上涨趋势确立。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "红三兵",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "黑三鸦",
+    "content": "连续三根阴线，每根收盘价低于前一根。表示空方力量强大，下跌趋势确立。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "黑三鸦",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "上升三法",
+    "content": "上涨途中出现三根小阴线，被前后大阳线包围。表示上涨趋势中的整理，后市继续上涨。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "上升三法",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "下降三法",
+    "content": "下跌途中出现三根小阳线，被前后大阴线包围。表示下跌趋势中的整理，后市继续下跌。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "下降三法",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "三只乌鸦",
+    "content": "连续三根阴线，开盘价在前一根实体内。出现在顶部是强烈的见顶信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "三只乌鸦",
+      "K线组合",
+      "看跌"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "三个白武士",
+    "content": "连续三根阳线，开盘价在前一根实体内。出现在底部是强烈的见底信号。",
+    "category": "candlestick_patterns",
+    "keywords": [
+      "三个白武士",
+      "K线组合",
+      "看涨"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "人工智能概念",
+    "content": "人工智能是A股市场的热门概念板块。该板块包含从事人工智能相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握人工智能板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "人工智能",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "人工智能产业链分析",
+    "content": "人工智能产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "人工智能",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "芯片半导体概念",
+    "content": "芯片半导体是A股市场的热门概念板块。该板块包含从事芯片半导体相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握芯片半导体板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "芯片半导体",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "芯片半导体产业链分析",
+    "content": "芯片半导体产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "芯片半导体",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "新能源汽车概念",
+    "content": "新能源汽车是A股市场的热门概念板块。该板块包含从事新能源汽车相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握新能源汽车板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "新能源汽车",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "新能源汽车产业链分析",
+    "content": "新能源汽车产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "新能源汽车",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "光伏概念",
+    "content": "光伏是A股市场的热门概念板块。该板块包含从事光伏相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握光伏板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "光伏",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "光伏产业链分析",
+    "content": "光伏产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "光伏",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "风电概念",
+    "content": "风电是A股市场的热门概念板块。该板块包含从事风电相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握风电板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "风电",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "风电产业链分析",
+    "content": "风电产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "风电",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "储能概念",
+    "content": "储能是A股市场的热门概念板块。该板块包含从事储能相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握储能板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "储能",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "储能产业链分析",
+    "content": "储能产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "储能",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "锂电池概念",
+    "content": "锂电池是A股市场的热门概念板块。该板块包含从事锂电池相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握锂电池板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "锂电池",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "锂电池产业链分析",
+    "content": "锂电池产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "锂电池",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "5G概念",
+    "content": "5G是A股市场的热门概念板块。该板块包含从事5G相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握5G板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "5G",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "5G产业链分析",
+    "content": "5G产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "5G",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "6G概念",
+    "content": "6G是A股市场的热门概念板块。该板块包含从事6G相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握6G板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "6G",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "6G产业链分析",
+    "content": "6G产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "6G",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "物联网概念",
+    "content": "物联网是A股市场的热门概念板块。该板块包含从事物联网相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握物联网板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "物联网",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "物联网产业链分析",
+    "content": "物联网产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "物联网",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "云计算概念",
+    "content": "云计算是A股市场的热门概念板块。该板块包含从事云计算相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握云计算板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "云计算",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "云计算产业链分析",
+    "content": "云计算产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "云计算",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "大数据概念",
+    "content": "大数据是A股市场的热门概念板块。该板块包含从事大数据相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握大数据板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "大数据",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "大数据产业链分析",
+    "content": "大数据产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "大数据",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "区块链概念",
+    "content": "区块链是A股市场的热门概念板块。该板块包含从事区块链相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握区块链板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "区块链",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "区块链产业链分析",
+    "content": "区块链产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "区块链",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "元宇宙概念",
+    "content": "元宇宙是A股市场的热门概念板块。该板块包含从事元宇宙相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握元宇宙板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "元宇宙",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "元宇宙产业链分析",
+    "content": "元宇宙产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "元宇宙",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "医疗器械概念",
+    "content": "医疗器械是A股市场的热门概念板块。该板块包含从事医疗器械相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握医疗器械板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "医疗器械",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "医疗器械产业链分析",
+    "content": "医疗器械产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "医疗器械",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "创新药概念",
+    "content": "创新药是A股市场的热门概念板块。该板块包含从事创新药相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握创新药板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "创新药",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "创新药产业链分析",
+    "content": "创新药产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "创新药",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "CXO概念",
+    "content": "CXO是A股市场的热门概念板块。该板块包含从事CXO相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握CXO板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "CXO",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "CXO产业链分析",
+    "content": "CXO产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "CXO",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "医美概念",
+    "content": "医美是A股市场的热门概念板块。该板块包含从事医美相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握医美板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "医美",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "医美产业链分析",
+    "content": "医美产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "医美",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "眼科概念",
+    "content": "眼科是A股市场的热门概念板块。该板块包含从事眼科相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握眼科板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "眼科",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "眼科产业链分析",
+    "content": "眼科产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "眼科",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "口腔概念",
+    "content": "口腔是A股市场的热门概念板块。该板块包含从事口腔相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握口腔板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "口腔",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "口腔产业链分析",
+    "content": "口腔产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "口腔",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "体外诊断概念",
+    "content": "体外诊断是A股市场的热门概念板块。该板块包含从事体外诊断相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握体外诊断板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "体外诊断",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "体外诊断产业链分析",
+    "content": "体外诊断产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "体外诊断",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "白酒概念",
+    "content": "白酒是A股市场的热门概念板块。该板块包含从事白酒相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握白酒板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "白酒",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "白酒产业链分析",
+    "content": "白酒产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "白酒",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "啤酒概念",
+    "content": "啤酒是A股市场的热门概念板块。该板块包含从事啤酒相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握啤酒板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "啤酒",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "啤酒产业链分析",
+    "content": "啤酒产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "啤酒",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "调味品概念",
+    "content": "调味品是A股市场的热门概念板块。该板块包含从事调味品相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握调味品板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "调味品",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "调味品产业链分析",
+    "content": "调味品产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "调味品",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "乳制品概念",
+    "content": "乳制品是A股市场的热门概念板块。该板块包含从事乳制品相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握乳制品板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "乳制品",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "乳制品产业链分析",
+    "content": "乳制品产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "乳制品",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "休闲食品概念",
+    "content": "休闲食品是A股市场的热门概念板块。该板块包含从事休闲食品相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握休闲食品板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "休闲食品",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "休闲食品产业链分析",
+    "content": "休闲食品产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "休闲食品",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "预制菜概念",
+    "content": "预制菜是A股市场的热门概念板块。该板块包含从事预制菜相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握预制菜板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "预制菜",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "预制菜产业链分析",
+    "content": "预制菜产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "预制菜",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "消费电子概念",
+    "content": "消费电子是A股市场的热门概念板块。该板块包含从事消费电子相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握消费电子板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "消费电子",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "消费电子产业链分析",
+    "content": "消费电子产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "消费电子",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "智能家居概念",
+    "content": "智能家居是A股市场的热门概念板块。该板块包含从事智能家居相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握智能家居板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "智能家居",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "智能家居产业链分析",
+    "content": "智能家居产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "智能家居",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "智能穿戴概念",
+    "content": "智能穿戴是A股市场的热门概念板块。该板块包含从事智能穿戴相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握智能穿戴板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "智能穿戴",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "智能穿戴产业链分析",
+    "content": "智能穿戴产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "智能穿戴",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "TWS耳机概念",
+    "content": "TWS耳机是A股市场的热门概念板块。该板块包含从事TWS耳机相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握TWS耳机板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "TWS耳机",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "TWS耳机产业链分析",
+    "content": "TWS耳机产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "TWS耳机",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "VR/AR概念",
+    "content": "VR/AR是A股市场的热门概念板块。该板块包含从事VR/AR相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握VR/AR板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "VR/AR",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "VR/AR产业链分析",
+    "content": "VR/AR产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "VR/AR",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "军工概念",
+    "content": "军工是A股市场的热门概念板块。该板块包含从事军工相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握军工板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "军工",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "军工产业链分析",
+    "content": "军工产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "军工",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "航空航天概念",
+    "content": "航空航天是A股市场的热门概念板块。该板块包含从事航空航天相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握航空航天板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "航空航天",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "航空航天产业链分析",
+    "content": "航空航天产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "航空航天",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "船舶概念",
+    "content": "船舶是A股市场的热门概念板块。该板块包含从事船舶相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握船舶板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "船舶",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "船舶产业链分析",
+    "content": "船舶产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "船舶",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "核电概念",
+    "content": "核电是A股市场的热门概念板块。该板块包含从事核电相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握核电板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "核电",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "核电产业链分析",
+    "content": "核电产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "核电",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "特高压概念",
+    "content": "特高压是A股市场的热门概念板块。该板块包含从事特高压相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握特高压板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "特高压",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "特高压产业链分析",
+    "content": "特高压产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "特高压",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "房地产概念",
+    "content": "房地产是A股市场的热门概念板块。该板块包含从事房地产相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握房地产板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "房地产",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "房地产产业链分析",
+    "content": "房地产产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "房地产",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "建筑概念",
+    "content": "建筑是A股市场的热门概念板块。该板块包含从事建筑相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握建筑板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "建筑",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "建筑产业链分析",
+    "content": "建筑产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "建筑",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "建材概念",
+    "content": "建材是A股市场的热门概念板块。该板块包含从事建材相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握建材板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "建材",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "建材产业链分析",
+    "content": "建材产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "建材",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "装修概念",
+    "content": "装修是A股市场的热门概念板块。该板块包含从事装修相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握装修板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "装修",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "装修产业链分析",
+    "content": "装修产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "装修",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "物业管理概念",
+    "content": "物业管理是A股市场的热门概念板块。该板块包含从事物业管理相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握物业管理板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "物业管理",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "物业管理产业链分析",
+    "content": "物业管理产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "物业管理",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "银行概念",
+    "content": "银行是A股市场的热门概念板块。该板块包含从事银行相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握银行板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "银行",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "银行产业链分析",
+    "content": "银行产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "银行",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "保险概念",
+    "content": "保险是A股市场的热门概念板块。该板块包含从事保险相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握保险板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "保险",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "保险产业链分析",
+    "content": "保险产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "保险",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "证券概念",
+    "content": "证券是A股市场的热门概念板块。该板块包含从事证券相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握证券板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "证券",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "证券产业链分析",
+    "content": "证券产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "证券",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "信托概念",
+    "content": "信托是A股市场的热门概念板块。该板块包含从事信托相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握信托板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "信托",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "信托产业链分析",
+    "content": "信托产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "信托",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "租赁概念",
+    "content": "租赁是A股市场的热门概念板块。该板块包含从事租赁相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握租赁板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "租赁",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "租赁产业链分析",
+    "content": "租赁产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "租赁",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "电商概念",
+    "content": "电商是A股市场的热门概念板块。该板块包含从事电商相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握电商板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "电商",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "电商产业链分析",
+    "content": "电商产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "电商",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "快递物流概念",
+    "content": "快递物流是A股市场的热门概念板块。该板块包含从事快递物流相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握快递物流板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "快递物流",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "快递物流产业链分析",
+    "content": "快递物流产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "快递物流",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "供应链概念",
+    "content": "供应链是A股市场的热门概念板块。该板块包含从事供应链相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握供应链板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "供应链",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "供应链产业链分析",
+    "content": "供应链产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "供应链",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "跨境电商概念",
+    "content": "跨境电商是A股市场的热门概念板块。该板块包含从事跨境电商相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握跨境电商板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "跨境电商",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "跨境电商产业链分析",
+    "content": "跨境电商产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "跨境电商",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "游戏概念",
+    "content": "游戏是A股市场的热门概念板块。该板块包含从事游戏相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握游戏板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "游戏",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "游戏产业链分析",
+    "content": "游戏产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "游戏",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "影视概念",
+    "content": "影视是A股市场的热门概念板块。该板块包含从事影视相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握影视板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "影视",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "影视产业链分析",
+    "content": "影视产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "影视",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "出版概念",
+    "content": "出版是A股市场的热门概念板块。该板块包含从事出版相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握出版板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "出版",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "出版产业链分析",
+    "content": "出版产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "出版",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "广告营销概念",
+    "content": "广告营销是A股市场的热门概念板块。该板块包含从事广告营销相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握广告营销板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "广告营销",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "广告营销产业链分析",
+    "content": "广告营销产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "广告营销",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "直播概念",
+    "content": "直播是A股市场的热门概念板块。该板块包含从事直播相关业务的上市公司。投资者可以通过研究行业发展趋势、政策支持力度、龙头公司竞争力等因素，把握直播板块的投资机会。关注行业景气度、技术进步、市场需求变化。",
+    "category": "stock_concepts",
+    "keywords": [
+      "直播",
+      "概念板块",
+      "主题投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "直播产业链分析",
+    "content": "直播产业链包括上游原材料、中游制造、下游应用等环节。上游供应商提供关键材料和零部件，中游企业负责生产制造，下游企业进行市场推广和销售。投资时需要关注产业链各环节的盈利能力、议价能力和成长空间。",
+    "category": "industry_chain",
+    "keywords": [
+      "直播",
+      "产业链",
+      "投资分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "货币资金",
+    "content": "企业持有的现金和银行存款。货币资金充裕表示流动性好，但过多可能表示资金使用效率低。",
+    "category": "financial_statements",
+    "keywords": [
+      "货币资金",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "应收账款",
+    "content": "企业销售商品或提供服务应收取的款项。应收账款过高可能存在坏账风险。",
+    "category": "financial_statements",
+    "keywords": [
+      "应收账款",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "存货",
+    "content": "企业持有的原材料、在产品、产成品等。存货周转率反映存货管理效率。",
+    "category": "financial_statements",
+    "keywords": [
+      "存货",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "固定资产",
+    "content": "企业长期使用的房屋、设备等。固定资产占比高的企业属于重资产行业。",
+    "category": "financial_statements",
+    "keywords": [
+      "固定资产",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "无形资产",
+    "content": "企业拥有的专利、商标、土地使用权等。无形资产体现企业的技术和品牌价值。",
+    "category": "financial_statements",
+    "keywords": [
+      "无形资产",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "短期借款",
+    "content": "企业一年内需要偿还的借款。短期借款过高增加流动性风险。",
+    "category": "financial_statements",
+    "keywords": [
+      "短期借款",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "长期借款",
+    "content": "企业一年以上需要偿还的借款。长期借款用于长期投资和扩张。",
+    "category": "financial_statements",
+    "keywords": [
+      "长期借款",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "应付账款",
+    "content": "企业采购商品或接受服务应支付的款项。应付账款是企业的无息负债。",
+    "category": "financial_statements",
+    "keywords": [
+      "应付账款",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "股东权益",
+    "content": "企业资产减去负债后的净资产。股东权益增长表示企业价值增加。",
+    "category": "financial_statements",
+    "keywords": [
+      "股东权益",
+      "资产负债表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "营业收入",
+    "content": "企业销售商品或提供服务获得的收入。营业收入增长是企业发展的基础。",
+    "category": "financial_statements",
+    "keywords": [
+      "营业收入",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "营业成本",
+    "content": "企业销售商品或提供服务发生的直接成本。营业成本控制影响毛利率。",
+    "category": "financial_statements",
+    "keywords": [
+      "营业成本",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "销售费用",
+    "content": "企业销售商品发生的费用，包括广告、运输、销售人员工资等。",
+    "category": "financial_statements",
+    "keywords": [
+      "销售费用",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "管理费用",
+    "content": "企业管理发生的费用，包括管理人员工资、办公费、折旧等。",
+    "category": "financial_statements",
+    "keywords": [
+      "管理费用",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "财务费用",
+    "content": "企业融资发生的费用，主要是利息支出。财务费用高表示财务杠杆高。",
+    "category": "financial_statements",
+    "keywords": [
+      "财务费用",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "研发费用",
+    "content": "企业研发活动发生的费用。研发费用率反映企业创新投入力度。",
+    "category": "financial_statements",
+    "keywords": [
+      "研发费用",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "营业利润",
+    "content": "营业收入减去营业成本和各项费用后的利润。营业利润是企业主营业务的盈利能力。",
+    "category": "financial_statements",
+    "keywords": [
+      "营业利润",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "净利润",
+    "content": "企业最终的盈利。净利润增长是股价上涨的基础。",
+    "category": "financial_statements",
+    "keywords": [
+      "净利润",
+      "利润表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "经营活动现金流",
+    "content": "企业日常经营产生的现金流。经营现金流为正表示企业造血能力强。",
+    "category": "financial_statements",
+    "keywords": [
+      "经营活动现金流",
+      "现金流量表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "投资活动现金流",
+    "content": "企业投资活动产生的现金流。投资现金流为负表示企业在扩张。",
+    "category": "financial_statements",
+    "keywords": [
+      "投资活动现金流",
+      "现金流量表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "筹资活动现金流",
+    "content": "企业融资活动产生的现金流。筹资现金流为正表示企业在融资。",
+    "category": "financial_statements",
+    "keywords": [
+      "筹资活动现金流",
+      "现金流量表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "自由现金流",
+    "content": "经营现金流减去资本支出。自由现金流为正表示企业有余钱分红或回购。",
+    "category": "financial_statements",
+    "keywords": [
+      "自由现金流",
+      "现金流量表",
+      "财务分析"
+    ],
+    "source": "financial_encyclopedia"
+  }
+]

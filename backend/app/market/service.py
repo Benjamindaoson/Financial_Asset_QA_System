@@ -231,6 +231,7 @@ class MarketDataService:
         )
 
     async def get_price(self, symbol: str) -> MarketData:
+        start_time = datetime.utcnow()
         normalized = self.ticker_mapper.normalize(symbol)
         if not normalized:
             return MarketData(
@@ -238,17 +239,23 @@ class MarketDataService:
                 source="unavailable",
                 timestamp=self._utc_now(),
                 error="Invalid symbol",
+                cache_hit=False,
             )
 
         cache_key = f"price:{normalized}"
         cached = self._get_cache(cache_key)
         if cached:
-            return MarketData(**cached)
+            latency = (datetime.utcnow() - start_time).total_seconds() * 1000
+            result = MarketData(**cached)
+            result.cache_hit = True
+            result.latency_ms = latency
+            return result
 
         info = await self._fetch_yfinance_info(normalized)
         if info:
             price = info.get("currentPrice") or info.get("regularMarketPrice")
             if price:
+                latency = (datetime.utcnow() - start_time).total_seconds() * 1000
                 result = MarketData(
                     symbol=normalized,
                     price=float(price),
@@ -256,20 +263,32 @@ class MarketDataService:
                     name=info.get("longName") or info.get("shortName") or normalized,
                     source="yfinance",
                     timestamp=self._utc_now(),
+                    cache_hit=False,
+                    latency_ms=latency,
                 )
-                self._set_cache(cache_key, result.model_dump(), settings.CACHE_TTL_PRICE)
+                # Save to cache without cache_hit and latency_ms fields
+                cache_data = result.model_dump(exclude={'cache_hit', 'latency_ms'})
+                self._set_cache(cache_key, cache_data, settings.CACHE_TTL_PRICE)
                 return result
 
         fallback = await self._fetch_alpha_vantage_quote(normalized)
         if fallback:
-            self._set_cache(cache_key, fallback.model_dump(), settings.CACHE_TTL_PRICE)
+            latency = (datetime.utcnow() - start_time).total_seconds() * 1000
+            fallback.cache_hit = False
+            fallback.latency_ms = latency
+            # Save to cache without cache_hit and latency_ms fields
+            cache_data = fallback.model_dump(exclude={'cache_hit', 'latency_ms'})
+            self._set_cache(cache_key, cache_data, settings.CACHE_TTL_PRICE)
             return fallback
 
+        latency = (datetime.utcnow() - start_time).total_seconds() * 1000
         return MarketData(
             symbol=normalized,
             source="unavailable",
             timestamp=self._utc_now(),
             error="Data unavailable from all sources",
+            cache_hit=False,
+            latency_ms=latency,
         )
 
     async def get_history(self, symbol: str, days: int = 30) -> HistoryData:

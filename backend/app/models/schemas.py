@@ -29,6 +29,8 @@ class MarketData(BaseModel):
     source: str
     timestamp: str
     error: Optional[str] = None
+    cache_hit: bool = False
+    latency_ms: Optional[float] = None
 
 
 class HistoryData(BaseModel):

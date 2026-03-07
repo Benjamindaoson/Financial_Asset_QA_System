@@ -71,11 +71,11 @@ cd \Financial_Asset_QA_System
 cd backend
 
 # 4. 创建一个干净的“虚拟房间”，防止您的电脑其他软件干扰 (需要等待几秒钟)
-python -m venv venv
+python -m venv .venv
 
 # 5. 激活这个“虚拟房间”！ (注意：下面这行是 Windows 专用的！)
-# (如果是 Mac 电脑，请运行这一行： source venv/bin/activate )
-venv\Scripts\activate
+# (如果是 Mac 电脑，请运行这一行： source .venv/bin/activate )
+.venv\Scripts\activate
 
 # 6. 安装所有大模型依赖包和雅虎股票查询插件 (注意：这一步要联网，大概需要等待 2~3 分钟)
 pip install -r requirements.txt
@@ -99,10 +99,10 @@ pip install -r requirements.txt
 ```bash
 # ⚠️ 注意：这辈子第一次敲这段命令回车的这个时候，系统会自动通过中国清华镜像源去自动下载一套大概 1.5GB 的文本过滤 RAG 向量防幻觉拦截模型。
 # 请耐心等待进度条走完 (大概需要 2~5 分钟)！不要中途乱按回车！直到你看到 `Application startup complete.` 这句绿色的英文就算大功告成！
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-> **成功标志**：只要这屏黑框最后停在了 `Uvicorn running on http://127.0.0.1:8001` 字样上，**千万千万不要关闭这个黑框**，把它最小化！您已经成功完成了后端 AI 引擎的启动！
+> **成功标志**：只要这屏黑框最后停在了 `Uvicorn running on http://127.0.0.1:8000` 字样上，**千万不要关闭这个黑框**，把它最小化！您已经完成后端 AI 引擎启动。
 
 ---
 
@@ -130,7 +130,7 @@ npm install
 npm run dev
 ```
 
-> **成功标志**：当在这个新终端里打印出了绿色的链接如 `➜ Local: http://127.0.0.1:3000/` 或者类似 `localhost:5173` 的内容时，全部系统大功告成！
+> **成功标志**：当在这个新终端里打印出了绿色的链接如 `➜ Local: http://127.0.0.1:5173/` 时，前端已经启动完成。
 
 ---
 

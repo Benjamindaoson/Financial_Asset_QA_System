@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
 
+    # Financial Data API Keys
+    FINNHUB_API_KEY: Optional[str] = None
+    FRED_API_KEY: Optional[str] = None
+    POLYGON_API_KEY: Optional[str] = None
+    TWELVE_DATA_API_KEY: Optional[str] = None
+    FMP_API_KEY: Optional[str] = None  # Financial Modeling Prep
+
     # Redis Configuration
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379

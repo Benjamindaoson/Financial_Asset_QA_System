@@ -41,13 +41,16 @@ class AnthropicAdapter(ModelAdapter):
         tools: List[Dict[str, Any]],
         max_tokens: int,
     ) -> AsyncGenerator:
-        with self.client.messages.stream(
-            model=self.model_name,
-            max_tokens=max_tokens,
-            system=system,
-            messages=messages,
-            tools=tools,
-        ) as stream:
+        request_kwargs = {
+            "model": self.model_name,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": messages,
+        }
+        if tools:
+            request_kwargs["tools"] = tools
+
+        with self.client.messages.stream(**request_kwargs) as stream:
             for event in stream:
                 yield event
             yield {"final_message": stream.current_message_snapshot}

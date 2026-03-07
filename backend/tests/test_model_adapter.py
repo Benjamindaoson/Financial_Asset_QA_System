@@ -233,6 +233,39 @@ class TestAnthropicAdapterStreaming:
                 events.append(event)
 
             assert len(events) > 0
+            stream_call = mock_anthropic.return_value.messages.stream.call_args
+            assert "tools" not in stream_call.kwargs
+
+    @pytest.mark.asyncio
+    async def test_anthropic_stream_with_tools(self):
+        """Ensure tool definitions are only sent when present."""
+        config = ModelConfig(
+            model_name="claude-3-5-sonnet-20241022",
+            provider=ModelProvider.ANTHROPIC,
+            api_key="test-key"
+        )
+
+        with patch('app.models.model_adapter.anthropic.Anthropic') as mock_anthropic:
+            mock_stream = MagicMock()
+            mock_stream.__enter__ = Mock(return_value=mock_stream)
+            mock_stream.__exit__ = Mock(return_value=None)
+            mock_stream.__iter__ = Mock(return_value=iter([]))
+            mock_stream.current_message_snapshot = Mock()
+            mock_anthropic.return_value.messages.stream.return_value = mock_stream
+
+            adapter = AnthropicAdapter(config)
+            events = []
+            async for event in adapter.create_message_stream(
+                messages=[{"role": "user", "content": "test"}],
+                system="test system",
+                tools=[{"name": "get_price", "description": "test", "input_schema": {}}],
+                max_tokens=100
+            ):
+                events.append(event)
+
+            assert len(events) == 1
+            stream_call = mock_anthropic.return_value.messages.stream.call_args
+            assert stream_call.kwargs["tools"][0]["name"] == "get_price"
 
     @pytest.mark.asyncio
     async def test_anthropic_adapter_with_base_url(self):

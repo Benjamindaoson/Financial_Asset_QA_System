@@ -47,6 +47,10 @@ class CacheWarmer:
 
     async def start_background_warming(self):
         """Start background task that warms cache periodically."""
+        if self._task is not None and not self._task.done():
+            logger.warning("[CacheWarmer] Background warming already running")
+            return
+
         async def warming_loop():
             while True:
                 try:
@@ -67,3 +71,5 @@ class CacheWarmer:
                 await self._task
             except asyncio.CancelledError:
                 pass
+            finally:
+                self._task = None

@@ -48,6 +48,7 @@ logs/
 
 # Vector store
 vectorstore/
+!vectorstore/.gitkeep
 
 # Models cache (HuggingFace downloaded model weights)
 models/

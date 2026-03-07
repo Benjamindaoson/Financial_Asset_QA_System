@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+from app.conversation import ConversationHistory
 from app.market import MarketDataService
 from app.models import SSEEvent, Source, ToolResult
 from app.models.model_adapter import ModelAdapterFactory
@@ -17,15 +18,43 @@ from app.search import WebSearchService
 
 
 class ResponseGuard:
-    """Validates the final answer against tool output."""
+    """Validates the final answer against tool output with enhanced safety checks."""
+
+    # Financial advice warning keywords
+    ADVICE_KEYWORDS = {
+        "建议买入", "建议卖出", "推荐买入", "推荐卖出", "应该买", "应该卖",
+        "recommend buying", "recommend selling", "should buy", "should sell",
+        "必须买", "必须卖", "一定要买", "一定要卖"
+    }
+
+    # Uncertainty markers that should be present for predictions
+    UNCERTAINTY_MARKERS = {
+        "可能", "也许", "或许", "预计", "预测", "估计", "大概",
+        "may", "might", "possibly", "probably", "estimated", "predicted"
+    }
 
     @staticmethod
     def validate(response_text: str, tool_results: List[ToolResult]) -> bool:
+        """
+        Enhanced validation with multiple checks.
+
+        Args:
+            response_text: Generated response text
+            tool_results: Tool execution results
+
+        Returns:
+            True if response passes all validation checks
+        """
         if not response_text.strip():
             return False
 
         normalized_text = response_text.lower()
 
+        # Check 1: Financial advice detection
+        if ResponseGuard._contains_financial_advice(response_text):
+            return False
+
+        # Check 2: Grounded numbers validation
         grounded_numbers: set[str] = set()
         grounded_sources: set[str] = set()
         for result in tool_results:
@@ -45,12 +74,79 @@ class ResponseGuard:
             for number in text_numbers
             if number not in allowed_numbers and not ResponseGuard._is_ignorable_number(number)
         }
+
+        # Check 3: Number grounding
         matched_number = any(number in text_numbers for number in grounded_numbers if number)
+
+        # Check 4: Source attribution
         has_source_section = "source" in normalized_text or "来源" in response_text
         matched_source = True
         if has_source_section and grounded_sources:
             matched_source = any(source in normalized_text for source in grounded_sources)
+
+        # Check 5: Future predictions should have uncertainty markers
+        has_prediction = any(word in normalized_text for word in ["未来", "将会", "future", "will be"])
+        if has_prediction:
+            has_uncertainty = any(marker in normalized_text for marker in ResponseGuard.UNCERTAINTY_MARKERS)
+            if not has_uncertainty:
+                return False
+
         return matched_number and matched_source and not unsupported_numbers
+
+    @staticmethod
+    def _contains_financial_advice(text: str) -> bool:
+        """
+        Check if text contains direct financial advice.
+
+        Args:
+            text: Text to check
+
+        Returns:
+            True if text contains financial advice
+        """
+        text_lower = text.lower()
+        return any(keyword in text_lower for keyword in ResponseGuard.ADVICE_KEYWORDS)
+
+    @staticmethod
+    def get_safety_warnings(response_text: str, tool_results: List[ToolResult]) -> List[str]:
+        """
+        Get list of safety warnings for the response.
+
+        Args:
+            response_text: Generated response
+            tool_results: Tool results
+
+        Returns:
+            List of warning messages
+        """
+        warnings = []
+
+        if ResponseGuard._contains_financial_advice(response_text):
+            warnings.append("Response contains direct financial advice")
+
+        normalized_text = response_text.lower()
+        has_prediction = any(word in normalized_text for word in ["未来", "将会", "future", "will be"])
+        if has_prediction:
+            has_uncertainty = any(marker in normalized_text for marker in ResponseGuard.UNCERTAINTY_MARKERS)
+            if not has_uncertainty:
+                warnings.append("Future prediction lacks uncertainty markers")
+
+        grounded_numbers: set[str] = set()
+        for result in tool_results:
+            ResponseGuard._collect_numbers(result.data, grounded_numbers)
+
+        if grounded_numbers:
+            text_numbers = ResponseGuard._extract_numeric_tokens(response_text)
+            allowed_numbers = grounded_numbers | ResponseGuard._allowable_numbers(tool_results)
+            unsupported_numbers = {
+                number
+                for number in text_numbers
+                if number not in allowed_numbers and not ResponseGuard._is_ignorable_number(number)
+            }
+            if unsupported_numbers:
+                warnings.append(f"Response contains ungrounded numbers: {unsupported_numbers}")
+
+        return warnings
 
     @staticmethod
     def _collect_numbers(value: Any, bucket: set[str]):
@@ -129,6 +225,7 @@ class AgentCore:
         self.search_service = WebSearchService()
         self.query_router = QueryRouter()
         self.guard = ResponseGuard()
+        self.conversation_history = ConversationHistory()
         self.tools = self._build_tools()
 
     def _build_tools(self) -> List[Dict[str, Any]]:
@@ -279,7 +376,12 @@ class AgentCore:
         print(f"[AgentCore] Query complexity: {complexity}, Selected model: {model_name}")
         return model_name
 
-    async def _build_tool_plan(self, query: str) -> List[Dict[str, Any]]:
+    async def _build_tool_plan(self, query: str, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        # Check if this is a follow-up question and resolve references
+        if session_id:
+            if self.conversation_history.is_follow_up_question(session_id, query):
+                query = self.conversation_history.resolve_references(session_id, query)
+
         route = await self.query_router.classify_async(query)
         primary_symbol = route.symbols[0] if route.symbols else None
         days = route.days or 30
@@ -357,7 +459,14 @@ class AgentCore:
             error_message=raw_result["error_message"],
         )
 
-    def _build_grounded_messages(self, query: str, tool_results: List[ToolResult]) -> List[Dict[str, str]]:
+    def _build_grounded_messages(self, query: str, tool_results: List[ToolResult], session_id: Optional[str] = None) -> List[Dict[str, str]]:
+        # Include conversation context if available
+        context = ""
+        if session_id:
+            context = self.conversation_history.get_context(session_id, max_turns=3)
+            if context:
+                context = f"\n\nConversation context:\n{context}\n"
+
         tool_payload = [
             {
                 "tool": result.tool,
@@ -368,7 +477,7 @@ class AgentCore:
             for result in tool_results
         ]
         content = (
-            f"User question: {query}\n\n"
+            f"User question: {query}{context}\n\n"
             "You must answer only from the verified tool results below.\n"
             "Do not invent prices, percentages, dates, or news events.\n"
             "Output exactly these four sections:\n"
@@ -425,10 +534,11 @@ class AgentCore:
         query: str,
         model_name: str,
         tool_results: List[ToolResult],
+        session_id: Optional[str] = None,
     ) -> AsyncGenerator[SSEEvent, None]:
         model_config = self.model_manager.models[model_name]
         adapter = ModelAdapterFactory.create_adapter(model_config)
-        messages = self._build_grounded_messages(query, tool_results) if tool_results else [{"role": "user", "content": query}]
+        messages = self._build_grounded_messages(query, tool_results, session_id) if tool_results else [{"role": "user", "content": query}]
         system_prompt = (
             "You are a financial QA assistant. "
             "If tool results are provided, stay grounded in them. "
@@ -472,11 +582,15 @@ class AgentCore:
         if not final_text and tool_results:
             yield SSEEvent(type="chunk", text=self._fallback_response(tool_results))
 
-    async def run(self, query: str, model_name: Optional[str] = None) -> AsyncGenerator[SSEEvent, None]:
+    async def run(self, query: str, model_name: Optional[str] = None, session_id: Optional[str] = None) -> AsyncGenerator[SSEEvent, None]:
         """Run the grounded workflow with streaming response."""
         request_id = str(uuid.uuid4())
         tool_results: List[ToolResult] = []
         sources: List[Source] = []
+
+        # Store user message in conversation history
+        if session_id:
+            self.conversation_history.add_message(session_id, "user", query)
 
         if not model_name:
             model_name = self._select_model(query)
@@ -501,7 +615,7 @@ class AgentCore:
         tokens_output = 0
 
         try:
-            tool_plan = await self._build_tool_plan(query)
+            tool_plan = await self._build_tool_plan(query, session_id)
             for step in tool_plan:
                 yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
                 raw_result = await self._execute_tool(step["name"], step["params"])
@@ -517,13 +631,23 @@ class AgentCore:
                 yield SSEEvent(type="tool_data", tool=step["name"], data=payload)
 
             answer_chunks: List[str] = []
-            async for answer_event in self._stream_grounded_answer(query, model_name, tool_results):
+            async for answer_event in self._stream_grounded_answer(query, model_name, tool_results, session_id):
                 if answer_event.text:
                     answer_chunks.append(answer_event.text)
                     tokens_output += len(answer_event.text) // 4
                 yield answer_event
 
             final_text = "".join(answer_chunks)
+
+            # Store assistant response in conversation history
+            if session_id:
+                metadata = {
+                    "model": model_name,
+                    "tools_used": [r.tool for r in tool_results],
+                    "verified": self.guard.validate(final_text, tool_results)
+                }
+                self.conversation_history.add_message(session_id, "assistant", final_text, metadata)
+
             self.model_manager.record_usage(
                 model_name=model_name,
                 tokens_input=tokens_input,

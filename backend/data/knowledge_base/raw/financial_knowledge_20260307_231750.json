@@ -1,0 +1,252 @@
+[
+  {
+    "title": "股票市场基础",
+    "content": "股票市场是买卖股票的场所，是企业融资和投资者投资的重要渠道。主要包括主板市场、创业板市场和科创板市场。投资者通过证券账户在交易所进行股票买卖。",
+    "category": "stock_basics",
+    "keywords": [
+      "股票",
+      "市场",
+      "交易所",
+      "投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "市盈率 (PE Ratio)",
+    "content": "市盈率是股票价格与每股收益的比率，用于评估股票估值水平。计算公式：PE = 股价 / 每股收益。一般来说，市盈率越低，股票相对越便宜。但不同行业的合理市盈率水平不同。",
+    "category": "valuation",
+    "keywords": [
+      "市盈率",
+      "PE",
+      "估值",
+      "每股收益"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "市净率 (PB Ratio)",
+    "content": "市净率是股票价格与每股净资产的比率，反映股票价格相对于公司净资产的倍数。计算公式：PB = 股价 / 每股净资产。市净率低于1时，表示股价低于公司净资产。",
+    "category": "valuation",
+    "keywords": [
+      "市净率",
+      "PB",
+      "净资产",
+      "估值"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "每股收益 (EPS)",
+    "content": "每股收益是公司净利润除以总股本，反映每股股票创造的利润。EPS是衡量公司盈利能力的重要指标，也是计算市盈率的基础。EPS越高，公司盈利能力越强。",
+    "category": "financial_metrics",
+    "keywords": [
+      "每股收益",
+      "EPS",
+      "净利润",
+      "盈利能力"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "净资产收益率 (ROE)",
+    "content": "净资产收益率是净利润与股东权益的比率，衡量公司运用股东资金的效率。ROE = 净利润 / 股东权益 × 100%。ROE越高，说明公司为股东创造价值的能力越强。巴菲特认为ROE持续高于15%的公司值得关注。",
+    "category": "financial_metrics",
+    "keywords": [
+      "ROE",
+      "净资产收益率",
+      "股东权益",
+      "盈利能力"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "股息率",
+    "content": "股息率是每股股息与股价的比率，反映投资股票的现金回报率。股息率 = 每股股息 / 股价 × 100%。高股息率的股票通常被视为防御性投资标的，适合追求稳定收益的投资者。",
+    "category": "dividend",
+    "keywords": [
+      "股息率",
+      "分红",
+      "现金回报",
+      "股息"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "基金投资基础",
+    "content": "基金是集合投资者资金，由专业基金管理人进行投资管理的金融工具。主要类型包括股票型基金、债券型基金、混合型基金和货币市场基金。基金投资具有分散风险、专业管理的优势。",
+    "category": "fund_basics",
+    "keywords": [
+      "基金",
+      "投资",
+      "基金管理",
+      "分散风险"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "ETF基金",
+    "content": "ETF（交易所交易基金）是在证券交易所上市交易的开放式基金。ETF结合了封闭式基金和开放式基金的优点，既可以在交易所买卖，也可以申购赎回。常见的有沪深300ETF、科创50ETF等。",
+    "category": "fund_types",
+    "keywords": [
+      "ETF",
+      "交易所交易基金",
+      "指数基金"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "基金净值",
+    "content": "基金净值是基金资产总值减去负债后的余额，除以基金总份额得到的单位净值。基金净值每日计算并公布，是投资者申购赎回基金的价格依据。累计净值反映基金成立以来的总收益。",
+    "category": "fund_metrics",
+    "keywords": [
+      "基金净值",
+      "单位净值",
+      "累计净值"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "债券投资基础",
+    "content": "债券是政府、企业等发行的债务凭证，承诺在约定期限内支付利息并偿还本金。债券投资风险相对较低，收益稳定，适合保守型投资者。主要类型包括国债、企业债、可转债等。",
+    "category": "bond_basics",
+    "keywords": [
+      "债券",
+      "固定收益",
+      "国债",
+      "企业债"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "债券收益率",
+    "content": "债券收益率反映债券投资的回报率，包括票面利率和资本利得。到期收益率是持有债券至到期的年化收益率。债券价格与收益率呈反向关系，价格上涨时收益率下降。",
+    "category": "bond_metrics",
+    "keywords": [
+      "债券收益率",
+      "到期收益率",
+      "票面利率"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "移动平均线 (MA)",
+    "content": "移动平均线是技术分析中最常用的指标，通过计算一定时期内的平均价格来平滑价格波动。常用的有5日、10日、20日、60日均线。金叉（短期均线上穿长期均线）被视为买入信号，死叉则为卖出信号。",
+    "category": "technical_analysis",
+    "keywords": [
+      "移动平均线",
+      "MA",
+      "均线",
+      "金叉",
+      "死叉"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "相对强弱指标 (RSI)",
+    "content": "RSI是衡量股票超买超卖的技术指标，取值范围0-100。RSI高于70通常表示超买，可能面临回调；低于30表示超卖，可能出现反弹。RSI是判断市场强弱和寻找买卖时机的重要工具。",
+    "category": "technical_analysis",
+    "keywords": [
+      "RSI",
+      "相对强弱指标",
+      "超买",
+      "超卖"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "MACD指标",
+    "content": "MACD（指数平滑异同移动平均线）由快线、慢线和柱状图组成，用于判断趋势和买卖时机。MACD金叉（快线上穿慢线）为买入信号，死叉为卖出信号。柱状图由负转正表示上涨动能增强。",
+    "category": "technical_analysis",
+    "keywords": [
+      "MACD",
+      "技术指标",
+      "趋势",
+      "金叉"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "牛市与熊市",
+    "content": "牛市指股市持续上涨的行情，投资者信心充足，成交活跃。熊市指股市持续下跌的行情，投资者悲观，成交萎缩。牛熊市的判断通常以主要指数涨跌20%为分界线。",
+    "category": "market_concepts",
+    "keywords": [
+      "牛市",
+      "熊市",
+      "行情",
+      "趋势"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "市值",
+    "content": "市值是公司所有流通股票的市场价值总和，计算公式：市值 = 股价 × 总股本。市值反映公司规模和市场地位。按市值大小，股票分为大盘股、中盘股和小盘股。",
+    "category": "market_concepts",
+    "keywords": [
+      "市值",
+      "总市值",
+      "流通市值",
+      "大盘股"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "换手率",
+    "content": "换手率是某一时期内股票成交量与流通股本的比率，反映股票流动性和交易活跃度。换手率 = 成交量 / 流通股本 × 100%。高换手率表示交易活跃，但也可能意味着投机性强。",
+    "category": "market_metrics",
+    "keywords": [
+      "换手率",
+      "成交量",
+      "流动性",
+      "交易活跃度"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "涨跌停板制度",
+    "content": "涨跌停板是中国股市的价格限制制度，限制股票单日涨跌幅度。主板和中小板股票涨跌幅限制为10%，科创板和创业板为20%，ST股票为5%。涨停或跌停时，股票仍可交易但价格不能突破限制。",
+    "category": "trading_rules",
+    "keywords": [
+      "涨跌停",
+      "涨停板",
+      "跌停板",
+      "价格限制"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "价值投资",
+    "content": "价值投资是寻找被市场低估的优质公司，长期持有等待价值回归的投资策略。核心理念是以低于内在价值的价格买入股票。巴菲特是价值投资的代表人物，强调选择具有护城河的优秀企业。",
+    "category": "investment_strategy",
+    "keywords": [
+      "价值投资",
+      "巴菲特",
+      "内在价值",
+      "长期投资"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "分散投资",
+    "content": "分散投资是将资金分配到不同资产、行业和地区，降低投资风险的策略。俗话说'不要把所有鸡蛋放在一个篮子里'。合理的资产配置可以在控制风险的同时获得稳定收益。",
+    "category": "investment_strategy",
+    "keywords": [
+      "分散投资",
+      "资产配置",
+      "风险管理",
+      "投资组合"
+    ],
+    "source": "financial_encyclopedia"
+  },
+  {
+    "title": "定投策略",
+    "content": "定投是定期定额投资的简称，指在固定时间以固定金额投资特定基金或股票。定投可以平滑市场波动，降低择时风险，适合长期投资。通过定投，投资者可以在市场低位买入更多份额，高位买入较少份额。",
+    "category": "investment_strategy",
+    "keywords": [
+      "定投",
+      "定期定额",
+      "平均成本",
+      "长期投资"
+    ],
+    "source": "financial_encyclopedia"
+  }
+]

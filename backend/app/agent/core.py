@@ -1,7 +1,9 @@
 """Agent core with deterministic routing and grounded response synthesis."""
 
+import asyncio
 import json
 import re
+import time
 import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -270,6 +272,39 @@ class AgentCore:
                 "error": str(exc),
             }
 
+    async def _execute_tools_parallel(self, tool_plan: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Execute multiple tools in parallel using asyncio.gather."""
+
+        async def execute_single_tool(step: Dict[str, Any]) -> Dict[str, Any]:
+            """Execute a single tool and return raw result with step info."""
+            tool_name = step["name"]
+            tool_params = step["params"]
+            start_time = time.time()
+
+            try:
+                raw_result = await self._execute_tool(tool_name, tool_params)
+                raw_result["step"] = step  # Attach step info for later use
+                return raw_result
+            except Exception as e:
+                latency_ms = int((time.time() - start_time) * 1000)
+                return {
+                    "success": False,
+                    "tool": tool_name,
+                    "data": {"error": str(e)},
+                    "latency_ms": latency_ms,
+                    "status": "error",
+                    "data_source": tool_name,
+                    "cache_hit": False,
+                    "error_message": str(e),
+                    "error": str(e),
+                    "step": step,
+                }
+
+        # Execute all tools in parallel
+        results = await asyncio.gather(*[execute_single_tool(step) for step in tool_plan])
+
+        return results
+
     def _select_model(self, query: str) -> str:
         if self.preferred_model:
             return self.preferred_model
@@ -502,19 +537,29 @@ class AgentCore:
 
         try:
             tool_plan = await self._build_tool_plan(query)
-            for step in tool_plan:
-                yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
-                raw_result = await self._execute_tool(step["name"], step["params"])
-                if not raw_result["success"]:
-                    raise RuntimeError(raw_result["error"])
 
-                tool_result = self._normalize_tool_result(raw_result)
-                tool_results.append(tool_result)
+            # Execute all tools in parallel
+            if tool_plan:
+                # Emit tool_start events for all tools
+                for step in tool_plan:
+                    yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
 
-                payload = tool_result.data
-                timestamp = payload.get("timestamp") or datetime.utcnow().isoformat()
-                sources.append(Source(name=payload.get("source", step["name"]), timestamp=timestamp))
-                yield SSEEvent(type="tool_data", tool=step["name"], data=payload)
+                # Execute tools in parallel
+                raw_results = await self._execute_tools_parallel(tool_plan)
+
+                # Process results and emit tool_data events
+                for raw_result in raw_results:
+                    if not raw_result["success"]:
+                        raise RuntimeError(raw_result.get("error", "Tool execution failed"))
+
+                    tool_result = self._normalize_tool_result(raw_result)
+                    tool_results.append(tool_result)
+
+                    payload = tool_result.data
+                    timestamp = payload.get("timestamp") or datetime.utcnow().isoformat()
+                    step = raw_result.get("step", {})
+                    sources.append(Source(name=payload.get("source", step.get("name", "unknown")), timestamp=timestamp))
+                    yield SSEEvent(type="tool_data", tool=step.get("name", "unknown"), data=payload)
 
             answer_chunks: List[str] = []
             async for answer_event in self._stream_grounded_answer(query, model_name, tool_results):

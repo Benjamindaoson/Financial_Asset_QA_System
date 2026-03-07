@@ -49,8 +49,11 @@ logs/
 # Vector store
 vectorstore/
 
-# Models cache
+# Models cache (HuggingFace downloaded model weights)
 models/
+# But DO NOT ignore the Python source code models package
+!backend/app/models/
+!backend/app/models/*.py
 
 # Cache
 .cache/

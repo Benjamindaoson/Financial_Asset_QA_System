@@ -25,10 +25,6 @@ services:
       LOG_LEVEL: INFO
     depends_on:
       - redis
-    volumes:
-      - ../backend:/app
-      - ../data:/app/data
-      - ../vectorstore:/app/vectorstore
 
   frontend:
     build:
@@ -36,9 +32,8 @@ services:
       dockerfile: docker/Dockerfile.frontend
     ports:
       - "5173:5173"
-    volumes:
-      - ../frontend:/app
-      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://backend:8000
 
 volumes:
   redis_data:

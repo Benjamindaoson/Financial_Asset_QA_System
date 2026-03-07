@@ -57,7 +57,18 @@ POPULAR_STOCKS = [
 
     # Additional US stocks
     "V", "MA", "PYPL", "COST", "AVGO", "CSCO", "TXN",
-    "IBM", "UBER", "LYFT", "SNAP", "TWTR", "SQ", "SHOP"
+    "IBM", "UBER", "LYFT", "SNAP", "TWTR", "SQ", "SHOP",
+
+    # More US stocks
+    "BA", "CAT", "MMM", "HON",
+
+    # More A-shares blue chips
+    "600000.SS",  # 浦发银行
+    "601398.SS",  # 工商银行
+    "601857.SS",  # 中国石油
+    "601288.SS",  # 农业银行
+    "600030.SS",  # 中信证券
+    "601328.SS",  # 交通银行
 ]
 
 

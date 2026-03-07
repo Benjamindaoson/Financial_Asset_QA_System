@@ -123,7 +123,11 @@ class Source(BaseModel):
 
 class SSEEvent(BaseModel):
     """Server-Sent Event"""
-    type: Literal["tool_start", "tool_data", "chunk", "done", "error", "model_selected"]
+    type: Literal[
+        "tool_start", "tool_data", "chunk", "done", "error", "model_selected",
+        "react_iteration", "react_thought", "react_action", "react_observation",
+        "react_final_answer", "react_complete", "react_error"
+    ]
     name: Optional[str] = None
     display: Optional[str] = None
     tool: Optional[str] = None
@@ -139,6 +143,15 @@ class SSEEvent(BaseModel):
     complexity: Optional[str] = None
     tokens_input: Optional[int] = None
     tokens_output: Optional[int] = None
+    # ReAct-specific fields
+    iteration: Optional[int] = None
+    max_iterations: Optional[int] = None
+    thought: Optional[str] = None
+    action: Optional[str] = None
+    action_input: Optional[dict] = None
+    observation: Optional[str] = None
+    answer: Optional[str] = None
+    total_steps: Optional[int] = None
 
 
 class HealthResponse(BaseModel):

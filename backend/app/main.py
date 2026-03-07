@@ -13,8 +13,39 @@ from app.config import settings
 
 app = FastAPI(
     title="Financial Asset QA System",
-    description="AI-powered financial asset question answering system",
-    version="1.0.0"
+    description="""
+    ## AI-powered Financial Asset Question Answering System
+
+    This API provides intelligent financial analysis and question answering capabilities:
+
+    * **Chat Interface**: Natural language queries about stocks, funds, and financial concepts
+    * **Market Data**: Real-time stock prices and historical charts
+    * **RAG Pipeline**: Retrieval-augmented generation for accurate financial knowledge
+    * **Agent System**: Multi-step reasoning with tool use for complex queries
+
+    ### Features
+    - Real-time market data integration
+    - Financial knowledge base with 10,000+ entries
+    - Multi-turn conversation support
+    - Source attribution and confidence scoring
+    """,
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "chat",
+            "description": "Chat and question answering endpoints"
+        },
+        {
+            "name": "market",
+            "description": "Market data and chart endpoints"
+        },
+        {
+            "name": "health",
+            "description": "Health check and system status"
+        }
+    ]
 )
 
 # CORS middleware

@@ -24,10 +24,15 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     global cache_warmer
 
-    # Startup: Initialize and start cache warmer
-    market_service = MarketDataService()
-    cache_warmer = CacheWarmer(market_service=market_service, interval_seconds=30)
-    await cache_warmer.start_background_warming()
+    if settings.CACHE_WARM_ENABLED:
+        market_service = MarketDataService()
+        cache_warmer = CacheWarmer(
+            market_service=market_service,
+            interval_seconds=settings.CACHE_WARM_INTERVAL_SECONDS,
+            limit=settings.CACHE_WARM_LIMIT,
+            concurrency=settings.CACHE_WARM_CONCURRENCY,
+        )
+        await cache_warmer.start_background_warming()
 
     yield
 
@@ -71,7 +76,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=True,
         log_level=settings.LOG_LEVEL.lower()
     )

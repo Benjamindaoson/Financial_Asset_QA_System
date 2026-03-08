@@ -1,160 +1,667 @@
 <div align="center">
 
-# 🏦 金融资产问答系统 (Financial Asset QA System)
+# 🏦 金融资产问答系统
+### Financial Asset QA System
 
-**基于大模型的全栈金融资产问答系统。融合核心市场价格引擎与实体识别，附带防幻觉知识检索。**
+**基于大模型的全栈金融资产问答系统**
+
+融合实时市场数据、AI智能分析与防幻觉知识检索
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![React 18+](https://img.shields.io/badge/react-18.0+-61dafb.svg)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688.svg)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
-**🏆 本项目特点：无需配置复杂的数据库或 Docker 容器。只要您有网、有基础环境，直接运行代码即可在本地拉起全套金融防幻觉大模型应用！**
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [常见问题](#-常见问题) • [技术架构](#-技术架构)
+
 </div>
 
 ---
 
-## 🚀 极速本地部署指南 (保姆级 0 基础全图解教程)
+## 🎯 功能特性
 
-本指南专门针对**没有任何编程经验**的 Windows / Mac 用户。我们会事无巨细地告诉您应该点击什么、输入什么。
+### 💹 实时股票查询
+- 支持全球主要股票市场实时数据
+- 自动生成价格走势图表
+- 涨跌幅分析和历史数据对比
 
-由于这是一个包含“AI 引擎大脑”和“网页交互界面”的全栈交互系统，**您必须按顺序运行【后端】和【前端】两份代码。**
+### 🤖 AI智能分析
+- 多模型支持（Claude、GPT、DeepSeek）
+- 流式响应，实时展示分析过程
+- 透明化AI推理链路追踪
+
+### 📚 防幻觉知识问答
+- RAG增强的知识检索系统
+- 自动来源标注和引用
+- 向量数据库支持精准匹配
+
+### 🎨 现代化UI
+- 响应式设计，支持移动端
+- 实时图表可视化
+- 暗色主题，护眼舒适
 
 ---
 
-### 第一步：必须安装的底层运行软件（只需装一次）
+## 🚀 快速开始
 
-在开始之前，请确保您的电脑里装了以下两个基础软件（下载安装时**一直点下一步**即可）：
+### 📋 前置要求
 
-1. **Python 环境（后端引擎需要）**: 强烈推荐 `Python 3.11`。[👉 点击这里去官网下载](https://www.python.org/downloads/)。
-   - ⚠️ **致命提醒（Windows小白必看）**：在那个安装界面的最底部，**必须打勾选中 `☑️ Add Python.exe to PATH`**（添加到环境变量），否则后面一切都会报错！！！
-2. **Node.js 环境（前端网页需要）**: [👉 点击这里进入官网](https://nodejs.org/)，下载带有 `LTS` (长期稳定版) 字样的版本进行安装。
+在开始之前，请确保已安装：
 
-> 如果您不确定是否装好：按下键盘上的 `Win` 键 + `R` 键，弹出一个运行小黑框，输入 `cmd` 后按回车。在弹出的黑框里输入 `python --version` 和 `npm --version`，如果能分别跳出类似 `Python 3.11.x` 和 `10.x.x` 的数字，说明安装成功。
+| 软件 | 版本要求 | 下载链接 | 安装提示 |
+|------|---------|---------|---------|
+| **Python** | 3.11+ | [官网下载](https://www.python.org/downloads/) | Windows用户必须勾选 `Add Python to PATH` |
+| **Node.js** | 18+ | [官网下载](https://nodejs.org/) | 选择LTS版本 |
+| **Git** | 最新版 | [官网下载](https://git-scm.com/) | 可选，也可直接下载ZIP |
+
+**验证安装**：
+```bash
+python --version  # 应显示 Python 3.11.x
+node --version    # 应显示 v18.x.x 或更高
+npm --version     # 应显示 10.x.x 或更高
+```
 
 ---
 
-### 第二步：如何下载代码并进入工作目录
+### 📥 第一步：下载代码
 
-假设您现在想要把这个系统存放在您电脑的 **D盘**。请按照以下步骤操作：
+**方法1：使用Git（推荐）**
+```bash
+git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
+cd Financial_Asset_QA_System
+```
 
-**方式A：小白压缩包直接下载法**
-1. 回到本页面的最上方，点击绿色的 `<> Code` 按钮，然后点击 **`Download ZIP`**。
-2. 将下载下来的 `Financial_Asset_QA_System-master.zip` 压缩包，**解压到您的 D盘根目录**。
-3. 解压后，确保您能看到一个名为 `Financial_Asset_QA_System-master` （或类似名字）的文件夹。
+**方法2：下载ZIP**
+1. 点击页面上的绿色 `<> Code` 按钮
+2. 选择 `Download ZIP`
+3. 解压到任意目录并进入该目录
 
-**方式B：Git 极客下载法（适合了解代码的人）**
-1. 按下 `Win` + `R` 键，输入 `cmd` 按回车，打开终端黑框。
-2. 输入 `D:` 命令并按回车（切换到D盘）。
-3. 运行下面这行命令：
+---
+
+### 🔑 第二步：配置API密钥
+
+1. 进入 `backend` 目录
+2. 复制 `.env.example` 为 `.env`：
    ```bash
-   git clone https://github.com/Benjamindaoson/Financial_Asset_QA_System.git
+   # Windows
+   copy backend\.env.example backend\.env
+
+   # macOS/Linux
+   cp backend/.env.example backend/.env
    ```
 
+3. 编辑 `backend/.env` 文件，**至少配置一个AI模型的API密钥**：
+
+```env
+# 推荐：Claude API（效果最好）
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+
+# 或者：DeepSeek API（性价比高）
+DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxx
+
+# 或者：OpenAI API
+OPENAI_API_KEY=sk-xxxxxxxxxxxxx
+
+# 可选：金融数据API（不配置也能用Yahoo Finance）
+ALPHA_VANTAGE_API_KEY=your_key_here
+FINNHUB_API_KEY=your_key_here
+```
+
+> 💡 **获取API密钥**：
+> - Claude: [console.anthropic.com](https://console.anthropic.com/)
+> - DeepSeek: [platform.deepseek.com](https://platform.deepseek.com/)
+> - OpenAI: [platform.openai.com](https://platform.openai.com/)
+
 ---
 
-### 第三步：启动 API 后端服务 (也就是 AI 的大脑核心)
+### 🎬 第三步：启动系统
 
-这是最重要的一步！我们要唤醒 Python 的后端数据引擎和爬虫插件。
-请**依然保持在刚才那个刚刚启动的 CMD / PowerShell 黑框里**（如果关了，重新按 `Win + R` 输 `cmd` 打开）：
+#### 🪟 Windows用户（一键启动）
 
-**每一行请单独复制进去，按回车，等它执行完不要动，然后再复制下一行！**
+**启动后端**：
+双击运行项目根目录下的 `启动后端.bat`
 
+**启动前端**：
+双击运行项目根目录下的 `启动前端.bat`
+
+#### 🐧 macOS/Linux用户（命令行启动）
+
+**启动后端**（终端1）：
 ```bash
-# 1. 切换到 D 盘 (如果您刚才解压在其他盘，把 D 换成其他盘符)
-D:
-
-# 2. 进入刚刚解压出来的金融 QA 系统文件夹里面 (如果您的文件夹名字叫 -master 结尾，请对应修改)
-cd \Financial_Asset_QA_System
-
-# 3. 钻进后端的控制中枢文件夹
 cd backend
-
-# 4. 创建一个干净的“虚拟房间”，防止您的电脑其他软件干扰 (需要等待几秒钟)
-python -m venv .venv
-
-# 5. 激活这个“虚拟房间”！ (注意：下面这行是 Windows 专用的！)
-# (如果是 Mac 电脑，请运行这一行： source .venv/bin/activate )
-.venv\Scripts\activate
-
-# 6. 安装所有大模型依赖包和雅虎股票查询插件 (注意：这一步要联网，大概需要等待 2~3 分钟)
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
-#### 🔑 紧接着，非常重要的一步：配置您的 AI 秘钥！
-
-如果在代码执行时拿不到秘钥，AI 就无法回答问题！
-1. 请不要关闭刚才那个黑命令框，把它最小化。
-2. 打开您的系统文件管理器（我的电脑），进入到 `D:\Financial_Asset_QA_System\backend` 这个目录。
-3. 找到里面有一个叫 `.env.example` 的文件。
-4. **把这个文件复制一份，并重命名为 `.env`**（注意，文件名前面有一个点 `.` ）。如果你看不到文件后缀名，请百度一下“Windows如何显示文件后缀名”。
-5. 右键使用**系统自带的记事本**（或任意代码编辑器）打开这个 `.env` 文件。
-6. 把里面的内容修改为您自己的大模型 API Key。例如：
-   `ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxx` （把等号后面的全替换成你的那串字母。如果是 OpenAI，里面也有对应位置可填）。保存并关闭记事本。
-
-#### 🚀 启动后端引擎！
-
-重新切回到刚才最小化的那个黑色命令行窗口。运行最后一行压轴指令：
-
+**启动前端**（终端2）：
 ```bash
-# ⚠️ 注意：这辈子第一次敲这段命令回车的这个时候，系统会自动通过中国清华镜像源去自动下载一套大概 1.5GB 的文本过滤 RAG 向量防幻觉拦截模型。
-# 请耐心等待进度条走完 (大概需要 2~5 分钟)！不要中途乱按回车！直到你看到 `Application startup complete.` 这句绿色的英文就算大功告成！
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-> **成功标志**：只要这屏黑框最后停在了 `Uvicorn running on http://127.0.0.1:8000` 字样上，**千万不要关闭这个黑框**，把它最小化！您已经完成后端 AI 引擎启动。
-
----
-
-### 第四步：启动前端可视化网页 (最终您将看到的惊艳大屏幕)
-
-**不要去动刚才那个已经跑起来的后端黑框。**现在我们需要给网页画皮。
-请**再新开一个命令提示符（重新按一次 `Win + R`，输入 `cmd`，按回车）**：
-
-这一次的操作非常简单极速，一气呵成：
-
-```bash
-# 1. 依然先切换到您当时的那个大盘符
-D:
-
-# 2. 从头进入系统文件夹
-cd \Financial_Asset_QA_System
-
-# 3. 这次我们不在进入后端了，我们要进入 frontend (前端网页) 文件夹
 cd frontend
-
-# 4. 下载并组装前端所有的按钮、背景和图标素材 (大概只需等待 1 分钟)
 npm install
-
-# 5. 立即启动前端这套炫酷的赛博朋克深色网页！
 npm run dev
 ```
 
-> **成功标志**：当在这个新终端里打印出了绿色的链接如 `➜ Local: http://127.0.0.1:5173/` 时，前端已经启动完成。
+---
+
+### ✅ 第四步：验证运行
+
+#### 1. 检查后端
+浏览器访问：http://127.0.0.1:8001/api/health
+
+应该看到JSON格式的健康状态：
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "components": {
+    "redis": "connected",
+    "chromadb": "ready",
+    "claude_api": "configured"
+  }
+}
+```
+
+#### 2. 访问前端
+浏览器访问：http://127.0.0.1:5173
+
+应该看到"金融资产智能问答"页面
+
+#### 3. 测试功能
+输入以下测试问题：
+- `苹果股票今天涨了多少` - 测试股票查询
+- `什么是市盈率` - 测试知识问答
+- `特斯拉最近走势` - 测试图表展示
+
+**成功标志**：
+- ✅ AI开始流式回复
+- ✅ 显示"💡 分析链路追踪"面板
+- ✅ 股票问题显示价格图表
 
 ---
 
-### 第五步：在浏览器里直接验收魔法吧！
+## 🔍 常见问题
 
-系统的两个引擎（前端UI界面和后端AI逻辑）都已经启动了。
+<details>
+<summary><b>❌ 后端启动失败：ChromaDB错误</b></summary>
 
-**您的默认浏览器（通常是 Chrome 或 Edge）会自动打开上述包含数字的对应网址。如果没有自动弹出网页，请手动用鼠标选中命令行里的那行 `http://localhost:xxxx` 文字，按下 `Ctrl+C` 复制，粘贴到浏览器的地址栏里打开。**
+**错误信息**：`sqlite3.OperationalError: no such column: collections.topic`
 
-你可以向它发难提问并验收最终成果（直接复制下面这几句话扔给它）：
-1. **测试查询最新股价与走势能力**：输入 `苹果股票今天涨了多少？` （系统会拉取雅虎的真实历史涨幅数据，并在左侧绘制行情价格曲线，它绝不可能靠大模型自己胡编乱造虚假数字！）
-2. **测试金融高深词条的 RAG 挂载能力**：输入 `什么是市盈率？它和市净率有什么区别？`（系统自动触发知识大熔炉检索模块，精准召回后返回）
-3. **感受炫酷亮点——透明化分析链路**：在它的回答生成完毕之前，注意观察每一条消息气泡上方的 **"💡 分析链路追踪"** 折叠面板。展开它，它会向你毫无保留地证明此时此刻它正在使用哪一个大模型，它在几秒钟前甚至触发了背后哪个 Python 爬虫函数（比如 `get_price` 或 `search_knowledge`）。这是在任何面试或者甲方述职中，向对方彻底解释 "Agent到底干了啥" 的最强神盾。
+**原因**：旧版本数据库与新代码不兼容
+
+**解决方案**：
+```bash
+# 删除旧数据库
+rm -rf vectorstore/chroma
+# Windows: rmdir /s /q vectorstore\chroma
+
+# 重新启动后端，会自动创建新数据库
+```
+</details>
+
+<details>
+<summary><b>❌ 前端显示"请求失败"</b></summary>
+
+**检查清单**：
+1. ✅ 后端是否启动成功（看到 `Application startup complete.`）
+2. ✅ 后端端口是否为 **8001**（不是8000）
+3. ✅ 前端访问地址是否为 http://127.0.0.1:5173
+4. ✅ 按F12查看浏览器控制台是否有错误
+
+**快速修复**：
+```bash
+# 1. 关闭所有Python和Node进程
+taskkill /F /IM python.exe /T
+taskkill /F /IM node.exe /T
+
+# 2. 重新启动后端和前端
+```
+</details>
+
+<details>
+<summary><b>❌ 端口被占用</b></summary>
+
+**查找占用端口的进程**：
+```bash
+# Windows
+netstat -ano | findstr "8001"
+netstat -ano | findstr "5173"
+taskkill /F /PID <进程ID>
+
+# macOS/Linux
+lsof -ti:8001 | xargs kill -9
+lsof -ti:5173 | xargs kill -9
+```
+</details>
+
+<details>
+<summary><b>⏱️ 首次启动很慢</b></summary>
+
+**原因**：首次启动会自动下载约1.5GB的BGE嵌入模型
+
+**解决**：耐心等待下载完成（2-5分钟），后续启动会很快
+
+**进度查看**：后端终端会显示下载进度
+</details>
+
+<details>
+<summary><b>🔑 API密钥无效</b></summary>
+
+**检查清单**：
+1. ✅ `.env` 文件是否在 `backend` 目录下
+2. ✅ API密钥是否正确复制（无多余空格）
+3. ✅ API密钥是否有效且有余额
+4. ✅ 文件名是 `.env` 不是 `.env.txt`
+
+**验证方法**：
+```bash
+# 查看环境变量是否加载
+cd backend
+python -c "from app.config import settings; print(settings.ANTHROPIC_API_KEY)"
+```
+</details>
+
+<details>
+<summary><b>🌐 网络问题：模型下载失败</b></summary>
+
+**错误信息**：`ReadTimeoutError` 或 `Connection timeout`
+
+**解决方案**：
+1. 检查网络连接
+2. 使用国内镜像（已自动配置HuggingFace镜像）
+3. 如果仍然失败，可以手动下载模型后放入 `models` 目录
+</details>
 
 ---
 
-## ©️ 如果您没看到正常界面或跑不起来？(保姆级避坑 FAQ)
+## 🏗️ 技术架构
 
-- **Q: 网页我打开了，是一片纯纯的空白 / 或者我在网页上输入问题它疯狂报错 `Failed to fetch` 分支失败？**
-  - **A:** 只有两种可能：
-    1. 您的第三步（启动后端）根本没成功。请确认您在第三步的黑框里看到绿色的 `Application startup complete.` 了吗？
-    2. 有其他垃圾软件把您的电脑端口屏蔽了。请保证你的电脑屏幕底下的任务栏必定同时挂着两个 CMD 黑框终端：一个正在静静地运行着 `python -m uvicorn`，另一个运行着 `npm run dev`，二者缺一不可。
-- **Q: 屏幕界面非常漂亮，但我发送提问后，提示框飘红警告报错 / 显示无响应？**
-  - **A:** 是因为我们在《第三步步骤 6》里让你建立配置那把 `.env` 大门钥匙你忘记配了！！或者是填写的大模型 API 密钥欠费了。这就好比造好了兰博基尼，你不去加油。请回去好好重做第三步的配置环节（只要你乱填了随便一个假字符串去骗它，也不至于啥事不响应）。
+### 系统架构图
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         用户浏览器                            │
+│                   http://127.0.0.1:5173                      │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    前端 (Vite + React)                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  聊天界面     │  │  图表展示     │  │  链路追踪     │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└────────────────────────┬────────────────────────────────────┘
+                         │ Vite Proxy: /api → :8001
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    后端 (FastAPI)                            │
+│                   http://127.0.0.1:8001                      │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              API路由层 (SSE流式响应)                   │  │
+│  └────────┬─────────────────────────────────────────────┘  │
+│           │                                                  │
+│  ┌────────▼──────────┐  ┌──────────────┐  ┌─────────────┐ │
+│  │   AgentCore       │  │ MarketData   │  │ RAG Pipeline│ │
+│  │  (AI推理引擎)      │  │  Service     │  │ (知识检索)   │ │
+│  │                   │  │              │  │             │ │
+│  │ • 多模型支持       │  │ • Yahoo      │  │ • ChromaDB  │ │
+│  │ • 工具调用         │  │ • Alpha      │  │ • BGE嵌入   │ │
+│  │ • 流式输出         │  │ • Finnhub    │  │ • 重排序    │ │
+│  └───────────────────┘  └──────────────┘  └─────────────┘ │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Redis缓存     │  │ 向量数据库     │  │ 日志系统      │     │
+│  │ (可选)        │  │ (ChromaDB)    │  │ (JSONL)      │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 技术栈
+
+#### 后端
+- **框架**: FastAPI 0.109+
+- **AI模型**: Anthropic Claude / OpenAI GPT / DeepSeek
+- **向量数据库**: ChromaDB 0.4.24
+- **嵌入模型**: BAAI/bge-base-zh-v1.5
+- **缓存**: Redis (可选)
+- **市场数据**: yfinance, Alpha Vantage, Finnhub
+
+#### 前端
+- **框架**: React 18.2
+- **构建工具**: Vite 5.0
+- **图表库**: Recharts 2.10
+- **样式**: TailwindCSS 3.4
+- **HTTP**: Fetch API (SSE流式响应)
+
+### 项目结构
+
+```
+Financial_Asset_QA_System/
+├── backend/                      # 后端服务
+│   ├── app/
+│   │   ├── agent/               # AI Agent核心
+│   │   │   ├── core.py         # Agent主逻辑
+│   │   │   └── tools.py        # 工具函数集
+│   │   ├── api/                # API路由
+│   │   │   └── routes.py       # 端点定义
+│   │   ├── models/             # 数据模型
+│   │   │   ├── schemas.py      # Pydantic模型
+│   │   │   └── multi_model.py  # 多模型管理
+│   │   ├── rag/                # RAG检索系统
+│   │   │   ├── pipeline.py     # 检索管道
+│   │   │   └── hybrid_pipeline.py
+│   │   ├── market/             # 市场数据服务
+│   │   │   └── service.py      # 数据获取
+│   │   ├── cache/              # 缓存系统
+│   │   ├── config.py           # 配置管理
+│   │   └── main.py             # 应用入口
+│   ├── requirements.txt        # Python依赖
+│   ├── .env.example            # 环境变量模板
+│   └── .env                    # 环境变量（需创建）
+│
+├── frontend/                    # 前端应用
+│   ├── src/
+│   │   ├── components/         # React组件
+│   │   │   ├── Chat/          # 聊天组件
+│   │   │   ├── Chart.jsx      # 图表组件
+│   │   │   └── UI/            # UI组件
+│   │   ├── services/          # API服务
+│   │   │   └── api.js         # API调用
+│   │   ├── App.jsx            # 主应用
+│   │   └── main.jsx           # 入口文件
+│   ├── vite.config.ts         # Vite配置
+│   ├── package.json           # Node依赖
+│   └── tailwind.config.js     # Tailwind配置
+│
+├── vectorstore/                # 向量数据库
+│   └── chroma/                # ChromaDB数据
+│
+├── models/                     # 模型缓存
+│   ├── huggingface/           # HF模型
+│   └── transformers/          # Transformers缓存
+│
+├── logs/                       # 日志文件
+│   └── tool_calls.jsonl       # 工具调用日志
+│
+├── 启动后端.bat                 # Windows启动脚本
+├── 启动前端.bat                 # Windows启动脚本
+└── README.md                   # 本文档
+```
 
 ---
-🌟 **如果这套严谨落地的高质量防幻觉级产品震撼到了您或是帮您拿到了优异的评估反馈，欢迎在上方点个 Star 鼓励一下，祝您使用愉快顺利！**
+
+## 📊 性能优化
+
+### 缓存策略
+| 数据类型 | 缓存时长 | 说明 |
+|---------|---------|------|
+| 实时价格 | 60秒 | 减少API调用 |
+| 历史数据 | 24小时 | 历史数据不常变 |
+| 公司信息 | 7天 | 基本信息稳定 |
+
+### 智能预热
+- 热门股票（AAPL, TSLA, MSFT等）自动预热
+- 后台定期更新缓存
+- 减少首次查询延迟
+
+### 并发处理
+- 异步IO处理所有网络请求
+- 流式响应提升用户体验
+- 连接池复用减少开销
+
+---
+
+## 🔒 安全说明
+
+### 环境变量保护
+- ⚠️ **永远不要**将 `.env` 文件提交到Git
+- ✅ 使用 `.env.example` 作为模板
+- ✅ `.gitignore` 已配置忽略 `.env`
+
+### CORS配置
+```python
+# 开发环境：允许所有来源
+allow_origins=["*"]
+
+# 生产环境：限制特定域名
+allow_origins=["https://yourdomain.com"]
+```
+
+### API密钥安全
+- 定期轮换API密钥
+- 监控API使用量
+- 设置速率限制
+
+### 数据验证
+- 所有用户输入经过Pydantic验证
+- SQL注入防护
+- XSS攻击防护
+
+---
+
+## 🎨 功能演示
+
+### 股票查询示例
+```
+用户: 苹果股票今天涨了多少
+
+AI: 正在查询苹果(AAPL)的最新行情...
+
+💡 分析链路追踪
+🧠 Using claude-opus-4 (Complexity: fast)
+🔧 查询股票价格: AAPL
+📊 获取历史数据: 30天
+
+根据最新数据，苹果公司(AAPL)今日表现如下：
+• 当前价格: $178.52
+• 涨跌幅: +2.34% (+$4.08)
+• 今日最高: $179.23
+• 今日最低: $176.45
+
+[显示30天价格走势图]
+```
+
+### 知识问答示例
+```
+用户: 什么是市盈率
+
+AI: 正在检索相关知识...
+
+💡 分析链路追踪
+🧠 Using claude-sonnet-4 (Complexity: medium)
+🔍 知识检索: 市盈率定义
+
+市盈率(P/E Ratio)是衡量股票估值的重要指标：
+
+定义：市盈率 = 股价 / 每股收益(EPS)
+
+意义：
+• 反映投资者愿意为每1元盈利支付的价格
+• 高市盈率：市场预期增长快，但可能高估
+• 低市盈率：可能被低估，或增长预期低
+
+应用：
+• 同行业比较
+• 历史市盈率对比
+• 结合其他指标综合判断
+
+📚 来源：金融知识库
+```
+
+---
+
+## 🛠️ 开发指南
+
+### 本地开发
+
+#### 后端开发
+```bash
+cd backend
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 开发模式（自动重载）
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+
+# 运行测试
+pytest tests/
+
+# 代码格式化
+black app/
+isort app/
+```
+
+#### 前端开发
+```bash
+cd frontend
+
+# 开发模式
+npm run dev
+
+# 构建生产版本
+npm run build
+
+# 预览生产版本
+npm run preview
+```
+
+### 添加新功能
+
+#### 1. 添加新的工具函数
+```python
+# backend/app/agent/tools.py
+
+@tool
+def your_new_tool(param: str) -> dict:
+    """
+    工具描述
+
+    Args:
+        param: 参数说明
+
+    Returns:
+        返回值说明
+    """
+    # 实现逻辑
+    return {"result": "data"}
+```
+
+#### 2. 注册工具到Agent
+```python
+# backend/app/agent/core.py
+
+self.tools = [
+    get_stock_price,
+    search_knowledge,
+    your_new_tool,  # 添加新工具
+]
+```
+
+#### 3. 前端调用
+前端无需修改，Agent会自动选择合适的工具调用
+
+---
+
+## 📈 路线图
+
+### v1.1 (计划中)
+- [ ] 支持更多金融数据源
+- [ ] 添加技术指标分析
+- [ ] 支持多语言界面
+- [ ] 移动端优化
+
+### v1.2 (计划中)
+- [ ] 用户账户系统
+- [ ] 自选股票列表
+- [ ] 价格提醒功能
+- [ ] 历史对话记录
+
+### v2.0 (规划中)
+- [ ] 投资组合分析
+- [ ] 风险评估工具
+- [ ] 回测系统
+- [ ] API开放平台
+
+---
+
+## 🤝 贡献指南
+
+欢迎贡献代码、报告问题或提出建议！
+
+### 如何贡献
+
+1. **Fork本仓库**
+2. **创建特性分支** (`git checkout -b feature/AmazingFeature`)
+3. **提交更改** (`git commit -m 'Add some AmazingFeature'`)
+4. **推送到分支** (`git push origin feature/AmazingFeature`)
+5. **开启Pull Request**
+
+### 代码规范
+
+- Python: 遵循PEP 8
+- JavaScript: 遵循Airbnb风格指南
+- 提交信息: 使用约定式提交
+
+### 报告问题
+
+提交Issue时请包含：
+- 问题描述
+- 复现步骤
+- 预期行为
+- 实际行为
+- 系统环境（OS、Python版本、Node版本）
+- 错误日志
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+---
+
+## 🙏 致谢
+
+### 技术支持
+- [Anthropic](https://www.anthropic.com/) - Claude AI模型
+- [OpenAI](https://openai.com/) - GPT模型
+- [DeepSeek](https://www.deepseek.com/) - DeepSeek模型
+
+### 数据来源
+- [Yahoo Finance](https://finance.yahoo.com/) - 免费市场数据
+- [Alpha Vantage](https://www.alphavantage.co/) - 金融数据API
+- [Finnhub](https://finnhub.io/) - 实时股票数据
+
+### 开源项目
+- [FastAPI](https://fastapi.tiangolo.com/) - 现代Python Web框架
+- [React](https://reactjs.org/) - 用户界面库
+- [ChromaDB](https://www.trychroma.com/) - 向量数据库
+- [Recharts](https://recharts.org/) - React图表库
+
+---
+
+## 📞 联系方式
+
+- **GitHub Issues**: [提交问题](https://github.com/Benjamindaoson/Financial_Asset_QA_System/issues)
+- **Email**: benjamindaoson@example.com
+- **项目主页**: [GitHub](https://github.com/Benjamindaoson/Financial_Asset_QA_System)
+
+---
+
+## ⭐ Star历史
+
+如果这个项目对您有帮助，请给个Star支持一下！
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Benjamindaoson/Financial_Asset_QA_System&type=Date)](https://star-history.com/#Benjamindaoson/Financial_Asset_QA_System&Date)
+
+---
+
+<div align="center">
+
+**🎉 感谢使用金融资产问答系统！**
+
+Made with ❤️ by [Benjamin Daoson](https://github.com/Benjamindaoson)
+
+[⬆ 回到顶部](#-金融资产问答系统)
+
+</div>

@@ -375,14 +375,14 @@ class TestSSEEvent:
         """测试模型选择事件"""
         event = SSEEvent(
             type="model_selected",
-            model="claude-opus",
-            provider="anthropic",
+            model="deepseek-chat",
+            provider="deepseek",
             complexity="simple"
         )
 
         assert event.type == "model_selected"
-        assert event.model == "claude-opus"
-        assert event.provider == "anthropic"
+        assert event.model == "deepseek-chat"
+        assert event.provider == "deepseek"
 
 
 class TestHealthResponse:
@@ -397,7 +397,7 @@ class TestHealthResponse:
             components={
                 "redis": "connected",
                 "chromadb": "ready",
-                "claude_api": "configured"
+                "deepseek_api": "configured"
             }
         )
 

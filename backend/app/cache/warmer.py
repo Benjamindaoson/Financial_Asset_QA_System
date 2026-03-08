@@ -17,20 +17,24 @@ class CacheWarmer:
         self,
         market_service: MarketDataService,
         interval_seconds: int = 30,
+        limit: int = 5,
+        concurrency: int = 2,
     ):
         self.market_service = market_service
         self.interval_seconds = interval_seconds
+        self.limit = limit
+        self.concurrency = concurrency
         self._task: Optional[asyncio.Task] = None
 
-    async def warm_popular_stocks(self, limit: int = 100):
+    async def warm_popular_stocks(self, limit: Optional[int] = None):
         """Warm cache for top N popular stocks."""
-        stocks = get_popular_stocks(limit)
+        stocks = get_popular_stocks(limit or self.limit)
 
         logger.info(f"[CacheWarmer] Warming {len(stocks)} popular stocks...")
         start_time = datetime.now()
 
         # Parallel fetch with concurrency limit
-        semaphore = asyncio.Semaphore(10)  # Max 10 concurrent requests
+        semaphore = asyncio.Semaphore(self.concurrency)
 
         async def fetch_with_limit(symbol: str):
             async with semaphore:

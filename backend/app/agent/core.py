@@ -467,18 +467,18 @@ class AgentCore:
                 data = result.data
                 symbol = data.get("symbol", "")
                 price = data.get("price")
-                change_pct = data.get("change_percent")
 
-                if price and change_pct is not None:
-                    direction = "📈" if change_pct > 0 else "📉"
+                if price:
+                    # Display price without requiring change_percent (field doesn't exist in schema)
                     summary_parts.append(
-                        f"{direction} **{symbol}** 当前价格: ${price:.2f} ({change_pct:+.2f}%)"
+                        f"💰 **{symbol}** 当前价格: ${price:.2f}"
                     )
 
             elif result.tool == "get_history":
                 data = result.data
-                if data.get("data_points"):
-                    count = len(data["data_points"])
+                # Fixed: schema uses "data" not "data_points"
+                if data.get("data"):
+                    count = len(data["data"])
                     summary_parts.append(f"📊 已获取 {count} 天历史数据")
 
         return "\n".join(summary_parts) if summary_parts else ""

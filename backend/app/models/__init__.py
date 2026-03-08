@@ -1,42 +1,27 @@
-"""
-Models package - Pydantic schemas and model management
-"""
+"""Models package: schemas and model runtime utilities."""
+
+from app.models.model_adapter import DeepSeekAdapter, ModelAdapter, ModelAdapterFactory
+from app.models.multi_model import ModelConfig, ModelProvider, MultiModelManager, QueryComplexity, model_manager
 from app.models.schemas import (
-    PricePoint,
-    MarketData,
-    HistoryData,
     ChangeData,
+    ChartResponse,
+    ChatRequest,
     CompanyInfo,
     Document,
-    KnowledgeResult,
-    SearchResult,
-    WebSearchResult,
-    ChatRequest,
-    Source,
-    SSEEvent,
     HealthResponse,
-    ChartResponse,
+    HistoryData,
+    KnowledgeResult,
+    MarketData,
+    PricePoint,
+    SSEEvent,
+    SearchResult,
+    Source,
     ToolCall,
     ToolResult,
-)
-
-from app.models.multi_model import (
-    ModelProvider,
-    QueryComplexity,
-    ModelConfig,
-    MultiModelManager,
-    model_manager,
-)
-
-from app.models.model_adapter import (
-    ModelAdapter,
-    AnthropicAdapter,
-    OpenAIAdapter,
-    ModelAdapterFactory,
+    WebSearchResult,
 )
 
 __all__ = [
-    # Schemas
     "PricePoint",
     "MarketData",
     "HistoryData",
@@ -53,15 +38,12 @@ __all__ = [
     "ChartResponse",
     "ToolCall",
     "ToolResult",
-    # Multi-model
     "ModelProvider",
     "QueryComplexity",
     "ModelConfig",
     "MultiModelManager",
     "model_manager",
-    # Adapters
     "ModelAdapter",
-    "AnthropicAdapter",
-    "OpenAIAdapter",
+    "DeepSeekAdapter",
     "ModelAdapterFactory",
 ]

@@ -1,4 +1,4 @@
-const API_BASE = "http://106.53.168.252:8001/api";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 
 export async function fetchChat(query, sessionId = null) {
   const response = await fetch(`${API_BASE}/chat`, {

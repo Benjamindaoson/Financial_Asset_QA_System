@@ -83,3 +83,10 @@ build/
 
 # Git worktrees
 .worktrees/
+
+# Claude Code
+.claude/worktrees/
+
+# Temporary files
+nul
+*.tmp

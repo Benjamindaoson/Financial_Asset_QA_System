@@ -455,12 +455,59 @@ class AgentCore:
         )
         return "\n".join(lines)
 
+    def _build_data_summary(self, tool_results: List[ToolResult]) -> str:
+        """Build immediate data summary from tool results."""
+        summary_parts = []
+
+        for result in tool_results:
+            if result.status != "success":
+                continue
+
+            if result.tool == "get_price":
+                data = result.data
+                symbol = data.get("symbol", "")
+                price = data.get("price")
+                change_pct = data.get("change_percent")
+
+                if price and change_pct is not None:
+                    direction = "📈" if change_pct > 0 else "📉"
+                    summary_parts.append(
+                        f"{direction} **{symbol}** 当前价格: ${price:.2f} ({change_pct:+.2f}%)"
+                    )
+
+            elif result.tool == "get_history":
+                data = result.data
+                if data.get("data_points"):
+                    count = len(data["data_points"])
+                    summary_parts.append(f"📊 已获取 {count} 天历史数据")
+
+        return "\n".join(summary_parts) if summary_parts else ""
+
+    @staticmethod
+    def _is_unusable_grounded_answer(text: str) -> bool:
+        normalized = text.lower()
+        unusable_markers = (
+            "kiro",
+            "i am kiro",
+            "i'm kiro",
+            "我不处理金融",
+            "技术支持",
+            "编写和修改代码",
+        )
+        return not text.strip() or any(marker in normalized or marker in text for marker in unusable_markers)
+
     async def _stream_grounded_answer(
         self,
         query: str,
         model_name: str,
         tool_results: List[ToolResult],
     ) -> AsyncGenerator[SSEEvent, None]:
+        # OPTIMIZATION: Immediately yield data summary (before LLM)
+        data_summary = self._build_data_summary(tool_results)
+        if data_summary:
+            yield SSEEvent(type="chunk", text=data_summary + "\n\n")
+
+        # Then stream LLM analysis
         model_config = self.model_manager.models[model_name]
         adapter = ModelAdapterFactory.create_adapter(model_config)
         messages = self._build_grounded_messages(query, tool_results) if tool_results else [{"role": "user", "content": query}]
@@ -471,6 +518,7 @@ class AgentCore:
         )
 
         final_text = ""
+        buffered_chunks: List[str] = []
         try:
             stream = adapter.create_message_stream(
                 messages=messages,
@@ -492,17 +540,31 @@ class AgentCore:
                 if event_type == "content_block_delta" and getattr(event, "delta", None):
                     if getattr(event.delta, "type", None) == "text_delta":
                         final_text += event.delta.text
-                        yield SSEEvent(type="chunk", text=event.delta.text)
+                        if tool_results:
+                            buffered_chunks.append(event.delta.text)
+                        else:
+                            yield SSEEvent(type="chunk", text=event.delta.text)
                 elif isinstance(event, dict) and event.get("type") == "content_block_delta":
                     delta = event.get("delta", {})
                     text = delta.get("text", "")
                     if text:
                         final_text += text
-                        yield SSEEvent(type="chunk", text=text)
+                        if tool_results:
+                            buffered_chunks.append(text)
+                        else:
+                            yield SSEEvent(type="chunk", text=text)
         except Exception:
             if not tool_results:
                 raise
             final_text = ""
+
+        if tool_results:
+            if self._is_unusable_grounded_answer(final_text):
+                final_text = self._fallback_response(tool_results)
+
+            if final_text:
+                yield SSEEvent(type="chunk", text=final_text)
+            return
 
         if not final_text and tool_results:
             yield SSEEvent(type="chunk", text=self._fallback_response(tool_results))

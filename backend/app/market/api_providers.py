@@ -1,10 +1,10 @@
 """
 Multi-provider financial data API integration.
-Supports: Alpha Vantage, Finnhub, FRED, Polygon, Twelve Data, FMP, CoinGecko, Frankfurter
+Supports: Alpha Vantage, Finnhub, FRED, Polygon, Twelve Data, FMP, CoinGecko, Frankfurter, NewsAPI
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -412,6 +412,127 @@ class FrankfurterProvider:
             return None
 
 
+class NewsAPIProvider:
+    """NewsAPI.org provider - 100 requests/day free."""
+
+    BASE_URL = "https://newsapi.org/v2"
+
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.NEWSAPI_API_KEY
+
+    async def get_everything(
+        self,
+        query: str,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        language: str = "en",
+        sort_by: str = "publishedAt",
+        page_size: int = 20
+    ) -> Optional[Dict[str, Any]]:
+        """Search for news articles."""
+        if not self.api_key:
+            return None
+
+        params = {
+            "q": query,
+            "language": language,
+            "sortBy": sort_by,
+            "pageSize": page_size,
+            "apiKey": self.api_key
+        }
+
+        if from_date:
+            params["from"] = from_date
+        if to_date:
+            params["to"] = to_date
+
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(f"{self.BASE_URL}/everything", params=params)
+                if response.status_code != 200:
+                    return None
+                data = response.json()
+                if data.get("status") != "ok":
+                    return None
+                return data
+        except Exception:
+            return None
+
+    async def get_top_headlines(
+        self,
+        country: Optional[str] = None,
+        category: Optional[str] = None,
+        query: Optional[str] = None,
+        page_size: int = 20
+    ) -> Optional[Dict[str, Any]]:
+        """Get top headlines."""
+        if not self.api_key:
+            return None
+
+        params = {
+            "pageSize": page_size,
+            "apiKey": self.api_key
+        }
+
+        if country:
+            params["country"] = country
+        if category:
+            params["category"] = category
+        if query:
+            params["q"] = query
+
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(f"{self.BASE_URL}/top-headlines", params=params)
+                if response.status_code != 200:
+                    return None
+                data = response.json()
+                if data.get("status") != "ok":
+                    return None
+                return data
+        except Exception:
+            return None
+
+    async def get_stock_news(self, symbol: str, days: int = 7, page_size: int = 10) -> Optional[List[Dict[str, Any]]]:
+        """Get news for a specific stock symbol."""
+        if not self.api_key:
+            return None
+
+        # Calculate date range
+        to_date = datetime.now()
+        from_date = to_date - timedelta(days=days)
+
+        from_str = from_date.strftime("%Y-%m-%d")
+        to_str = to_date.strftime("%Y-%m-%d")
+
+        # Search for company name or symbol
+        result = await self.get_everything(
+            query=symbol,
+            from_date=from_str,
+            to_date=to_str,
+            sort_by="publishedAt",
+            page_size=page_size
+        )
+
+        if not result or "articles" not in result:
+            return None
+
+        # Format articles
+        articles = []
+        for article in result["articles"]:
+            articles.append({
+                "title": article.get("title"),
+                "description": article.get("description"),
+                "url": article.get("url"),
+                "source": article.get("source", {}).get("name"),
+                "published_at": article.get("publishedAt"),
+                "author": article.get("author"),
+                "image_url": article.get("urlToImage")
+            })
+
+        return articles
+
+
 class MultiProviderClient:
     """Unified client for all financial data providers."""
 
@@ -424,6 +545,7 @@ class MultiProviderClient:
         self.fmp = FMPProvider()
         self.coingecko = CoinGeckoProvider()
         self.frankfurter = FrankfurterProvider()
+        self.newsapi = NewsAPIProvider()
 
     async def get_stock_quote_multi(self, symbol: str) -> Dict[str, Any]:
         """Try multiple providers for stock quote."""
@@ -457,3 +579,7 @@ class MultiProviderClient:
     async def get_economic_data(self, series_id: str) -> Optional[Any]:
         """Get economic indicator from FRED."""
         return await self.fred.get_series(series_id)
+
+    async def get_stock_news(self, symbol: str, days: int = 7) -> Optional[List[Dict[str, Any]]]:
+        """Get news for a stock from NewsAPI."""
+        return await self.newsapi.get_stock_news(symbol, days=days)

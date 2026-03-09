@@ -1,59 +1,190 @@
-import { useState, useEffect } from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { fetchChart } from "../services/api";
 import { C, F } from "../theme";
 
-export function Chart({ symbol, days = 30 }) {
+const RANGE_OPTIONS = [
+  { key: "ytd", label: "YTD" },
+  { key: "1y", label: "1Y" },
+  { key: "5y", label: "5Y" },
+];
+
+const COMPARE_COLORS = ["#1A6EF5", "#D97706", "#0D9B53", "#D93A3A"];
+
+export function Chart({ symbol, rangeKey = "1y", embeddedSeries = null, chartType = "history" }) {
+  const [activeRange, setActiveRange] = useState(rangeKey);
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!embeddedSeries);
 
   useEffect(() => {
-    fetchChart(symbol, days)
+    setActiveRange(rangeKey);
+  }, [rangeKey]);
+
+  useEffect(() => {
+    if (embeddedSeries) {
+      setData(formatEmbeddedSeries(embeddedSeries, chartType));
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    fetchChart(symbol, { rangeKey: activeRange })
       .then((res) => {
-        if (res?.data) {
-          const formatted = res.data.map((d) => ({
-            date: d.date.slice(5),
-            price: d.close,
-          }));
-          setData(formatted);
+        if (cancelled || !res?.data) {
+          return;
+        }
+        setData(
+          res.data.map((point) => ({
+            date: point.date.slice(5),
+            price: point.close,
+          }))
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData([]);
         }
       })
-      .finally(() => setLoading(false));
-  }, [symbol, days]);
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
 
-  if (loading || data.length === 0) return null;
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, activeRange, embeddedSeries, chartType]);
 
-  const up = data[data.length - 1].price >= data[0].price;
-  const col = up ? C.up : C.dn;
+  const comparisonKeys = useMemo(() => {
+    if (chartType !== "comparison" || data.length === 0) {
+      return [];
+    }
+    return Object.keys(data[0]).filter((key) => key !== "date");
+  }, [chartType, data]);
+
+  if (loading) {
+    return (
+      <div style={boxStyle}>
+        <div style={titleStyle}>{symbol || "Chart"} price history</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={skeletonLine} />
+          <div style={{ ...skeletonLine, width: "95%" }} />
+          <div style={{ ...skeletonLine, width: "98%" }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return null;
+  }
 
   return (
-    <div style={{ background: C.white, borderRadius: 12, padding: "12px 16px", border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,.04)" }}>
-      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.ts, marginBottom: 4 }}>
-        {symbol} · 价格走势 ({days}日)
+    <div style={boxStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 12 }}>
+        <div style={titleStyle}>
+          {chartType === "comparison" ? "Normalized comparison chart" : `${symbol} price history`}
+        </div>
+        {!embeddedSeries && (
+          <div style={{ display: "flex", gap: 6 }}>
+            {RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => setActiveRange(option.key)}
+                style={{
+                  border: `1px solid ${activeRange === option.key ? C.accent : C.border}`,
+                  background: activeRange === option.key ? C.accentL : C.white,
+                  color: activeRange === option.key ? C.accent : C.ts,
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <ResponsiveContainer width="100%" height={140}>
-        <AreaChart data={data} margin={{ top: 4, right: 2, left: -22, bottom: 0 }}>
-          <defs>
-            <linearGradient id={`g${symbol}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={col} stopOpacity={0.12} />
-              <stop offset="100%" stopColor={col} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <XAxis dataKey="date" tick={{ fill: C.td, fontSize: 9, fontFamily: F.m }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: C.td, fontSize: 9, fontFamily: F.m }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
-          <Tooltip
-            contentStyle={{
-              background: C.white,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 11,
-              fontFamily: F.m,
-            }}
-            formatter={(v) => [`$${v.toFixed(2)}`, "价格"]}
-          />
-          <Area type="monotone" dataKey="price" stroke={col} strokeWidth={1.8} fill={`url(#g${symbol})`} dot={false} />
-        </AreaChart>
+
+      <ResponsiveContainer width="100%" height={220}>
+        {chartType === "comparison" ? (
+          <LineChart data={data} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid stroke={C.borderL} strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fill: C.td, fontSize: 10, fontFamily: F.m }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: C.td, fontSize: 10, fontFamily: F.m }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, fontFamily: F.m }}
+              formatter={(value) => [`${value.toFixed(2)}`, "Normalized"]}
+            />
+            <Legend />
+            {comparisonKeys.map((key, index) => (
+              <Line key={key} type="monotone" dataKey={key} dot={false} stroke={COMPARE_COLORS[index % COMPARE_COLORS.length]} strokeWidth={2} />
+            ))}
+          </LineChart>
+        ) : (
+          <AreaChart data={data} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`g-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={C.accent} stopOpacity={0.18} />
+                <stop offset="100%" stopColor={C.accent} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={C.borderL} strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fill: C.td, fontSize: 10, fontFamily: F.m }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: C.td, fontSize: 10, fontFamily: F.m }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+            <Tooltip
+              contentStyle={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, fontFamily: F.m }}
+              formatter={(value) => [`$${value.toFixed(2)}`, "Price"]}
+            />
+            <Area type="monotone" dataKey="price" stroke={C.accent} strokeWidth={2} fill={`url(#g-${symbol})`} dot={false} />
+          </AreaChart>
+        )}
       </ResponsiveContainer>
     </div>
   );
 }
+
+function formatEmbeddedSeries(series, chartType) {
+  if (chartType === "comparison") {
+    return series.map((point) => ({ date: point.date.slice(5), ...point.values }));
+  }
+  return series.map((point) => ({ date: point.date.slice(5), price: point.close }));
+}
+
+const boxStyle = {
+  background: C.white,
+  borderRadius: 12,
+  padding: "14px 16px",
+  border: `1px solid ${C.border}`,
+  boxShadow: "0 1px 3px rgba(0,0,0,.04)",
+};
+
+const titleStyle = {
+  fontSize: 11.5,
+  fontWeight: 700,
+  color: C.ts,
+  fontFamily: F.m,
+};
+
+const skeletonLine = {
+  width: "100%",
+  height: 12,
+  background: C.sk,
+  borderRadius: 4,
+};

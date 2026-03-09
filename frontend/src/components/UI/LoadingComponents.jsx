@@ -49,16 +49,33 @@ export function LoadSteps({ currentStep }) {
 export function Skel() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ background: C.white, borderRadius: 12, padding: 18, border: `1px solid ${C.border}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ width: 55, height: 12, background: C.sk, borderRadius: 4, marginBottom: 7 }} />
-            <div style={{ width: 90, height: 16, background: C.sk, borderRadius: 4 }} />
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ width: 80, height: 22, background: C.sk, borderRadius: 4, marginBottom: 5 }} />
-            <div style={{ width: 50, height: 10, background: C.sk, borderRadius: 4, marginLeft: "auto" }} />
-          </div>
+      <div style={{
+        background: "#FAFCFF",
+        borderRadius: 12,
+        padding: 18,
+        border: `1px solid #D6E4F7`,
+        position: "relative"
+      }}>
+        <div
+          style={{
+            position: "absolute",
+            top: -9,
+            left: 12,
+            background: C.accentL,
+            color: C.accent,
+            fontSize: 9.5,
+            fontWeight: 700,
+            padding: "2px 8px",
+            borderRadius: 8,
+            border: `1px solid #BFD5F0`,
+          }}
+        >
+          AI 分析
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <div style={{ width: "90%", height: 14, background: C.sk, borderRadius: 4, marginBottom: 8 }} />
+          <div style={{ width: "75%", height: 14, background: C.sk, borderRadius: 4, marginBottom: 8 }} />
+          <div style={{ width: "85%", height: 14, background: C.sk, borderRadius: 4 }} />
         </div>
       </div>
     </div>

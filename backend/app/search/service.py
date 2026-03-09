@@ -1,30 +1,22 @@
-"""
-Web Search Service - Tavily API integration
-"""
+"""Web search service."""
+
 import httpx
-from typing import Optional
+
 from app.config import settings
-from app.models import WebSearchResult, SearchResult
+from app.models import SearchResult, WebSearchResult
 
 
 class WebSearchService:
-    """Web search using Tavily API"""
+    """Web search using Tavily when configured."""
 
     def __init__(self):
         self.api_key = settings.TAVILY_API_KEY
         self.base_url = "https://api.tavily.com/search"
 
     async def search(self, query: str, max_results: int = 5) -> WebSearchResult:
-        """
-        Search web for news and information
-        Returns structured summaries
-        """
+        """Search the web for recent news and background."""
         if not self.api_key:
-            # Return empty result if API key not configured
-            return WebSearchResult(
-                results=[],
-                search_query=query
-            )
+            return WebSearchResult(results=[], search_query=query)
 
         try:
             async with httpx.AsyncClient(timeout=settings.API_TIMEOUT) as client:
@@ -49,18 +41,12 @@ class WebSearchService:
                             title=item.get("title", ""),
                             snippet=item.get("content", "")[:200],
                             url=item.get("url", ""),
-                            published=item.get("published_date")
+                            published=item.get("published_date"),
+                            source="tavily",
                         ))
 
-                    return WebSearchResult(
-                        results=results,
-                        search_query=query
-                    )
+                    return WebSearchResult(results=results, search_query=query)
         except Exception:
             pass
 
-        # Return empty result on error
-        return WebSearchResult(
-            results=[],
-            search_query=query
-        )
+        return WebSearchResult(results=[], search_query=query)

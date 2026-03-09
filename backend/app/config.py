@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     POLYGON_API_KEY: Optional[str] = None
     TWELVE_DATA_API_KEY: Optional[str] = None
     FMP_API_KEY: Optional[str] = None
+    NEWSAPI_API_KEY: Optional[str] = None
 
     # Redis configuration
     REDIS_HOST: str = "localhost"
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     CACHE_TTL_PRICE: int = 60
     CACHE_TTL_HISTORY: int = 86400
     CACHE_TTL_INFO: int = 604800
-    CACHE_WARM_ENABLED: bool = False
+    CACHE_WARM_ENABLED: bool = True
     CACHE_WARM_INTERVAL_SECONDS: int = 1800
     CACHE_WARM_LIMIT: int = 5
     CACHE_WARM_CONCURRENCY: int = 2
@@ -54,9 +55,9 @@ class Settings(BaseSettings):
     MAX_RETRIES: int = 3
 
     # RAG configuration
-    RAG_TOP_K: int = 10
+    RAG_TOP_K: int = 5
     RAG_TOP_N: int = 3
-    RAG_SCORE_THRESHOLD: float = 0.7
+    RAG_SCORE_THRESHOLD: float = 0.75
 
     # Logging
     LOG_LEVEL: str = "INFO"

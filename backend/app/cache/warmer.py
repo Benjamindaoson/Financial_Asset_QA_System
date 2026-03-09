@@ -2,10 +2,12 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from app.cache.popular_stocks import get_popular_stocks
-from app.market import MarketDataService
+
+if TYPE_CHECKING:
+    from app.market import MarketDataService
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ class CacheWarmer:
 
     def __init__(
         self,
-        market_service: MarketDataService,
+        market_service: "MarketDataService",
         interval_seconds: int = 30,
         limit: int = 5,
         concurrency: int = 2,

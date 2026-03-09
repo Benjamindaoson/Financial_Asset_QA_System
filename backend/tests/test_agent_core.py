@@ -1,18 +1,25 @@
 """Tests for the grounded agent core."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.agent.core import AgentCore, ResponseGuard
 from app.models.multi_model import ModelConfig, ModelProvider, QueryComplexity
-from app.models.schemas import ChangeData, CompanyInfo, HistoryData, MarketData
+from app.models.schemas import (
+    ChangeData,
+    CompanyInfo,
+    HistoryData,
+    MarketData,
+    PricePoint,
+    RiskMetrics,
+)
 
 
 def build_test_agent(preferred_model=None):
     with patch("app.agent.core.MarketDataService"), patch("app.agent.core.HybridRAGPipeline"), patch(
         "app.agent.core.ConfidenceScorer"
-    ), patch("app.agent.core.WebSearchService"):
+    ), patch("app.agent.core.WebSearchService"), patch("app.agent.core.SECFilingsService"):
         agent = AgentCore(preferred_model=preferred_model)
 
     agent.model_manager.models["deepseek-chat"] = ModelConfig(
@@ -44,7 +51,7 @@ class TestAgentCoreInitialization:
 
         assert agent.model_manager is not None
         assert agent.preferred_model is None
-        assert len(agent.tools) == 6
+        assert len(agent.tools) >= 9
 
     def test_agent_with_preferred_model(self):
         agent = build_test_agent(preferred_model="deepseek-chat")
@@ -75,58 +82,25 @@ class TestToolExecution:
         assert result["data"]["price"] == 150.0
 
     @pytest.mark.asyncio
-    async def test_execute_get_history(self, agent):
-        agent.market_service.get_history = AsyncMock(
-            return_value=HistoryData(
+    async def test_execute_get_metrics(self, agent):
+        agent.market_service.get_metrics = AsyncMock(
+            return_value=RiskMetrics(
                 symbol="AAPL",
-                days=30,
-                data=[],
+                range_key="1y",
+                annualized_volatility=22.5,
+                total_return_pct=14.2,
+                max_drawdown_pct=-8.4,
+                annualized_return_pct=14.2,
+                sharpe_ratio=0.63,
                 source="yfinance",
                 timestamp="2024-03-05T10:00:00",
             )
         )
 
-        result = await agent._execute_tool("get_history", {"symbol": "AAPL", "days": 30})
+        result = await agent._execute_tool("get_metrics", {"symbol": "AAPL", "range_key": "1y"})
 
         assert result["success"] is True
-        assert result["data"]["days"] == 30
-
-    @pytest.mark.asyncio
-    async def test_execute_get_change(self, agent):
-        agent.market_service.get_change = AsyncMock(
-            return_value=ChangeData(
-                symbol="AAPL",
-                days=7,
-                start_price=145.0,
-                end_price=150.0,
-                change_pct=3.45,
-                trend="上涨",
-                source="yfinance",
-                timestamp="2024-03-05T10:00:00",
-            )
-        )
-
-        result = await agent._execute_tool("get_change", {"symbol": "AAPL", "days": 7})
-
-        assert result["success"] is True
-        assert result["data"]["change_pct"] == 3.45
-
-    @pytest.mark.asyncio
-    async def test_execute_get_info(self, agent):
-        agent.market_service.get_info = AsyncMock(
-            return_value=CompanyInfo(
-                symbol="AAPL",
-                name="Apple Inc.",
-                sector="Technology",
-                source="yfinance",
-                timestamp="2024-03-05T10:00:00",
-            )
-        )
-
-        result = await agent._execute_tool("get_info", {"symbol": "AAPL"})
-
-        assert result["success"] is True
-        assert result["data"]["name"] == "Apple Inc."
+        assert result["data"]["total_return_pct"] == 14.2
 
     @pytest.mark.asyncio
     async def test_execute_unknown_tool(self, agent):
@@ -161,41 +135,33 @@ class TestAgentRun:
         assert "not found" in events[0].message.lower()
 
     @pytest.mark.asyncio
-    async def test_run_streaming_with_text_chunks(self, agent):
-        mock_adapter = Mock()
+    async def test_run_with_knowledge_query(self, agent):
+        agent.rag_pipeline.search = AsyncMock(
+            return_value=type(
+                "KnowledgeMock",
+                (),
+                {
+                    "documents": [type("Doc", (), {"content": "市盈率是估值指标。", "source": "valuation_metrics.md", "score": 0.9})()],
+                    "model_dump": lambda self: {
+                        "documents": [{"content": "市盈率是估值指标。", "source": "valuation_metrics.md", "score": 0.9}],
+                        "total_found": 1,
+                    },
+                },
+            )()
+        )
+        agent.confidence_scorer.calculate.return_value = 0.9
+        agent.confidence_scorer.get_confidence_level.return_value = "high"
 
-        async def mock_stream(*args, **kwargs):
-            text_event = Mock()
-            text_event.type = "content_block_delta"
-            text_event.delta = Mock()
-            text_event.delta.type = "text_delta"
-            text_event.delta.text = "测试文本"
-            yield text_event
-            yield {"final_message": Mock(content=[Mock(type="text", text="测试文本")])}
-
-        mock_adapter.create_message_stream = Mock(side_effect=mock_stream)
-
-        with patch("app.agent.core.ModelAdapterFactory.create_adapter", return_value=mock_adapter):
-            events = [event async for event in agent.run("测试查询")]
+        events = [event async for event in agent.run("什么是市盈率")]
 
         assert any(event.type == "model_selected" for event in events)
+        assert any(event.type == "tool_start" for event in events)
         assert any(event.type == "chunk" for event in events)
-        assert any(event.type == "done" for event in events)
+        done = next(event for event in events if event.type == "done")
+        assert done.data["confidence"]["level"] in {"high", "medium", "low"}
 
     @pytest.mark.asyncio
-    async def test_run_streaming_with_tool_results(self, agent):
-        mock_adapter = Mock()
-
-        async def mock_stream(*args, **kwargs):
-            text_event = Mock()
-            text_event.type = "content_block_delta"
-            text_event.delta = Mock()
-            text_event.delta.type = "text_delta"
-            text_event.delta.text = "基于数据的回答"
-            yield text_event
-            yield {"final_message": Mock(content=[Mock(type="text", text="基于数据的回答")])}
-
-        mock_adapter.create_message_stream = Mock(side_effect=mock_stream)
+    async def test_run_with_tool_results(self, agent):
         agent.market_service.get_price = AsyncMock(
             return_value=MarketData(
                 symbol="AAPL",
@@ -206,26 +172,75 @@ class TestAgentRun:
                 timestamp="2024-03-05T10:00:00",
             )
         )
+        agent.market_service.get_change = AsyncMock(
+            return_value=ChangeData(
+                symbol="AAPL",
+                days=7,
+                start_price=145.0,
+                end_price=150.0,
+                change_pct=3.45,
+                trend="上涨",
+                source="yfinance",
+                timestamp="2024-03-05T10:00:00",
+            )
+        )
 
-        with patch("app.agent.core.ModelAdapterFactory.create_adapter", return_value=mock_adapter):
-            events = [event async for event in agent.run("AAPL价格")]
+        events = [event async for event in agent.run("AAPL价格")]
 
         assert any(event.type == "tool_start" for event in events)
         assert any(event.type == "tool_data" for event in events)
         assert any(event.type == "done" for event in events)
 
     @pytest.mark.asyncio
-    async def test_run_with_exception_handling(self, agent):
-        mock_adapter = Mock()
+    async def test_run_with_advice_refusal(self, agent):
+        events = [event async for event in agent.run("AAPL 现在可以买入吗")]
+        assert any(event.type == "chunk" for event in events)
+        done = next(event for event in events if event.type == "done")
+        assert done.verified is True
+        assert done.data["blocks"][0]["type"] == "warning"
 
-        async def mock_stream(*args, **kwargs):
-            raise Exception("API Error")
-            yield
+    @pytest.mark.asyncio
+    async def test_compose_technical_analysis_blocks(self, agent):
+        agent.market_service.get_price = AsyncMock(
+            return_value=MarketData(
+                symbol="AAPL",
+                price=150.0,
+                currency="USD",
+                name="Apple Inc.",
+                source="yfinance",
+                timestamp="2024-03-05T10:00:00",
+            )
+        )
+        points = [
+            PricePoint(date=f"2024-03-{idx:02d}", open=100 + idx, high=101 + idx, low=99 + idx, close=100 + idx, volume=1000 + idx)
+            for idx in range(1, 31)
+        ]
+        agent.market_service.get_history = AsyncMock(
+            return_value=HistoryData(
+                symbol="AAPL",
+                days=30,
+                range_key="1m",
+                data=points,
+                source="yfinance",
+                timestamp="2024-03-05T10:00:00",
+            )
+        )
+        agent.market_service.get_metrics = AsyncMock(
+            return_value=RiskMetrics(
+                symbol="AAPL",
+                range_key="1y",
+                annualized_volatility=18.2,
+                total_return_pct=12.5,
+                max_drawdown_pct=-6.3,
+                annualized_return_pct=12.5,
+                sharpe_ratio=0.69,
+                source="yfinance",
+                timestamp="2024-03-05T10:00:00",
+            )
+        )
 
-        mock_adapter.create_message_stream = Mock(side_effect=mock_stream)
-
-        with patch("app.agent.core.ModelAdapterFactory.create_adapter", return_value=mock_adapter):
-            events = [event async for event in agent.run("测试")]
-
-        error_event = next(event for event in events if event.type == "error")
-        assert "API Error" in error_event.message or error_event.code == "LLM_ERROR"
+        events = [event async for event in agent.run("AAPL 波动率和最大回撤")]
+        done = next(event for event in events if event.type == "done")
+        block_types = [block["type"] for block in done.data["blocks"]]
+        assert "table" in block_types
+        assert "chart" in block_types

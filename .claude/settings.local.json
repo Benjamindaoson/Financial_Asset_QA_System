@@ -37,7 +37,17 @@
       "Bash(do taskkill:*)",
       "Bash(Get-Process:*)",
       "Bash(git push:*)",
-      "Bash(NO_PROXY=localhost curl:*)"
+      "Bash(NO_PROXY=localhost curl:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(pytest:*)",
+      "WebSearch",
+      "Bash(/tmp/integration_summary.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(README_API_INTEGRATION.md:*)",
+      "Bash(git merge:*)",
+      "Bash(git branch:*)"
     ]
   }
 }

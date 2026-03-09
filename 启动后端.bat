@@ -5,7 +5,7 @@ echo   金融资产问答系统 - 后端启动脚本
 echo ========================================
 echo.
 
-echo [1/4] 关闭所有Python进程...
+echo [1/6] 关闭所有Python进程...
 taskkill /F /IM python.exe /T >nul 2>&1
 if %errorlevel% equ 0 (
     echo ✓ Python进程已关闭
@@ -14,13 +14,50 @@ if %errorlevel% equ 0 (
 )
 echo.
 
-echo [2/4] 等待2秒...
+echo [2/6] 等待2秒...
 timeout /t 2 /nobreak >nul
 echo ✓ 等待完成
 echo.
 
-echo [3/4] 清理旧的ChromaDB数据库...
+echo [3/6] 检查虚拟环境...
 cd /d "%~dp0"
+if not exist "backend\venv" (
+    echo ⚠ 虚拟环境不存在，正在创建...
+    cd backend
+    python -m venv venv
+    if %errorlevel% equ 0 (
+        echo ✓ 虚拟环境创建完成
+    ) else (
+        echo ✗ 虚拟环境创建失败，请检查Python安装
+        pause
+        exit /b 1
+    )
+    cd ..
+) else (
+    echo ✓ 虚拟环境已存在
+)
+echo.
+
+echo [4/6] 激活虚拟环境并安装依赖...
+cd backend
+call venv\Scripts\activate.bat
+if %errorlevel% neq 0 (
+    echo ✗ 虚拟环境激活失败
+    cd ..
+    pause
+    exit /b 1
+)
+echo 正在安装依赖包，请稍候...
+pip install -r requirements.txt --quiet
+if %errorlevel% equ 0 (
+    echo ✓ 依赖安装完成
+) else (
+    echo ⚠ 部分依赖安装失败，但将尝试继续启动
+)
+cd ..
+echo.
+
+echo [5/6] 清理旧的ChromaDB数据库...
 if exist "vectorstore\chroma\chroma.sqlite3" (
     del /F /Q "vectorstore\chroma\chroma.sqlite3" >nul 2>&1
     if %errorlevel% equ 0 (
@@ -36,7 +73,7 @@ if exist "vectorstore\chroma\chroma.sqlite3" (
 )
 echo.
 
-echo [4/4] 启动后端服务...
+echo [6/6] 启动后端服务...
 echo.
 echo ========================================
 echo   后端正在启动，请等待...
@@ -46,6 +83,7 @@ echo ========================================
 echo.
 
 cd backend
+call venv\Scripts\activate.bat
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 
 pause

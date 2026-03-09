@@ -52,16 +52,24 @@ class DeepSeekAdapter(ModelAdapter):
         tools: List[Dict[str, Any]],
         max_tokens: int,
     ) -> AsyncGenerator:
-        request_messages = [{"role": "system", "content": system}] + messages
-        request_tools = self._convert_tools(tools)
+        import asyncio
 
-        stream = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=request_messages,
-            tools=request_tools or None,
-            max_tokens=max_tokens,
-            stream=True,
-        )
+        request_messages = [{"role": "system", "content": system}] + messages
+        request_tools = self._convert_tools(tools) if tools else None
+
+        # Run sync stream in executor to make it truly async
+        loop = asyncio.get_event_loop()
+
+        def _create_stream():
+            return self.client.chat.completions.create(
+                model=self.model_name,
+                messages=request_messages,
+                tools=request_tools,
+                max_tokens=max_tokens,
+                stream=True,
+            )
+
+        stream = await loop.run_in_executor(None, _create_stream)
 
         text_chunks: List[str] = []
         tool_blocks: Dict[str, Dict[str, Any]] = {}
@@ -79,6 +87,8 @@ class DeepSeekAdapter(ModelAdapter):
                         "text": delta.content,
                     },
                 }
+                # Allow other tasks to run
+                await asyncio.sleep(0)
 
             if delta.tool_calls:
                 for tool_call in delta.tool_calls:

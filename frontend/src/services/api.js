@@ -50,8 +50,20 @@ export async function fetchChat(query, sessionId = null) {
   return events;
 }
 
-export async function fetchChart(symbol, days = 30) {
-  const response = await fetch(`${API_BASE}/chart/${symbol}?days=${days}`);
+export async function fetchChart(symbol, options = {}) {
+  const params = new URLSearchParams();
+  if (options.rangeKey) {
+    params.set("range_key", options.rangeKey);
+  } else {
+    params.set("days", String(options.days || 30));
+  }
+  const response = await fetch(`${API_BASE}/chart/${symbol}?${params.toString()}`);
   if (!response.ok) return null;
+  return response.json();
+}
+
+export async function fetchMarketOverview() {
+  const response = await fetch(`${API_BASE}/market-overview`);
+  if (!response.ok) throw new Error("Failed to fetch market overview");
   return response.json();
 }

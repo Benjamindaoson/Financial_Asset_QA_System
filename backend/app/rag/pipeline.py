@@ -13,6 +13,20 @@ from app.models import KnowledgeResult, Document
 class RAGPipeline:
     """Two-stage RAG: Bi-Encoder retrieval + Cross-Encoder reranking"""
 
+    QUERY_EXPANSIONS = {
+        "市盈率": {"pe", "price-to-earnings", "valuation", "估值"},
+        "市净率": {"pb", "price-to-book", "book value", "估值"},
+        "市销率": {"ps", "price-to-sales", "sales"},
+        "波动率": {"volatility", "risk", "drawdown", "technical"},
+        "最大回撤": {"drawdown", "risk", "technical"},
+        "财务报表": {"balance sheet", "income statement", "cash flow", "financial statements"},
+        "现金流": {"cash flow", "financial statements"},
+        "技术分析": {"technical", "rsi", "macd", "support", "resistance"},
+        "债券": {"bond", "fixed income", "market instruments"},
+        "etf": {"fund", "market instruments"},
+        "宏观": {"macro", "economics", "macro economics"},
+    }
+
     def __init__(self):
         # Initialize ChromaDB
         persist_dir = Path(settings.CHROMA_PERSIST_DIR)
@@ -48,9 +62,14 @@ class RAGPipeline:
         knowledge_dir = (Path(__file__).resolve().parents[3] / "data" / "knowledge")
         documents = []
         for file_path in sorted(knowledge_dir.glob("*.md")):
-            try:
-                content = file_path.read_text(encoding="utf-8")
-            except Exception:
+            content = None
+            for encoding in ("utf-8", "utf-8-sig", "gbk", "gb18030"):
+                try:
+                    content = file_path.read_text(encoding=encoding)
+                    break
+                except Exception:
+                    continue
+            if content is None:
                 continue
             documents.append(
                 {
@@ -77,12 +96,20 @@ class RAGPipeline:
 
     def _search_local_documents(self, query: str) -> KnowledgeResult:
         query_tokens = self._tokenize_text(query)
+        expanded_terms = set()
+        for keyword, synonyms in self.QUERY_EXPANSIONS.items():
+            if keyword in query.lower() or keyword in query:
+                expanded_terms.update(synonyms)
+        for term in expanded_terms:
+            query_tokens.update(self._tokenize_text(term))
         if not query_tokens:
             return KnowledgeResult(documents=[], total_found=0)
 
         ranked = []
         for item in self._local_documents:
             overlap = len(query_tokens & item["tokens"])
+            if overlap == 0 and any(term in item["content"].lower() for term in expanded_terms):
+                overlap = 1
             if overlap == 0:
                 continue
             snippet = item["content"][:600].strip()

@@ -1,34 +1,69 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { fetchChat } from "./services/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchChat, fetchMarketOverview } from "./services/api";
 import { C, F } from "./theme";
 import { LoadSteps, Skel } from "./components/UI/LoadingComponents";
-import { StreamingText, Src, Disc } from "./components/Chat/ChatComponents";
+import {
+  ConfidenceBadge,
+  Disc,
+  ResponseBlocks,
+  SourcesPanel,
+  StreamingText,
+} from "./components/Chat/ChatComponents";
 import { Chart } from "./components/Chart";
 import { InputBox } from "./components/UI/InputBox";
+import { MarketOverview } from "./components/Market/MarketOverview";
+import { SignalFeed } from "./components/Market/SignalFeed";
+import { MarketSummary } from "./components/Market/MarketSummary";
+import { SectorHeatmap } from "./components/Market/SectorHeatmap";
 
-/* ================================================================
-   MAIN APP
-   ================================================================ */
+const QUICK_PROMPTS = [
+  "AAPL 近1年波动率和最大回撤",
+  "比较 AAPL 和 TSLA 的 1 年表现",
+  "什么是市盈率",
+  "苹果最近财报和 SEC 公告",
+];
+
 export default function App() {
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [streamingText, setStreamingText] = useState("");
+  const [marketData, setMarketData] = useState(null);
+  const [loadingMarket, setLoadingMarket] = useState(true);
+  const [marketError, setMarketError] = useState("");
   const endRef = useRef(null);
-  const scrollRef = useRef(null);
   const sessionId = useRef(`session_${Date.now()}`);
 
   useEffect(() => {
-    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    loadMarketOverview();
+  }, []);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, streamingText]);
+
+  const loadMarketOverview = useCallback(async () => {
+    try {
+      setLoadingMarket(true);
+      setMarketError("");
+      const data = await fetchMarketOverview();
+      setMarketData(data);
+    } catch (error) {
+      setMarketError("Market overview is temporarily unavailable.");
+    } finally {
+      setLoadingMarket(false);
+    }
+  }, []);
 
   const send = useCallback(
     async (text) => {
       const q = (text || input).trim();
-      if (!q || loading) return;
+      if (!q || loading) {
+        return;
+      }
 
-      setMsgs((p) => [...p, { role: "user", text: q }]);
+      setMsgs((prev) => [...prev, { role: "user", text: q }]);
       setInput("");
       setLoading(true);
       setCurrentStep(0);
@@ -37,52 +72,58 @@ export default function App() {
       try {
         const events = await fetchChat(q, sessionId.current);
         let fullText = "";
-        let symbol = null;
         let sources = [];
+        let symbol = null;
+        let rangeKey = "1y";
         let trace = [];
+        let meta = {};
 
         for (const event of events) {
           if (event.type === "model_selected") {
             setCurrentStep(0);
-            trace.push(`🧠 Using ${event.model} (Complexity: ${event.complexity || 'fast'})`);
+            trace.push(`Model: ${event.model}`);
           } else if (event.type === "tool_start") {
             setCurrentStep(1);
-            trace.push(`🔧 ${event.display || event.name}`);
+            trace.push(event.display || event.name);
           } else if (event.type === "tool_data") {
             setCurrentStep(2);
             if (event.data?.symbol) {
               symbol = event.data.symbol;
             }
+            if (event.data?.range_key) {
+              rangeKey = event.data.range_key;
+            }
           } else if (event.type === "chunk") {
-            fullText += event.text;
+            fullText += event.text || "";
             setStreamingText(fullText);
           } else if (event.type === "done") {
-            if (event.sources) {
-              sources = event.sources;
+            sources = event.sources || [];
+            meta = event.data || {};
+            if (meta?.route?.range_key) {
+              rangeKey = meta.route.range_key;
             }
           }
         }
 
-        setMsgs((p) => [
-          ...p,
+        setMsgs((prev) => [
+          ...prev,
           {
             role: "ai",
             text: fullText,
             symbol,
+            rangeKey,
             sources,
             trace,
+            confidence: meta.confidence,
+            blocks: meta.blocks || [],
+            disclaimer: meta.disclaimer,
           },
         ]);
         setStreamingText("");
       } catch (error) {
-        console.error("Chat error:", error);
-        setMsgs((p) => [
-          ...p,
-          {
-            role: "ai",
-            text: "抱歉，请求失败。请检查后端服务是否正常运行。",
-            error: true,
-          },
+        setMsgs((prev) => [
+          ...prev,
+          { role: "ai", text: "请求失败，请检查前后端服务是否已经启动。", error: true },
         ]);
       } finally {
         setLoading(false);
@@ -113,65 +154,46 @@ export default function App() {
       }}
     >
       <style>{`
-        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes pls{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-        *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:4px}
-        ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
-        input::placeholder{color:${C.td}}
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
       `}</style>
 
-      {/* HEADER */}
       <header
         style={{
           background: C.white,
           borderBottom: `1px solid ${C.border}`,
           padding: "0 20px",
-          height: 48,
+          height: 52,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {inChat && (
             <button
               onClick={goHome}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 3,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: C.accent,
-                fontSize: 11.5,
-                fontWeight: 600,
-                padding: "4px 6px",
-                borderRadius: 5,
-              }}
+              style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              首页
+              Home
             </button>
           )}
-          <div onClick={goHome} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer" }}>
+          <div onClick={goHome} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <div
               style={{
-                width: 26,
-                height: 26,
-                borderRadius: 6,
-                background: `linear-gradient(135deg,${C.accent},#3B82F6)`,
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: `linear-gradient(135deg, ${C.accent}, #3B82F6)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 13,
-                fontWeight: 900,
                 color: "#fff",
+                fontWeight: 800,
               }}
             >
               F
@@ -179,113 +201,74 @@ export default function App() {
             <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>FinSight AI</span>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {inChat && (
-            <button
-              onClick={goHome}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 3,
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                cursor: "pointer",
-                color: C.ts,
-                fontSize: 10.5,
-                fontWeight: 600,
-                padding: "4px 9px",
-                borderRadius: 5,
-              }}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              新对话
-            </button>
-          )}
-          <span
-            style={{
-              fontSize: 9.5,
-              padding: "3px 6px",
-              borderRadius: 3,
-              background: C.upL,
-              color: C.up,
-              fontWeight: 700,
-              fontFamily: F.m,
-            }}
-          >
-            ● LIVE
-          </span>
-        </div>
+        <span
+          style={{
+            fontSize: 10,
+            padding: "4px 8px",
+            borderRadius: 999,
+            background: "#DCFCE7",
+            color: "#166534",
+            fontWeight: 700,
+            fontFamily: F.m,
+          }}
+        >
+          LIVE DATA
+        </span>
       </header>
 
-      {/* CONTENT */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: inChat ? "14px 0 115px" : "0" }}>
-        <div style={{ maxWidth: 740, margin: "0 auto", padding: "0 20px" }}>
-          {/* HOME */}
+      <div style={{ flex: 1, overflowY: "auto", padding: inChat ? "16px 0 116px" : "22px 0" }}>
+        <div style={{ maxWidth: inChat ? 820 : 1200, margin: "0 auto", padding: "0 20px" }}>
           {!inChat && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                minHeight: "calc(100vh - 48px)",
-                padding: "0 0 40px",
-                animation: "fadeUp .4s ease-out",
-              }}
-            >
-              <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    margin: "0 auto 12px",
-                    background: `linear-gradient(135deg,${C.accent},#6366f1)`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 20,
-                    fontWeight: 900,
-                    color: "#fff",
-                    boxShadow: "0 4px 16px rgba(26,110,245,.18)",
-                  }}
-                >
-                  F
-                </div>
-                <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 4 }}>金融资产智能问答</h1>
-                <p style={{ fontSize: 13, color: C.ts }}>实时行情查询 · 涨跌原因分析 · 金融知识问答</p>
-              </div>
-
-              <InputBox value={input} onChange={setInput} onSend={() => send()} onClear={() => setInput("")} loading={loading} />
-
-              <div style={{ maxWidth: 580, margin: "14px auto 0", display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-                {["苹果股票今天涨了多少", "特斯拉最近走势", "什么是市盈率", "阿里巴巴行情"].map((q, i) => (
+            <div style={{ animation: "fadeUp .4s ease-out" }}>
+              {loadingMarket ? (
+                <div style={{ padding: "40px 0", textAlign: "center", color: C.td }}>Loading market overview...</div>
+              ) : marketError ? (
+                <div style={{ padding: "20px", border: `1px solid ${C.border}`, borderRadius: 12, background: C.white }}>
+                  <div style={{ color: C.text, marginBottom: 10 }}>{marketError}</div>
                   <button
-                    key={i}
-                    onClick={() => send(q)}
-                    style={{
-                      fontSize: 11.5,
-                      padding: "6px 14px",
-                      borderRadius: 18,
-                      border: `1px solid ${C.border}`,
-                      background: C.white,
-                      color: C.text,
-                      cursor: "pointer",
-                      transition: "all .15s",
-                    }}
+                    onClick={loadMarketOverview}
+                    style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: C.accent, color: "#fff", cursor: "pointer" }}
                   >
-                    {q}
+                    Retry
                   </button>
-                ))}
+                </div>
+              ) : marketData ? (
+                <>
+                  <MarketOverview indices={marketData.indices} />
+                  <MarketSummary summary={marketData.summary} />
+                  <SignalFeed signals={marketData.signals} />
+                  <SectorHeatmap sectors={marketData.sectors} />
+                </>
+              ) : null}
+
+              <div style={{ marginTop: 36, marginBottom: 20 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16, fontFamily: F.m }}>SEARCH & ASK</h2>
+                <InputBox value={input} onChange={setInput} onSend={() => send()} onClear={() => setInput("")} loading={loading} />
+                <div style={{ maxWidth: 640, marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {QUICK_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      onClick={() => send(prompt)}
+                      style={{
+                        fontSize: 11.5,
+                        padding: "7px 14px",
+                        borderRadius: 20,
+                        border: `1px solid ${C.border}`,
+                        background: C.white,
+                        color: C.text,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* MESSAGES */}
-          {msgs.map((msg, i) => (
-            <div key={i} style={{ marginBottom: 10, animation: "fadeUp .3s ease-out" }}>
+          {msgs.map((msg, index) => (
+            <div key={index} style={{ marginBottom: 12, animation: "fadeUp .3s ease-out" }}>
               {msg.role === "user" ? (
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <div
@@ -297,37 +280,19 @@ export default function App() {
                       maxWidth: "75%",
                       fontSize: 13,
                       lineHeight: 1.5,
-                      boxShadow: "0 1px 3px rgba(26,110,245,.15)",
                     }}
                   >
                     {msg.text}
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                  {msg.trace && msg.trace.length > 0 && (
-                    <div style={{ 
-                      fontSize: 11, 
-                      color: C.ts, 
-                      background: C.white, 
-                      border: `1px solid ${C.border}`,
-                      padding: "8px 12px", 
-                      borderRadius: 8,
-                      marginBottom: 4,
-                      fontFamily: F.m
-                    }}>
-                      <div style={{ fontWeight: 600, color: C.text, marginBottom: 4 }}>💡 分析链路追踪</div>
-                      {msg.trace.map((t, idx) => (
-                        <div key={idx} style={{ padding: "2px 0" }}>{t}</div>
-                      ))}
-                    </div>
-                  )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div
                     style={{
                       background: "#FAFCFF",
                       borderRadius: 12,
                       padding: "18px 18px 14px",
-                      border: `1px solid #D6E4F7`,
+                      border: "1px solid #D6E4F7",
                       position: "relative",
                       fontSize: 13,
                       lineHeight: 1.85,
@@ -346,16 +311,37 @@ export default function App() {
                         fontWeight: 700,
                         padding: "2px 8px",
                         borderRadius: 8,
-                        border: `1px solid #BFD5F0`,
+                        border: "1px solid #BFD5F0",
                       }}
                     >
-                      AI 分析
+                      AI Analysis
+                    </div>
+                    <div style={{ position: "absolute", top: -10, right: 12 }}>
+                      <ConfidenceBadge confidence={msg.confidence} />
                     </div>
                     {msg.text}
                   </div>
-                  {msg.symbol && <Chart symbol={msg.symbol} days={30} />}
-                  {msg.sources && msg.sources.length > 0 && <Src items={msg.sources} />}
-                  <Disc />
+
+                  <ResponseBlocks blocks={msg.blocks} />
+                  {msg.symbol && !msg.blocks?.some((block) => block.type === "chart") && <Chart symbol={msg.symbol} rangeKey={msg.rangeKey} />}
+
+                  {(msg.trace?.length || msg.sources?.length) && (
+                    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+                      {msg.trace?.length > 0 && (
+                        <div style={{ marginBottom: msg.sources?.length ? 12 : 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: C.ts, marginBottom: 8, fontFamily: F.m }}>TRACE</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11.5, color: C.text }}>
+                            {msg.trace.map((item, traceIndex) => (
+                              <div key={traceIndex}>{item}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <SourcesPanel items={msg.sources} />
+                    </div>
+                  )}
+
+                  <Disc text={msg.disclaimer} />
                 </div>
               )}
             </div>
@@ -367,11 +353,11 @@ export default function App() {
               {streamingText ? <StreamingText text={streamingText} /> : <Skel />}
             </div>
           )}
+
           <div ref={endRef} />
         </div>
       </div>
 
-      {/* BOTTOM INPUT */}
       {inChat && (
         <div
           style={{
@@ -385,10 +371,10 @@ export default function App() {
             padding: "8px 20px 12px",
           }}
         >
-          <div style={{ maxWidth: 740, margin: "0 auto" }}>
+          <div style={{ maxWidth: 820, margin: "0 auto" }}>
             <InputBox value={input} onChange={setInput} onSend={() => send()} onClear={() => setInput("")} loading={loading} />
             <div style={{ textAlign: "center", marginTop: 4, fontSize: 9, color: C.td }}>
-              FinSight AI · 数据来自 Yahoo Finance · AI分析不构成投资建议
+              Live market data, knowledge retrieval, SEC filings and risk metrics. No investment advice.
             </div>
           </div>
         </div>

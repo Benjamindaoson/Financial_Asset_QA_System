@@ -26,7 +26,7 @@
 - 涨跌幅分析和历史数据对比
 
 ### 🤖 AI智能分析
-- 多模型支持（Claude、GPT、DeepSeek）
+- DeepSeek模型支持
 - 流式响应，实时展示分析过程
 - 透明化AI推理链路追踪
 
@@ -48,11 +48,19 @@
 
 在开始之前，请确保已安装：
 
-| 软件 | 版本要求 | 下载链接 | 安装提示 |
-|------|---------|---------|---------|
-| **Python** | 3.11+ | [官网下载](https://www.python.org/downloads/) | Windows用户必须勾选 `Add Python to PATH` |
-| **Node.js** | 18+ | [官网下载](https://nodejs.org/) | 选择LTS版本 |
-| **Git** | 最新版 | [官网下载](https://git-scm.com/) | 可选，也可直接下载ZIP |
+| 软件 | 版本要求 | 下载链接 | 必需性 |
+|------|---------|---------|--------|
+| **Python** | 3.11+ | [官网下载](https://www.python.org/downloads/) | ✅ 必需（Windows用户必须勾选 `Add Python to PATH`） |
+| **Node.js** | 18+ | [官网下载](https://nodejs.org/) | ✅ 必需（选择LTS版本） |
+| **Redis** | 最新版 | [官网下载](https://redis.io/download) | ⚠️ 可选（用于缓存加速） |
+| **Git** | 最新版 | [官网下载](https://git-scm.com/) | ⚠️ 可选（也可直接下载ZIP） |
+
+**Redis 安装**（可选，用于缓存加速）：
+- **Windows**: 下载 [Redis for Windows](https://github.com/tporadowski/redis/releases)
+- **macOS**: `brew install redis && brew services start redis`
+- **Linux**: `sudo apt install redis-server && sudo systemctl start redis`
+
+**不安装 Redis 的影响**：系统仍可正常运行，但每次查询都会重新获取数据，响应稍慢。
 
 **验证安装**：
 ```bash
@@ -90,28 +98,27 @@ cd Financial_Asset_QA_System
    cp backend/.env.example backend/.env
    ```
 
-3. 编辑 `backend/.env` 文件，**至少配置一个AI模型的API密钥**：
+3. 编辑 `backend/.env` 文件，配置以下密钥：
 
 ```env
-# 推荐：Claude API（效果最好）
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
-ANTHROPIC_BASE_URL=https://api.anthropic.com
-
-# 或者：DeepSeek API（性价比高）
+# AI 模型 API（必需）
 DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxx
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
 
-# 或者：OpenAI API
-OPENAI_API_KEY=sk-xxxxxxxxxxxxx
-
-# 可选：金融数据API（不配置也能用Yahoo Finance）
-ALPHA_VANTAGE_API_KEY=your_key_here
-FINNHUB_API_KEY=your_key_here
+# 金融数据 API（可选，不配置也能用 yfinance）
+NEWSAPI_API_KEY=your_key_here          # 新闻数据
+FINNHUB_API_KEY=your_key_here          # 金融新闻 + 实时报价
+TWELVE_DATA_API_KEY=your_key_here      # 技术指标
+ALPHA_VANTAGE_API_KEY=your_key_here    # 历史数据
 ```
 
-> 💡 **获取API密钥**：
-> - Claude: [console.anthropic.com](https://console.anthropic.com/)
-> - DeepSeek: [platform.deepseek.com](https://platform.deepseek.com/)
-> - OpenAI: [platform.openai.com](https://platform.openai.com/)
+> 💡 **获取 API 密钥**：
+> - DeepSeek: [platform.deepseek.com](https://platform.deepseek.com/) （必需）
+> - NewsAPI: [newsapi.org](https://newsapi.org/) （可选）
+> - Finnhub: [finnhub.io](https://finnhub.io/) （可选）
+> - TwelveData: [twelvedata.com](https://twelvedata.com/) （可选）
+> - Alpha Vantage: [alphavantage.co](https://www.alphavantage.co/) （可选）
 
 ---
 
@@ -158,7 +165,7 @@ npm run dev
   "components": {
     "redis": "connected",
     "chromadb": "ready",
-    "claude_api": "configured"
+    "deepseek_api": "configured"
   }
 }
 ```
@@ -258,7 +265,7 @@ lsof -ti:5173 | xargs kill -9
 ```bash
 # 查看环境变量是否加载
 cd backend
-python -c "from app.config import settings; print(settings.ANTHROPIC_API_KEY)"
+python -c "from app.config import settings; print(settings.DEEPSEEK_API_KEY)"
 ```
 </details>
 
@@ -321,11 +328,11 @@ python -c "from app.config import settings; print(settings.ANTHROPIC_API_KEY)"
 
 #### 后端
 - **框架**: FastAPI 0.109+
-- **AI模型**: Anthropic Claude / OpenAI GPT / DeepSeek
+- **AI模型**: DeepSeek
 - **向量数据库**: ChromaDB 0.4.24
 - **嵌入模型**: BAAI/bge-base-zh-v1.5
 - **缓存**: Redis (可选)
-- **市场数据**: yfinance, Alpha Vantage, Finnhub
+- **市场数据**: yfinance, NewsAPI, Finnhub, TwelveData, Alpha Vantage
 
 #### 前端
 - **框架**: React 18.2
@@ -449,7 +456,7 @@ allow_origins=["https://yourdomain.com"]
 AI: 正在查询苹果(AAPL)的最新行情...
 
 💡 分析链路追踪
-🧠 Using claude-opus-4 (Complexity: fast)
+🧠 Using deepseek-chat (Complexity: fast)
 🔧 查询股票价格: AAPL
 📊 获取历史数据: 30天
 
@@ -469,7 +476,7 @@ AI: 正在查询苹果(AAPL)的最新行情...
 AI: 正在检索相关知识...
 
 💡 分析链路追踪
-🧠 Using claude-sonnet-4 (Complexity: medium)
+🧠 Using deepseek-chat (Complexity: medium)
 🔍 知识检索: 市盈率定义
 
 市盈率(P/E Ratio)是衡量股票估值的重要指标：
@@ -624,13 +631,14 @@ self.tools = [
 
 ### 技术支持
 - [Anthropic](https://www.anthropic.com/) - Claude AI模型
-- [OpenAI](https://openai.com/) - GPT模型
 - [DeepSeek](https://www.deepseek.com/) - DeepSeek模型
 
 ### 数据来源
 - [Yahoo Finance](https://finance.yahoo.com/) - 免费市场数据
-- [Alpha Vantage](https://www.alphavantage.co/) - 金融数据API
+- [NewsAPI](https://newsapi.org/) - 新闻数据
 - [Finnhub](https://finnhub.io/) - 实时股票数据
+- [TwelveData](https://twelvedata.com/) - 技术指标数据
+- [Alpha Vantage](https://www.alphavantage.co/) - 金融数据API
 
 ### 开源项目
 - [FastAPI](https://fastapi.tiangolo.com/) - 现代Python Web框架

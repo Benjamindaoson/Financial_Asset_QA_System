@@ -1,0 +1,10 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+INFO:     Started server process [168688]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Building prefix dict from the default dictionary ...
+Loading model from cache C:\Users\BENJAM~1\AppData\Local\Temp\jieba.cache
+Loading model cost 0.536 seconds.
+Prefix dict has been built successfully.

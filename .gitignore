@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Vector store
+vectorstore/
+!vectorstore/.gitkeep
+
+# Models cache (HuggingFace downloaded model weights)
+models/
+# But DO NOT ignore the Python source code models package
+!backend/app/models/
+!backend/app/models/*.py
+
+# Cache
+.cache/
+*.cache
+__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Git worktrees
+.worktrees/
+
+# Claude Code
+.claude/worktrees/
+
+# Temporary files
+nul
+*.tmp

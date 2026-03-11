@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+.env
+venv/
+tests/
+*.err
+*.bat
+verify_integration.sh

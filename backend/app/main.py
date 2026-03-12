@@ -68,6 +68,14 @@ app.include_router(router, prefix="/api")
 from app.api.routes.rag_optimized import router as rag_optimized_router
 app.include_router(rag_optimized_router)
 
+try:
+    from app.api.enhanced_routes import router as enhanced_router
+except Exception:
+    enhanced_router = None
+
+if enhanced_router:
+    app.include_router(enhanced_router)
+
 
 @app.get("/")
 async def root():

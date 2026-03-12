@@ -97,7 +97,7 @@ class TickerMapper:
     """Maps company names and common aliases to ticker symbols."""
 
     EXACT_MAP = {
-        "阿里巴巴": "BABA",
+        "阿里巴巴": "9988.HK",
         "苹果": "AAPL",
         "腾讯": "0700.HK",
         "特斯拉": "TSLA",
@@ -186,6 +186,11 @@ class MarketDataService:
         self.news_provider = NewsAPIProvider()
         self.finnhub_provider = FinnhubProvider()
         self._stooq_semaphore = asyncio.Semaphore(3)
+        self._market_timezones = {
+            "US": "US/Eastern",
+            "HK": "Asia/Hong_Kong",
+            "CN": "Asia/Shanghai"
+        }
 
     def _get_cache(self, key: str) -> Optional[dict]:
         """从缓存获取数据，优先使用 Redis，不可用时使用内存缓存。"""
@@ -228,6 +233,50 @@ class MarketDataService:
             expired_keys = [k for k, (_, exp) in self._memory_cache.items() if exp < now]
             for k in expired_keys:
                 del self._memory_cache[k]
+ 
+    def _get_market_status(self, symbol: str) -> str:
+        """Determines if the market for a given symbol is currently open."""
+        now = datetime.utcnow()
+        
+        # Simple heuristic for timezones and hours
+        if self._is_china_a_stock(symbol):
+            # CN: 9:30-11:30, 13:00-15:00 CST (UTC+8)
+            cn_now = now + timedelta(hours=8)
+            if cn_now.weekday() >= 5: return "closed"
+            h, m = cn_now.hour, cn_now.minute
+            if (9, 30) <= (h, m) <= (11, 30) or (13, 0) <= (h, m) <= (15, 0):
+                return "open"
+        elif self._is_hk_stock(symbol):
+            # HK: 9:30-12:00, 13:00-16:00 HKT (UTC+8)
+            hk_now = now + timedelta(hours=8)
+            if hk_now.weekday() >= 5: return "closed"
+            h, m = hk_now.hour, hk_now.minute
+            if (9, 30) <= (h, m) <= (12, 0) or (13, 0) <= (h, m) <= (16, 0):
+                return "open"
+        else:
+            # US: 9:30-16:00 ET (UTC-5/UTC-4) - Simplified to UTC-5
+            us_now = now - timedelta(hours=5)
+            if us_now.weekday() >= 5: return "closed"
+            h, m = us_now.hour, us_now.minute
+            if (9, 30) <= (h, m) <= (16, 0):
+                return "open"
+        
+        return "closed"
+
+    def _get_dynamic_ttl(self, symbol: str, data_type: str) -> int:
+        """Returns TTL in seconds based on market status and data type."""
+        status = self._get_market_status(symbol)
+        
+        if data_type == "price":
+            return 60 if status == "open" else 3600
+        if data_type == "history":
+            return 3600 if status == "open" else 86400
+        if data_type == "info":
+            return 86400 * 7  # 1 week
+        if data_type == "news":
+            return 300 if status == "open" else 3600
+            
+        return settings.CACHE_TTL_PRICE
 
     @staticmethod
     def _utc_now() -> str:
@@ -498,7 +547,11 @@ class MarketDataService:
         if normalized in index_map:
             return index_map[normalized]
         if normalized.endswith(".HK"):
-            return f"{normalized[:-3].lower()}.hk"
+            # Check for 4-digit numeric symbols (common in HK)
+            base = normalized[:-3]
+            if base.isdigit():
+                return f"{int(base)}.hk"
+            return f"{base.lower()}.hk"
         if normalized.endswith(".SS") or normalized.endswith(".SZ"):
             return f"{normalized[:6].lower()}.cn"
         if normalized.endswith("-USD"):
@@ -740,7 +793,7 @@ class MarketDataService:
             attempted_sources.append("akshare")
             if akshare_result:
                 akshare_result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-                self._set_cache(cache_key, akshare_result.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
+                self._set_cache(cache_key, akshare_result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
                 return akshare_result
 
         # 主数据源：yfinance
@@ -759,7 +812,7 @@ class MarketDataService:
                     timestamp=self._utc_now(),
                     latency_ms=(datetime.utcnow() - start_time).total_seconds() * 1000,
                 )
-                self._set_cache(cache_key, result.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
+                self._set_cache(cache_key, result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
                 return result
 
         # 备用数据源：stooq
@@ -767,7 +820,7 @@ class MarketDataService:
         attempted_sources.append("stooq")
         if stooq_result:
             stooq_result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-            self._set_cache(cache_key, stooq_result.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
+            self._set_cache(cache_key, stooq_result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
             return stooq_result
 
         # 兜底数据源：alpha_vantage
@@ -775,7 +828,7 @@ class MarketDataService:
         attempted_sources.append("alpha_vantage")
         if av_result:
             av_result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-            self._set_cache(cache_key, av_result.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
+            self._set_cache(cache_key, av_result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
             return av_result
 
         # 所有数据源都失败
@@ -808,7 +861,7 @@ class MarketDataService:
             akshare_result = await self._fetch_akshare_history(normalized, normalized_days, range_key=range_key)
             attempted_sources.append("akshare")
             if akshare_result and len(akshare_result.data) >= 2:
-                self._set_cache(cache_key, akshare_result.model_dump(), settings.CACHE_TTL_HISTORY)
+                self._set_cache(cache_key, akshare_result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
                 return akshare_result
 
         # 主数据源：yfinance
@@ -824,21 +877,21 @@ class MarketDataService:
                 source="yfinance",
                 timestamp=self._utc_now(),
             )
-            self._set_cache(cache_key, result.model_dump(), settings.CACHE_TTL_HISTORY)
+            self._set_cache(cache_key, result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
             return result
 
         # 备用数据源：stooq
         stooq_result = await self._fetch_stooq_history(normalized, normalized_days, range_key=range_key)
         attempted_sources.append("stooq")
         if stooq_result and len(stooq_result.data) >= 2:
-            self._set_cache(cache_key, stooq_result.model_dump(), settings.CACHE_TTL_HISTORY)
+            self._set_cache(cache_key, stooq_result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
             return stooq_result
 
         # 兜底数据源：alpha_vantage
         av_result = await self._fetch_alpha_vantage_history(normalized, normalized_days, range_key=range_key)
         attempted_sources.append("alpha_vantage")
         if av_result and len(av_result.data) >= 2:
-            self._set_cache(cache_key, av_result.model_dump(), settings.CACHE_TTL_HISTORY)
+            self._set_cache(cache_key, av_result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
             return av_result
 
         # 所有数据源都失败
@@ -896,7 +949,7 @@ class MarketDataService:
         # Try Alpha Vantage first, then yfinance as fallback
         fallback = await self._fetch_alpha_vantage_info(normalized)
         if fallback:
-            self._set_cache(cache_key, fallback.model_dump(by_alias=True), settings.CACHE_TTL_INFO)
+            self._set_cache(cache_key, fallback.model_dump(by_alias=True), self._get_dynamic_ttl(normalized, "info"))
             return fallback
 
         info = await self._fetch_yfinance_info(normalized)
@@ -914,7 +967,7 @@ class MarketDataService:
                 source="yfinance",
                 timestamp=self._utc_now(),
             )
-            self._set_cache(cache_key, result.model_dump(by_alias=True), settings.CACHE_TTL_INFO)
+            self._set_cache(cache_key, result.model_dump(by_alias=True), self._get_dynamic_ttl(normalized, "info"))
             return result
 
         return CompanyInfo(symbol=normalized, name=normalized or symbol, source="unavailable", timestamp=self._utc_now())
@@ -996,7 +1049,7 @@ class MarketDataService:
             timestamp=self._utc_now(),
         )
 
-        self._set_cache(cache_key, result.model_dump(), settings.CACHE_TTL_HISTORY)
+        self._set_cache(cache_key, result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
         return result
 
     async def compare_assets(self, symbols: Sequence[str], range_key: str = "1y") -> ComparisonData:
@@ -1096,39 +1149,64 @@ class MarketDataService:
         summary = self._build_market_summary(index_payload, signals, sector_payload)
         return MarketOverviewResponse(indices=index_payload, signals=signals, sectors=sector_payload, summary=summary)
 
-    async def _build_index_snapshot(self, symbol: str, display_name: str) -> MarketIndexSnapshot:
+    async def _get_quote_with_change(self, symbol: str) -> tuple[Optional[float], Optional[float]]:
+        # First try finnhub if available
         quote = await self.finnhub_provider.get_quote(symbol)
-        price = quote.get("c") if quote else None
-        change_pct = quote.get("dp") if quote else None
+        if quote and quote.get("c"):
+            return quote.get("c"), quote.get("dp")
+            
+        # Fallback to history (gets latest 5 days)
+        history = await self.get_history(symbol, days=5)
+        if history and history.data and len(history.data) >= 1:
+            current_price = history.data[-1].close
+            change_pct = None
+            if len(history.data) >= 2:
+                prev_close = history.data[-2].close
+                if prev_close and prev_close > 0:
+                    change_pct = ((current_price - prev_close) / prev_close) * 100.0
+            elif current_price and history.data[-1].open:
+                open_price = history.data[-1].open
+                if open_price > 0:
+                    change_pct = ((current_price - open_price) / open_price) * 100.0
+            return current_price, change_pct
+            
+        # Last resort: just get price
+        price_data = await self.get_price(symbol)
+        if price_data and price_data.price:
+            return price_data.price, None
+            
+        return None, None
+
+    async def _build_index_snapshot(self, symbol: str, display_name: str) -> MarketIndexSnapshot:
+        price, change_pct = await self._get_quote_with_change(symbol)
         return MarketIndexSnapshot(
             symbol=symbol,
             name=display_name,
             price=price,
             change_pct=change_pct,
-            source="finnhub",
+            source="mixed",
             timestamp=self._utc_now(),
         )
 
     async def _build_sector_snapshot(self, symbol: str, display_name: str) -> SectorSnapshot:
-        quote = await self.finnhub_provider.get_quote(symbol)
-        change_pct = quote.get("dp") if quote else None
+        _, change_pct = await self._get_quote_with_change(symbol)
         return SectorSnapshot(
             name=display_name,
             symbol=symbol,
             change_pct=change_pct,
-            source="finnhub",
+            source="mixed",
             timestamp=self._utc_now(),
         )
 
     async def _build_market_signals(self) -> List[MarketSignal]:
         candidates = get_popular_stocks(limit=10)
-        # Use Finnhub quotes for signals (fast, no history needed)
-        quotes = await asyncio.gather(*[self.finnhub_provider.get_quote(s) for s in candidates])
+        # Fetch prices with history fallback
+        quotes = await asyncio.gather(*[self._get_quote_with_change(s) for s in candidates])
         signals: List[MarketSignal] = []
-        for symbol, quote in zip(candidates, quotes):
-            if not quote or not quote.get("c"):
+        for symbol, (price, change_pct) in zip(candidates, quotes):
+            if price is None:
                 continue
-            change_pct = quote.get("dp") or 0.0
+            change_pct = change_pct if change_pct is not None else 0.0
             signal_type = "price_spike"
             score = min(99, int(abs(change_pct) * 10))
             if score < 5:
@@ -1226,9 +1304,9 @@ class MarketDataService:
         # Sort by published date (newest first)
         all_news.sort(key=lambda x: x.get("published_at") or "", reverse=True)
 
-        # Cache for 1 hour
+        # Cache based on market status
         if all_news:
-            self._set_cache(cache_key, all_news, ttl=3600)
+            self._set_cache(cache_key, all_news, ttl=self._get_dynamic_ttl(normalized, "news"))
 
         return all_news
 

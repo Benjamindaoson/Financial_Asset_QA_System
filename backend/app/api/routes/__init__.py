@@ -1,6 +1,11 @@
-"""
-API Routes Package
-"""
-from app.api.routes.rag_optimized import router as rag_optimized_router
+"""Compatibility exports for API routes."""
 
-__all__ = ["rag_optimized_router"]
+from app.api import routes_module
+
+router = routes_module.router
+agent = routes_module.agent
+enricher = routes_module.enricher
+market_service = routes_module.market_service
+settings = routes_module.settings
+
+__all__ = ["agent", "enricher", "market_service", "router", "settings"]

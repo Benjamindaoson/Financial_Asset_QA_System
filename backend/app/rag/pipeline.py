@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import hashlib
+import html
 import math
+import os
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 import chromadb
@@ -29,7 +31,88 @@ class RAGPipeline:
     """Chunked RAG pipeline with lexical retrieval and optional vector retrieval."""
 
     COLLECTION_NAME = "financial_knowledge"
-    LOCAL_EMBED_DIM = 256
+    LOCAL_EMBED_DIM = 768
+    DEFINITION_QUERY_HINTS = {
+        "\u4ec0\u4e48\u662f",
+        "\u5b9a\u4e49",
+        "\u542b\u4e49",
+        "\u4ecb\u7ecd",
+        "\u89e3\u91ca",
+        "\u600e\u4e48\u8ba1\u7b97",
+        "\u5982\u4f55\u8ba1\u7b97",
+        "\u516c\u5f0f",
+        "what is",
+        "definition",
+        "formula",
+    }
+    CONCEPT_ALIASES = {
+        "pe": {
+            "\u5e02\u76c8\u7387",
+            "pe",
+            "p/e",
+            "pe ratio",
+            "price-to-earnings",
+            "price to earnings",
+        },
+        "pb": {
+            "\u5e02\u51c0\u7387",
+            "pb",
+            "p/b",
+            "pb ratio",
+            "price-to-book",
+            "price to book",
+        },
+        "eps": {
+            "eps",
+            "\u6bcf\u80a1\u6536\u76ca",
+            "earnings per share",
+        },
+        "peg": {
+            "peg",
+            "peg ratio",
+            "\u5e02\u76c8\u7387\u76f8\u5bf9\u76c8\u5229\u589e\u957f\u6bd4",
+        },
+        "roe": {
+            "roe",
+            "\u51c0\u8d44\u4ea7\u6536\u76ca\u7387",
+            "\u6743\u76ca\u56de\u62a5\u7387",
+            "return on equity",
+        },
+        "ps": {
+            "\u5e02\u9500\u7387",
+            "ps",
+            "p/s",
+            "ps ratio",
+            "price-to-sales",
+            "price to sales",
+        },
+        "ev_ebitda": {
+            "ev/ebitda",
+            "ev to ebitda",
+            "enterprise value to ebitda",
+            "\u4f01\u4e1a\u4ef7\u503c\u500d\u6570",
+        },
+        "bvps": {
+            "bvps",
+            "\u6bcf\u80a1\u51c0\u8d44\u4ea7",
+            "book value per share",
+        },
+        "fcf": {
+            "fcf",
+            "\u81ea\u7531\u73b0\u91d1\u6d41",
+            "free cash flow",
+        },
+        "gross_margin": {
+            "\u6bdb\u5229\u7387",
+            "gross margin",
+            "gross profit margin",
+        },
+        "net_margin": {
+            "\u51c0\u5229\u7387",
+            "net margin",
+            "net profit margin",
+        },
+    }
 
     QUERY_EXPANSIONS = {
         "市盈率": {"pe", "price-to-earnings", "valuation", "估值"},
@@ -37,8 +120,12 @@ class RAGPipeline:
         "市销率": {"ps", "price-to-sales", "sales", "估值"},
         "ROE": {"return on equity", "净资产收益率", "fundamental", "financial statements"},
         "PEG": {"price/earnings to growth", "growth", "估值"},
+        "EV/EBITDA": {"enterprise value to ebitda", "企业价值倍数", "估值", "并购"},
+        "BVPS": {"book value per share", "每股净资产", "pb", "净资产"},
         "DCF": {"discounted cash flow", "自由现金流", "估值", "现金流折现"},
         "自由现金流": {"fcf", "cash flow", "dcf", "估值"},
+        "毛利率": {"gross margin", "gross profit margin", "profitability", "利润率"},
+        "净利率": {"net margin", "net profit margin", "profitability", "利润率"},
         "分红": {"dividend", "payout", "shareholder return"},
         "回购": {"buyback", "repurchase", "shareholder return"},
         "波动率": {"volatility", "risk", "drawdown", "technical"},
@@ -136,6 +223,13 @@ class RAGPipeline:
         "请问",
     }
 
+    SOURCE_DIRECTORIES = (
+        ("backend/data/knowledge", "concept"),
+        ("data/knowledge", "textbook"),
+        ("data/raw_data/knowledge", "concept"),
+        ("data/raw_data/finance_report", "report"),
+    )
+
     @staticmethod
     def _resolve_persist_dir() -> Path:
         configured = Path(settings.CHROMA_PERSIST_DIR)
@@ -143,6 +237,10 @@ class RAGPipeline:
             return configured
         backend_root = Path(__file__).resolve().parents[2]
         return (backend_root / configured).resolve()
+
+    @staticmethod
+    def _repo_root() -> Path:
+        return Path(__file__).resolve().parents[3]
 
     def __init__(self):
         persist_dir = self._resolve_persist_dir()
@@ -157,27 +255,92 @@ class RAGPipeline:
         self.embedding_model = None
         self.embedding_backend = "uninitialized"
         self.reranker = None
+        self.reranker_backend = "uninitialized"
+        self._embedding_attempted = False
+        self._reranker_attempted = False
         self.source_documents = self._load_source_documents()
         self.knowledge_chunks = self._build_knowledge_chunks(self.source_documents)
         self.chunk_map = {chunk["chunk_id"]: chunk for chunk in self.knowledge_chunks}
 
-        if settings.RAG_AUTO_INDEX_ON_START and self.get_collection_count() == 0:
+        current_vector_count = self.get_collection_count()
+        self.vector_index_synced = current_vector_count == len(self.knowledge_chunks)
+        should_sync_index = settings.RAG_AUTO_INDEX_ON_START
+        if should_sync_index and self.knowledge_chunks:
             try:
-                self.index_local_knowledge(force=False)
+                sync_result = self.index_local_knowledge(force=current_vector_count > len(self.knowledge_chunks))
+                self.vector_index_synced = bool(
+                    sync_result.get("indexed") or sync_result.get("reason") == "up_to_date"
+                )
             except Exception:
-                pass
+                self.vector_index_synced = False
+
+    @staticmethod
+    def _resolve_runtime_dir(configured_path: str) -> Path:
+        configured = Path(configured_path)
+        if configured.is_absolute():
+            return configured
+        backend_root = Path(__file__).resolve().parents[2]
+        return (backend_root / configured).resolve()
+
+    def _configure_model_runtime(self) -> None:
+        hf_home = self._resolve_runtime_dir(settings.HF_HOME)
+        transformers_cache = self._resolve_runtime_dir(settings.TRANSFORMERS_CACHE)
+        hf_home.mkdir(parents=True, exist_ok=True)
+        transformers_cache.mkdir(parents=True, exist_ok=True)
+        os.environ["HF_HOME"] = str(hf_home)
+        os.environ["TRANSFORMERS_CACHE"] = str(transformers_cache)
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+    def _resolve_local_model_path(self, model_name: str) -> Optional[Path]:
+        candidate = Path(model_name)
+        if candidate.exists():
+            return candidate.resolve()
+
+        model_slug = model_name.replace("/", "--")
+        model_leaf = model_name.split("/")[-1]
+        search_roots = [
+            self._resolve_runtime_dir(settings.HF_HOME),
+            self._resolve_runtime_dir(settings.TRANSFORMERS_CACHE),
+        ]
+        for root in search_roots:
+            for base_name in (f"models--{model_slug}", model_leaf, model_slug):
+                base_dir = root / base_name
+                if not base_dir.exists():
+                    continue
+                for marker in ("modules.json", "config.json", "sentence_bert_config.json"):
+                    matches = list(base_dir.rglob(marker))
+                    if matches:
+                        return matches[0].parent.resolve()
+        return None
 
     def _ensure_embedding_model(self):
-        if self.embedding_model is None:
-            if SentenceTransformer is None:
-                self.embedding_backend = "local-hash"
-                return
+        if self.embedding_model is not None or self._embedding_attempted:
+            return
+
+        self._embedding_attempted = True
+        if SentenceTransformer is None:
+            self.embedding_backend = "local-hash"
+            return
+
+        self._configure_model_runtime()
+        model_path = self._resolve_local_model_path(settings.EMBEDDING_MODEL)
+        if model_path is None:
+            self.embedding_backend = "local-hash"
+            return
+        try:
             try:
-                self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
-                self.embedding_backend = "sentence-transformers"
-            except Exception:
-                self.embedding_model = None
-                self.embedding_backend = "local-hash"
+                self.embedding_model = SentenceTransformer(
+                    str(model_path),
+                    cache_folder=os.environ.get("HF_HOME"),
+                    local_files_only=True,
+                )
+            except TypeError:
+                self.embedding_model = SentenceTransformer(str(model_path))
+            self.embedding_backend = "sentence-transformers"
+        except Exception:
+            self.embedding_model = None
+            self.embedding_backend = "local-hash"
 
     def _refresh_collection(self):
         return self.chroma_client.get_or_create_collection(
@@ -186,40 +349,179 @@ class RAGPipeline:
         )
 
     def _ensure_reranker(self):
-        if self.reranker is None:
-            if FlagReranker is None:
-                raise RuntimeError("FlagReranker is unavailable")
-            self.reranker = FlagReranker(settings.RERANKER_MODEL, use_fp16=True)
+        if self.reranker is not None:
+            return
+        if self._reranker_attempted:
+            raise RuntimeError("FlagReranker is unavailable")
+
+        self._reranker_attempted = True
+        if FlagReranker is None:
+            self.reranker_backend = "unavailable"
+            raise RuntimeError("FlagReranker is unavailable")
+
+        self._configure_model_runtime()
+        model_path = self._resolve_local_model_path(settings.RERANKER_MODEL)
+        if model_path is None:
+            self.reranker_backend = "disabled"
+            raise RuntimeError("FlagReranker is unavailable")
+        try:
+            try:
+                self.reranker = FlagReranker(
+                    str(model_path),
+                    use_fp16=True,
+                    local_files_only=True,
+                )
+            except TypeError:
+                self.reranker = FlagReranker(str(model_path), use_fp16=True)
+            self.reranker_backend = "flag-embedding"
+        except Exception as exc:
+            self.reranker = None
+            self.reranker_backend = "disabled"
+            raise RuntimeError("FlagReranker is unavailable") from exc
 
     def _load_source_documents(self) -> List[Dict[str, Any]]:
-        knowledge_dir = Path(__file__).resolve().parents[2] / "data" / "knowledge"
         documents: List[Dict[str, Any]] = []
-        for file_path in sorted(knowledge_dir.glob("*.md")):
-            content = None
-            for encoding in ("utf-8", "utf-8-sig", "gbk", "gb18030"):
-                try:
-                    content = file_path.read_text(encoding=encoding)
-                    break
-                except Exception:
-                    continue
-            if content is None:
+        repo_root = self._repo_root()
+        seen_paths: set[Path] = set()
+
+        for relative_dir, default_source_type in self.SOURCE_DIRECTORIES:
+            source_dir = repo_root / relative_dir
+            if not source_dir.exists():
                 continue
 
-            # Parse YAML frontmatter
-            metadata, clean_content = self._parse_frontmatter(content)
+            candidate_files = [*source_dir.glob("*.md"), *source_dir.glob("*.html")]
+            for file_path in sorted(candidate_files):
+                resolved = file_path.resolve()
+                if resolved in seen_paths:
+                    continue
+                seen_paths.add(resolved)
 
-            title = self._extract_title(clean_content) or file_path.stem
-            documents.append(
-                {
-                    "source": file_path.name,
-                    "title": title,
-                    "content": clean_content,
-                    "sections": self._split_sections(title, clean_content),
-                    "topic_tokens": self.SOURCE_KEYWORDS.get(file_path.name, set()),
-                    "metadata": metadata,  # Add metadata
-                }
-            )
+                raw_content = self._read_source_file(file_path)
+                if raw_content is None:
+                    continue
+
+                if file_path.suffix.lower() == ".md":
+                    frontmatter, clean_content = self._parse_frontmatter(raw_content)
+                else:
+                    frontmatter, clean_content = {}, self._html_to_text(raw_content)
+
+                clean_content = clean_content.strip()
+                if not clean_content:
+                    continue
+
+                inferred = self._infer_document_metadata(
+                    file_path=file_path,
+                    content=clean_content,
+                    default_source_type=default_source_type,
+                )
+                metadata = {**inferred, **frontmatter}
+                title = metadata.get("title") or self._extract_title(clean_content) or file_path.stem
+                source_path = str(file_path.relative_to(repo_root)).replace("\\", "/")
+                topic_tokens = set(self.SOURCE_KEYWORDS.get(file_path.name, set()))
+                topic_tokens.update(self._metadata_topic_tokens(metadata, title))
+
+                documents.append(
+                    {
+                        "source": file_path.name,
+                        "source_path": source_path,
+                        "title": title,
+                        "content": clean_content,
+                        "sections": self._split_sections(title, clean_content),
+                        "topic_tokens": topic_tokens,
+                        "metadata": metadata,
+                    }
+                )
         return documents
+
+    def _metadata_topic_tokens(self, metadata: Dict[str, Any], title: str) -> set[str]:
+        values: List[str] = [title]
+        for key in ("category", "difficulty", "title"):
+            value = metadata.get(key)
+            if isinstance(value, str):
+                values.append(value)
+        for key in ("tags", "related_topics"):
+            value = metadata.get(key)
+            if isinstance(value, str):
+                values.append(value)
+            elif isinstance(value, list):
+                values.extend(str(item) for item in value if item)
+
+        tokens: set[str] = set()
+        for value in values:
+            tokens.update(self._tokenize_text(value))
+        return tokens
+
+    @staticmethod
+    def _read_source_file(file_path: Path) -> Optional[str]:
+        for encoding in ("utf-8", "utf-8-sig", "gbk", "gb18030"):
+            try:
+                return file_path.read_text(encoding=encoding)
+            except Exception:
+                continue
+        return None
+
+    @staticmethod
+    def _html_to_text(content: str) -> str:
+        cleaned = re.sub(r"(?is)<script.*?>.*?</script>", " ", content)
+        cleaned = re.sub(r"(?is)<style.*?>.*?</style>", " ", cleaned)
+        cleaned = re.sub(r"(?i)<br\s*/?>", "\n", cleaned)
+        cleaned = re.sub(r"(?i)</p>", "\n\n", cleaned)
+        cleaned = re.sub(r"(?i)</h[1-6]>", "\n", cleaned)
+        cleaned = re.sub(r"(?s)<[^>]+>", " ", cleaned)
+        cleaned = html.unescape(cleaned)
+        cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+        return cleaned.strip()
+
+    def _infer_document_metadata(self, file_path: Path, content: str, default_source_type: str) -> Dict[str, Any]:
+        source_path = str(file_path).replace("\\", "/").lower()
+        source_type = default_source_type
+        if "finance_report" in source_path or "财报" in file_path.stem:
+            source_type = "report"
+        elif "教材" in file_path.stem:
+            source_type = "textbook"
+
+        return {
+            "source_type": source_type,
+            "asset_code": self._infer_asset_code(file_path),
+            "date": self._infer_document_date(file_path),
+            "language": self._infer_language(content),
+            "source_path": str(file_path),
+        }
+
+    @staticmethod
+    def _infer_asset_code(file_path: Path) -> Optional[str]:
+        stem = file_path.stem.upper()
+        patterns = (
+            r"(?:财报_|REPORT_)?([A-Z]{2,5}(?:\.[A-Z]{1,3})?)_(?:\d{4}Q[1-4]|\d{4}H[1-2])",
+            r"([A-Z]{2,5})-\d{8}",
+            r"\b([A-Z]{2,5}(?:\.[A-Z]{1,3})?)\b",
+        )
+        for pattern in patterns:
+            match = re.search(pattern, stem)
+            if match:
+                return match.group(1)
+        return None
+
+    @staticmethod
+    def _infer_document_date(file_path: Path) -> Optional[str]:
+        stem = file_path.stem
+        for pattern in (r"(\d{4}-\d{2}-\d{2})", r"(\d{8})", r"(\d{4}Q[1-4])", r"(\d{4}H[1-2])"):
+            match = re.search(pattern, stem, re.IGNORECASE)
+            if not match:
+                continue
+            value = match.group(1).upper()
+            if re.fullmatch(r"\d{8}", value):
+                return f"{value[:4]}-{value[4:6]}-{value[6:8]}"
+            return value
+        return None
+
+    @staticmethod
+    def _infer_language(content: str) -> str:
+        chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", content))
+        latin_chars = len(re.findall(r"[A-Za-z]", content))
+        return "zh" if chinese_chars >= latin_chars else "en"
 
     @staticmethod
     def _parse_frontmatter(content: str) -> tuple[Dict[str, Any], str]:
@@ -330,14 +632,65 @@ class RAGPipeline:
 
         return chunks
 
+    @staticmethod
+    def _is_table_like(text: str) -> bool:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(lines) < 2:
+            return False
+        pipe_lines = sum(1 for line in lines if line.count("|") >= 2)
+        numeric_lines = sum(1 for line in lines if re.search(r"\d", line) and ("|" in line or "\t" in line))
+        return pipe_lines >= 2 or numeric_lines >= 2
+
+    def _infer_chunk_type(self, source_type: str, section: str, chunk_text: str) -> str:
+        if self._is_table_like(chunk_text):
+            return "table"
+        lowered = f"{section}\n{chunk_text}".lower()
+        if source_type == "report":
+            if any(token in lowered for token in ("revenue", "income", "margin", "guidance", "eps", "profit", "cash flow")):
+                return "report_metric"
+            return "report_text"
+        return "text"
+
+    @staticmethod
+    def _is_exam_like_chunk(source_type: str, chunk_text: str) -> bool:
+        if source_type != "textbook":
+            return False
+
+        option_hits = len(re.findall(r"(?m)^\s*[A-D][\.\u3001\uff0e]\s*", chunk_text))
+        numbered_question = bool(re.search(r"(?m)^\s*\d+[\.\u3001]\s*", chunk_text))
+        answer_like = any(
+            marker in chunk_text
+            for marker in ("\u7b54\u6848", "\u77e5\u8bc6\u70b9", "\u6b63\u786e\u7684\u662f", "\u9519\u8bef\u7684\u662f")
+        )
+        blank_like = "\uff08 \uff09" in chunk_text or "（ ）" in chunk_text
+        return (numbered_question or blank_like) and (answer_like or option_hits >= 3)
+
+    def _should_skip_chunk(self, chunk_metadata: Dict[str, Any], chunk_text: str) -> bool:
+        return self._is_exam_like_chunk(chunk_metadata.get("source_type", ""), chunk_text)
+
     def _build_knowledge_chunks(self, source_documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         chunks: List[Dict[str, Any]] = []
         for document in source_documents:
             running_index = 0
             for section in document["sections"]:
                 for chunk_text in self._chunk_text(section["content"]):
-                    chunk_id = self._stable_chunk_id(document["source"], section["section"], running_index, chunk_text)
+                    chunk_id = self._stable_chunk_id(document.get("source_path", document["source"]), section["section"], running_index, chunk_text)
                     full_text = f"# {document['title']}\n## {section['section']}\n\n{chunk_text}".strip()
+                    chunk_type = self._infer_chunk_type(document.get("metadata", {}).get("source_type", ""), section["section"], chunk_text)
+                    chunk_metadata = {
+                        **document.get("metadata", {}),
+                        "section": section["section"],
+                        "source_path": document.get("source_path"),
+                        "chunk_type": chunk_type,
+                        "is_table": chunk_type == "table",
+                        "is_exam_like": self._is_exam_like_chunk(
+                            document.get("metadata", {}).get("source_type", ""),
+                            chunk_text,
+                        ),
+                    }
+                    if self._should_skip_chunk(chunk_metadata, chunk_text):
+                        running_index += 1
+                        continue
                     chunks.append(
                         {
                             "chunk_id": chunk_id,
@@ -351,11 +704,50 @@ class RAGPipeline:
                             "section_tokens": self._tokenize_text(section["section"]),
                             "topic_tokens": document["topic_tokens"],
                             "order": running_index,
-                            "metadata": document.get("metadata", {}),  # Add metadata
+                            "metadata": chunk_metadata,
                         }
                     )
                     running_index += 1
         return chunks
+
+    def generate_query_variants(self, query: str) -> List[str]:
+        variants = [query.strip()]
+        lowered = query.lower()
+        replacements = {
+            "p/e": "市盈率",
+            "pe": "市盈率",
+            "p/b": "市净率",
+            "pb": "市净率",
+            "p/s": "市销率",
+            "ps": "市销率",
+            "eps": "每股收益",
+            "ev/ebitda": "企业价值倍数",
+            "bvps": "每股净资产",
+            "fcf": "自由现金流",
+            "gross margin": "毛利率",
+            "net margin": "净利率",
+        }
+
+        for needle, canonical in replacements.items():
+            if needle in lowered and canonical not in query:
+                variants.append(f"{query} {canonical}")
+
+        for keyword, synonyms in self.QUERY_EXPANSIONS.items():
+            keyword_lower = keyword.lower()
+            if keyword_lower in lowered or keyword in query:
+                variants.append(f"{query} {' '.join(sorted(synonyms)[:2])}")
+                continue
+            if any(synonym.lower() in lowered for synonym in synonyms):
+                variants.append(f"{query} {keyword}")
+
+        deduped: List[str] = []
+        seen: set[str] = set()
+        for variant in variants:
+            normalized = re.sub(r"\s+", " ", variant).strip()
+            if normalized and normalized not in seen:
+                deduped.append(normalized)
+                seen.add(normalized)
+        return deduped[: max(settings.RAG_MULTI_QUERY_NUM, 3)]
 
     @staticmethod
     def _tokenize_text(text: str) -> set[str]:
@@ -386,10 +778,23 @@ class RAGPipeline:
 
         expanded_terms: set[str] = set()
         matched_keywords: set[str] = set()
+        canonical_concepts: set[str] = set()
+        lowered_query = query.lower()
         for keyword, synonyms in self.QUERY_EXPANSIONS.items():
             if keyword in query.lower() or keyword in query:
                 matched_keywords.add(keyword)
                 expanded_terms.update(synonyms)
+
+        for canonical, aliases in self.CONCEPT_ALIASES.items():
+            if any(alias in lowered_query or alias in query for alias in aliases):
+                canonical_concepts.add(canonical)
+                for alias in aliases:
+                    query_tokens.update(self._tokenize_text(alias))
+
+        prefers_definition = any(hint in lowered_query or hint in query for hint in self.DEFINITION_QUERY_HINTS)
+        formula_intent = any(token in lowered_query or token in query for token in ("\u516c\u5f0f", "\u8ba1\u7b97", "formula"))
+        if canonical_concepts and not re.search(r"\b[A-Z]{2,5}(?:\.[A-Z]{1,3})?\b", query):
+            prefers_definition = True
 
         for keyword in matched_keywords:
             query_tokens.update(self._tokenize_text(keyword))
@@ -401,6 +806,9 @@ class RAGPipeline:
             "expanded_terms": expanded_terms,
             "matched_keywords": matched_keywords,
             "normalized_query": normalized_query,
+            "canonical_concepts": canonical_concepts,
+            "prefers_definition": prefers_definition,
+            "formula_intent": formula_intent,
         }
 
     @staticmethod
@@ -444,6 +852,9 @@ class RAGPipeline:
         expanded_terms: set[str],
         matched_keywords: set[str],
         normalized_query: str,
+        canonical_concepts: set[str],
+        prefers_definition: bool,
+        formula_intent: bool,
     ) -> float:
         content_lower = chunk["content"].lower()
         title_lower = chunk["title"].lower()
@@ -458,6 +869,45 @@ class RAGPipeline:
         title_exact_hit = 1 if normalized_query and normalized_query in title_lower else 0
         section_exact_hit = 1 if normalized_query and normalized_query in section_lower else 0
         topic_hits = len((query_tokens | matched_keywords) & chunk.get("topic_tokens", set()))
+        metadata = chunk.get("metadata", {})
+        chunk_type = metadata.get("chunk_type")
+        source_type = metadata.get("source_type")
+        is_exam_like = bool(metadata.get("is_exam_like"))
+        table_boost = 0.0
+        report_boost = 0.0
+        concept_boost = 0.0
+        source_prior = 0.0
+        lowered_query = normalized_query.lower()
+
+        if chunk_type == "table" and any(token in lowered_query for token in ("revenue", "income", "profit", "eps", "margin", "guidance", "cash flow")):
+            table_boost = 2.5
+        if source_type == "report" and any(token in lowered_query for token in ("report", "earnings", "filing", "10-k", "10-q", "quarter")):
+            report_boost = 1.5
+        if source_type == "concept":
+            source_prior += 1.8
+        elif source_type == "textbook":
+            source_prior += 0.2
+
+        if canonical_concepts:
+            for canonical in canonical_concepts:
+                aliases = self.CONCEPT_ALIASES.get(canonical, set())
+                title_hits = sum(1 for alias in aliases if alias in title_lower)
+                section_hits = sum(1 for alias in aliases if alias in section_lower)
+                content_hits = sum(1 for alias in aliases if alias in content_lower)
+                concept_boost += title_hits * 4.0 + section_hits * 3.0 + min(content_hits, 2) * 0.8
+            if prefers_definition:
+                if "\u5b9a\u4e49" in section_lower:
+                    concept_boost += 4.5
+                elif formula_intent and any(tag in section_lower for tag in ("\u516c\u5f0f", "\u8ba1\u7b97")):
+                    concept_boost += 3.5
+                elif any(tag in section_lower for tag in ("\u516c\u5f0f", "\u8ba1\u7b97")):
+                    concept_boost += 1.0
+                elif "\u4f7f\u7528\u63d0\u793a" in section_lower:
+                    concept_boost += 0.3
+            if prefers_definition and chunk["source"] == "core_finance_metrics.md":
+                concept_boost += 4.0
+            elif prefers_definition and chunk["source"] in {"valuation_metrics.md", "\u57fa\u672c\u9762\u5206\u6790.md"}:
+                concept_boost += 1.5
 
         score = (
             token_overlap
@@ -469,10 +919,16 @@ class RAGPipeline:
             + title_exact_hit * 4.0
             + section_exact_hit * 3.0
             + topic_hits * 3.0
+            + table_boost
+            + report_boost
+            + concept_boost
+            + source_prior
         )
 
         if matched_keywords and not keyword_hits and title_overlap == 0 and section_overlap == 0:
             score *= 0.55
+        if prefers_definition and is_exam_like:
+            score *= 0.12
         return float(score)
 
     def _search_local_candidates(self, query: str, limit: Optional[int] = None) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -481,6 +937,9 @@ class RAGPipeline:
         expanded_terms = profile["expanded_terms"]
         matched_keywords = profile["matched_keywords"]
         normalized_query = profile["normalized_query"]
+        canonical_concepts = profile["canonical_concepts"]
+        prefers_definition = profile["prefers_definition"]
+        formula_intent = profile["formula_intent"]
 
         if not query_tokens:
             return [], profile
@@ -494,6 +953,9 @@ class RAGPipeline:
                 expanded_terms=expanded_terms,
                 matched_keywords=matched_keywords,
                 normalized_query=normalized_query,
+                canonical_concepts=canonical_concepts,
+                prefers_definition=prefers_definition,
+                formula_intent=formula_intent,
             )
             if raw_score <= 0:
                 continue
@@ -507,6 +969,7 @@ class RAGPipeline:
                     "raw_score": raw_score,
                     "retrieval_stage": "lexical",
                     "metadata": {
+                        **chunk.get("metadata", {}),
                         "topic_tokens": sorted(chunk.get("topic_tokens", set())),
                         "order": chunk["order"],
                     },
@@ -517,6 +980,10 @@ class RAGPipeline:
             return [], profile
 
         candidates.sort(key=lambda item: item["raw_score"], reverse=True)
+        if prefers_definition:
+            non_exam_candidates = [item for item in candidates if not item["metadata"].get("is_exam_like")]
+            if non_exam_candidates:
+                candidates = non_exam_candidates + [item for item in candidates if item["metadata"].get("is_exam_like")]
         top_score = candidates[0]["raw_score"]
         threshold = max(2.0, top_score * 0.4)
         filtered = [item for item in candidates if item["raw_score"] >= threshold]
@@ -585,6 +1052,8 @@ class RAGPipeline:
         return self._embed_texts([query])[0]
 
     def _vector_search_candidates(self, query: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        if not self.vector_index_synced:
+            return []
         if self._collection_size() <= 0:
             return []
 
@@ -595,11 +1064,14 @@ class RAGPipeline:
                 n_results=limit or settings.RAG_VECTOR_TOP_K,
             )
         except Exception:
-            self.collection = self._refresh_collection()
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=limit or settings.RAG_VECTOR_TOP_K,
-            )
+            try:
+                self.collection = self._refresh_collection()
+                results = self.collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=limit or settings.RAG_VECTOR_TOP_K,
+                )
+            except Exception:
+                return []
         if not results["documents"] or not results["documents"][0]:
             return []
 
@@ -648,6 +1120,27 @@ class RAGPipeline:
                     normalized = [1 / (1 + math.exp(-score)) for score in normalized]
         return [max(0.0, min(score, 1.0)) for score in normalized]
 
+    def rerank_documents(self, query: str, documents: List[Document]) -> List[Document]:
+        if not documents:
+            return []
+
+        pairs = [[query, document.content] for document in documents]
+        scores = self._compute_rerank_scores(pairs)
+        reranked: List[Document] = []
+        for index, document in enumerate(documents):
+            reranked_doc = document.model_copy(deep=True)
+            rerank_score = float(scores[index]) if index < len(scores) else float(document.score)
+            base_score = float(document.score or 0.0)
+            reranked_doc.score = round(base_score * 0.35 + rerank_score * 0.65, 4)
+            metadata = dict(reranked_doc.metadata or {})
+            metadata["pre_rerank_score"] = base_score
+            metadata["rerank_score"] = rerank_score
+            reranked_doc.metadata = metadata
+            reranked.append(reranked_doc)
+
+        reranked.sort(key=lambda item: item.score, reverse=True)
+        return reranked
+
     async def search(self, query: str) -> KnowledgeResult:
         lexical_result = self._search_local_documents(query)
         if lexical_result.documents:
@@ -678,16 +1171,26 @@ class RAGPipeline:
         )
 
     def _serialize_chunk_metadata(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
+        metadata = chunk.get("metadata", {})
         return {
             "chunk_id": chunk["chunk_id"],
             "source": chunk["source"],
             "title": chunk["title"],
             "section": chunk["section"],
             "order": int(chunk["order"]),
+            "source_type": metadata.get("source_type", "") or "",
+            "asset_code": metadata.get("asset_code", "") or "",
+            "date": metadata.get("date", "") or "",
+            "language": metadata.get("language", "") or "",
+            "source_path": metadata.get("source_path", "") or "",
+            "chunk_type": metadata.get("chunk_type", "") or "",
+            "is_table": bool(metadata.get("is_table", False)),
+            "is_exam_like": bool(metadata.get("is_exam_like", False)),
         }
 
     def index_local_knowledge(self, force: bool = False, batch_size: int = 32) -> Dict[str, Any]:
         if not self.knowledge_chunks:
+            self.vector_index_synced = False
             return {"indexed": False, "reason": "no_chunks", "chunks": 0}
 
         if force:
@@ -698,6 +1201,7 @@ class RAGPipeline:
             self.collection = self._refresh_collection()
 
         if not force and self._collection_size() >= len(self.knowledge_chunks):
+            self.vector_index_synced = True
             return {"indexed": False, "reason": "up_to_date", "chunks": len(self.knowledge_chunks)}
 
         for start in range(0, len(self.knowledge_chunks), batch_size):
@@ -715,6 +1219,7 @@ class RAGPipeline:
             else:
                 self.collection.add(**payload)
 
+        self.vector_index_synced = True
         return {
             "indexed": True,
             "chunks": len(self.knowledge_chunks),
@@ -733,6 +1238,8 @@ class RAGPipeline:
             "embedding_model_ready": self.embedding_model is not None,
             "embedding_backend": self.embedding_backend,
             "reranker_ready": self.reranker is not None,
+            "reranker_backend": self.reranker_backend,
+            "vector_index_synced": self.vector_index_synced,
             "auto_index_enabled": settings.RAG_AUTO_INDEX_ON_START,
         }
 

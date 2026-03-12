@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime
 from typing import Optional
 
@@ -30,20 +31,65 @@ router.include_router(auth_router, tags=["auth"])
 router.include_router(session_router, tags=["sessions"])
 # router.include_router(enhanced_router, tags=["enhanced"])  # Disabled due to missing dependencies
 
-agent = AgentCore()
-enricher = QueryEnricher()
-market_service = MarketDataService()
+agent = None
+enricher = None
+market_service = None
+
+
+def _compat_overrides():
+    return sys.modules.get("app.api.routes")
+
+
+def _get_settings():
+    routes_package = _compat_overrides()
+    override = getattr(routes_package, "settings", None) if routes_package else None
+    return override or settings
+
+
+def _get_agent():
+    global agent
+    routes_package = _compat_overrides()
+    override = getattr(routes_package, "agent", None) if routes_package else None
+    if override is not None:
+        return override
+    if agent is None:
+        agent = AgentCore()
+    return agent
+
+
+def _get_enricher():
+    global enricher
+    routes_package = _compat_overrides()
+    override = getattr(routes_package, "enricher", None) if routes_package else None
+    if override is not None:
+        return override
+    if enricher is None:
+        enricher = QueryEnricher()
+    return enricher
+
+
+def _get_market_service():
+    global market_service
+    routes_package = _compat_overrides()
+    override = getattr(routes_package, "market_service", None) if routes_package else None
+    if override is not None:
+        return override
+    if market_service is None:
+        market_service = MarketDataService()
+    return market_service
 
 
 @router.post("/chat")
 async def chat(request: ChatRequest, model: Optional[str] = None):
     """Chat endpoint with SSE streaming."""
 
-    enriched_query = enricher.enrich(request.query)
+    active_enricher = _get_enricher()
+    active_agent = _get_agent()
+    enriched_query = active_enricher.enrich(request.query)
 
     async def event_generator():
         try:
-            async for event in agent.run(enriched_query, model_name=model):
+            async for event in active_agent.run(enriched_query, model_name=model):
                 yield {
                     "event": "message",
                     "data": json.dumps(event.model_dump(exclude_none=True), ensure_ascii=False),
@@ -61,17 +107,19 @@ async def chat(request: ChatRequest, model: Optional[str] = None):
 async def list_models():
     """List available models."""
 
-    models = agent.get_available_models()
+    active_agent = _get_agent()
+    models = active_agent.get_available_models()
     if models and models[0].get("id") == "degraded-local":
         return models
-    return {"models": models, "usage": agent.get_usage_report()}
+    return {"models": models, "usage": active_agent.get_usage_report()}
 
 
 @router.get("/rag/status")
 async def rag_status():
     """Return current RAG corpus and index status."""
 
-    status = agent.rag_pipeline.get_status()
+    active_agent = _get_agent()
+    status = active_agent.rag_pipeline.get_status()
     status["timestamp"] = datetime.utcnow().isoformat()
     return status
 
@@ -80,9 +128,10 @@ async def rag_status():
 async def rag_search(query: str = Query(..., min_length=1, max_length=300)):
     """Debug endpoint for retrieval-only RAG inspection."""
 
-    result = await agent.rag_pipeline.search(query, use_hybrid=True)
+    active_agent = _get_agent()
+    result = await active_agent.rag_pipeline.search(query, use_hybrid=True)
     payload = result.model_dump()
-    payload["status"] = agent.rag_pipeline.get_status()
+    payload["status"] = active_agent.rag_pipeline.get_status()
     return payload
 
 
@@ -90,22 +139,25 @@ async def rag_search(query: str = Query(..., min_length=1, max_length=300)):
 async def health() -> HealthResponse:
     """Health check endpoint."""
 
+    active_market_service = _get_market_service()
+    active_agent = _get_agent()
+    active_settings = _get_settings()
     components = {}
     try:
-        market_service.redis_client.ping()
+        active_market_service.redis_client.ping()
         components["redis"] = "connected"
     except Exception:
         components["redis"] = "disconnected"
 
     try:
-        agent.rag_pipeline.get_collection_count()
+        active_agent.rag_pipeline.get_collection_count()
         components["chromadb"] = "ready"
     except Exception:
         components["chromadb"] = "unavailable"
 
-    components["deepseek_api"] = "configured" if settings.DEEPSEEK_API_KEY else "not_configured"
-    components["alpha_vantage"] = "configured" if settings.ALPHA_VANTAGE_API_KEY else "not_configured"
-    components["tavily"] = "configured" if settings.TAVILY_API_KEY else "not_configured"
+    components["deepseek_api"] = "configured" if active_settings.DEEPSEEK_API_KEY else "not_configured"
+    components["alpha_vantage"] = "configured" if active_settings.ALPHA_VANTAGE_API_KEY else "not_configured"
+    components["tavily"] = "configured" if active_settings.TAVILY_API_KEY else "not_configured"
     components["yfinance"] = "available"
     critical_down = components["deepseek_api"] == "not_configured" or components["redis"] == "disconnected"
     return HealthResponse(
@@ -126,7 +178,8 @@ async def get_chart(
 ) -> ChartResponse:
     """Return historical chart data for a symbol."""
 
-    history = await market_service.get_history(symbol, days=days, range_key=range_key)
+    active_market_service = _get_market_service()
+    history = await active_market_service.get_history(symbol, days=days, range_key=range_key)
     if not history.data:
         raise HTTPException(status_code=404, detail="No data available for symbol")
 

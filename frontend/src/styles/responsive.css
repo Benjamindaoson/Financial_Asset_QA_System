@@ -1,0 +1,81 @@
+/* 响应式布局优化 */
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  /* 表格横向滚动 */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 图表高度调整 */
+  .chart-container {
+    height: 200px !important;
+  }
+
+  /* 字体大小调整 */
+  body {
+    font-size: 14px;
+  }
+
+  /* 按钮间距调整 */
+  .button-group {
+    gap: 6px;
+  }
+
+  /* 卡片内边距调整 */
+  .card {
+    padding: 12px;
+  }
+
+  /* 技术指标网格 */
+  .tech-indicators-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .tech-indicators-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* 桌面端 */
+@media (min-width: 1025px) {
+  .tech-indicators-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+  /* 增大可点击区域 */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 增大输入框 */
+  input, textarea {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+  }
+}
+
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  /* 可选：添加暗色模式样式 */
+}
+
+/* 打印样式 */
+@media print {
+  /* 隐藏不必要的元素 */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 优化表格打印 */
+  table {
+    page-break-inside: avoid;
+  }
+}

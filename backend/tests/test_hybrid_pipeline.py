@@ -52,6 +52,9 @@ class TestBM25Index:
 
     def test_bm25_search_no_index(self, pipeline):
         """测试无索引时搜索"""
+        pipeline.bm25_index = None
+        pipeline.corpus_texts = []
+        pipeline.corpus_ids = []
         results = pipeline._bm25_search("测试查询")
 
         assert results == []

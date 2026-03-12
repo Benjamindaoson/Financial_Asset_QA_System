@@ -1,10 +1,51 @@
-Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
-Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
-INFO:     Started server process [168688]
+C:\Users\Benjamindaoson\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\utils\hub.py:110: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+INFO:     Started server process [30308]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
 Building prefix dict from the default dictionary ...
 Loading model from cache C:\Users\BENJAM~1\AppData\Local\Temp\jieba.cache
-Loading model cost 0.536 seconds.
+Loading model cost 0.580 seconds.
 Prefix dict has been built successfully.
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/PS?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=PS&crumb=Edge%3A+Too+Many+Requests
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/FCF?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=FCF&crumb=Edge%3A+Too+Many+Requests
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/PS?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=PS&crumb=Edge%3A+Too+Many+Requests
+Failed to get ticker 'XLI' reason: Expecting value: line 1 column 1 (char 0)
+Failed to get ticker 'XLI' reason: Expecting value: line 1 column 1 (char 0)
+Failed to get ticker 'XLY' reason: Expecting value: line 1 column 1 (char 0)
+Failed to get ticker 'XLY' reason: Expecting value: line 1 column 1 (char 0)
+XLI: No price data found, symbol may be delisted (period=7d)
+XLI: No price data found, symbol may be delisted (period=7d)
+XLY: No price data found, symbol may be delisted (period=7d)
+XLY: No price data found, symbol may be delisted (period=7d)
+Failed to get ticker 'PDD' reason: Expecting value: line 1 column 1 (char 0)
+Failed to get ticker 'JD' reason: Expecting value: line 1 column 1 (char 0)
+JD: No price data found, symbol may be delisted (period=7d)
+PDD: No price data found, symbol may be delisted (period=7d)
+Failed to get ticker 'JD' reason: Expecting value: line 1 column 1 (char 0)
+Failed to get ticker 'PDD' reason: Expecting value: line 1 column 1 (char 0)
+JD: No price data found, symbol may be delisted (period=7d)
+PDD: No price data found, symbol may be delisted (period=7d)
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/9988.HK?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=9988.HK&crumb=Edge%3A+Too+Many+Requests
+Failed to get ticker '9988.HK' reason: Expecting value: line 1 column 1 (char 0)
+9988.HK: No price data found, symbol may be delisted (period=7d)
+Failed to get ticker '9988.HK' reason: Expecting value: line 1 column 1 (char 0)
+9988.HK: No price data found, symbol may be delisted (period=1y)
+Failed to get ticker '9988.HK' reason: Expecting value: line 1 column 1 (char 0)
+9988.HK: No price data found, symbol may be delisted (period=1y)
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/9988.HK?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=9988.HK&crumb=Edge%3A+Too+Many+Requests
+Failed to get ticker 'TSLA' reason: Expecting value: line 1 column 1 (char 0)
+Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+AAPL: No price data found, symbol may be delisted (period=1y)
+TSLA: No price data found, symbol may be delisted (period=1y)
+Failed to get ticker '9988.HK' reason: Expecting value: line 1 column 1 (char 0)
+9988.HK: No price data found, symbol may be delisted (period=5y)
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/BABA?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=BABA&crumb=Edge%3A+Too+Many+Requests
+Failed to get ticker 'BABA' reason: Expecting value: line 1 column 1 (char 0)
+BABA: No price data found, symbol may be delisted (period=7d)
+Failed to get ticker 'BABA' reason: Expecting value: line 1 column 1 (char 0)
+BABA: No price data found, symbol may be delisted (period=1y)
+Failed to get ticker '9988.HK' reason: Expecting value: line 1 column 1 (char 0)
+9988.HK: No price data found, symbol may be delisted (period=30d)
+429 Client Error: Too Many Requests for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/9988.HK?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=9988.HK&crumb=Edge%3A+Too+Many+Requests

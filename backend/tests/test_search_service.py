@@ -104,7 +104,7 @@ class TestWebSearch:
             result = await service.search("test query", max_results=3)
 
             assert isinstance(result, WebSearchResult)
-            assert len(result.results) == 10  # Returns all from API
+            assert len(result.results) == 3
 
     @pytest.mark.asyncio
     async def test_search_api_error(self, service):

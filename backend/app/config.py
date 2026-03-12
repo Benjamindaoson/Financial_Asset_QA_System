@@ -1,6 +1,8 @@
 """Configuration management using pydantic-settings."""
 
-from typing import Optional
+from functools import lru_cache
+from pathlib import Path
+from typing import Dict, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -95,3 +97,70 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+@lru_cache(maxsize=1)
+def _load_prompt_catalog() -> Dict[str, Dict[str, str]]:
+    path = _repo_root() / "prompts.yaml"
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+
+    catalog: Dict[str, Dict[str, str]] = {}
+    in_prompts = False
+    current_section: Optional[str] = None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not in_prompts:
+            if line.strip() == "prompts:":
+                in_prompts = True
+            i += 1
+            continue
+
+        if line.startswith("  ") and not line.startswith("    ") and line.rstrip().endswith(":"):
+            current_section = line.strip().rstrip(":")
+            catalog.setdefault(current_section, {})
+            i += 1
+            continue
+
+        if current_section and line.startswith("    ") and ":" in line:
+            key_part = line.strip()
+            key, rest = key_part.split(":", 1)
+            key = key.strip()
+            rest = rest.strip()
+
+            if rest == "|":
+                i += 1
+                captured: list[str] = []
+                while i < len(lines):
+                    body_line = lines[i]
+                    if body_line.startswith("      "):
+                        captured.append(body_line[6:])
+                        i += 1
+                        continue
+                    if body_line.startswith("    ") and not body_line.startswith("      "):
+                        break
+                    if body_line.startswith("  ") and not body_line.startswith("    "):
+                        break
+                    i += 1
+                catalog[current_section][key] = "\n".join(captured).rstrip()
+                continue
+
+            if rest:
+                catalog[current_section][key] = rest.strip('"').strip("'")
+            i += 1
+            continue
+
+        i += 1
+
+    return catalog
+
+
+def get_prompt(section: str, name: str) -> Optional[str]:
+    return _load_prompt_catalog().get(section, {}).get(name)

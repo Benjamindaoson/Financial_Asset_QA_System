@@ -25,6 +25,8 @@ class QueryRoute:
     symbols: List[str] = field(default_factory=list)
     days: Optional[int] = None
     range_key: Optional[str] = None
+    report_focus: bool = False
+    prefer_recent: bool = False
     requires_price: bool = False
     requires_history: bool = False
     requires_change: bool = False
@@ -35,16 +37,34 @@ class QueryRoute:
     requires_web: bool = False
     requires_sec: bool = False
     refuses_advice: bool = False
+    date: Optional[str] = None
 
 
 class QueryRouter:
     """Rule-based router that produces deterministic execution plans."""
 
-    SYMBOL_STOPWORDS = {"ETF", "YTD", "SEC", "PE", "PB", "RSI", "MACD"}
+    SYMBOL_STOPWORDS = {
+        "ETF",
+        "YTD",
+        "SEC",
+        "PE",
+        "PB",
+        "PS",
+        "EPS",
+        "PEG",
+        "ROE",
+        "FCF",
+        "EV",
+        "EBITDA",
+        "RSI",
+        "MACD",
+        "BVPS",
+        "TTM",
+    }
     CHINESE_ALIAS_MAP = {
         "苹果": "AAPL",
         "特斯拉": "TSLA",
-        "阿里巴巴": "BABA",
+        "阿里巴巴": "9988.HK",
         "腾讯": "0700.HK",
         "英伟达": "NVDA",
         "微软": "MSFT",
@@ -143,6 +163,7 @@ class QueryRouter:
     METRIC_KEYWORDS = {"波动率", "收益率", "最大回撤", "回撤", "volatility", "return", "drawdown", "sharpe"}
     REPORT_KEYWORDS = {"季度", "财报", "业绩", "earnings", "10-k", "10-q", "8-k", "filing", "sec", "edgar"}
     COMPARE_KEYWORDS = {"对比", "比较", "哪个好", "vs", "versus", "compare"}
+    RECENCY_KEYWORDS = {"最新", "最近", "近期", "today", "latest", "recent", "yesterday", "本周", "近"}
     ADVICE_KEYWORDS = {
         "买入",
         "卖出",
@@ -191,17 +212,22 @@ class QueryRouter:
     def classify(self, query: str) -> QueryRoute:
         cleaned = self._clean_query(query)
         lowered = cleaned.lower()
-        symbols = self._extract_symbols(cleaned)
+        definition_intent = self._contains_any(cleaned, lowered, self.KNOWLEDGE_KEYWORDS)
+        symbols = self._extract_symbols(cleaned, definition_intent=definition_intent)
         days = self._extract_days(cleaned)
+        date = self._extract_date(cleaned)
         range_key = self._extract_range(cleaned, lowered)
 
         has_market = self._contains_any(cleaned, lowered, self.MARKET_KEYWORDS) or bool(symbols)
         has_knowledge = self._contains_any(cleaned, lowered, self.KNOWLEDGE_KEYWORDS)
         has_news = self._contains_any(cleaned, lowered, self.NEWS_KEYWORDS)
         has_report = self._contains_any(cleaned, lowered, self.REPORT_KEYWORDS)
+        prefer_recent = self._contains_any(cleaned, lowered, self.RECENCY_KEYWORDS)
 
         if has_market and (has_news or has_report):
             route_type = QueryType.HYBRID
+        elif has_knowledge and not has_market and not has_report:
+            route_type = QueryType.KNOWLEDGE
         elif has_market:
             route_type = QueryType.MARKET
         elif has_news or has_report:
@@ -215,6 +241,9 @@ class QueryRouter:
             symbols=symbols,
             days=days,
             range_key=range_key,
+            report_focus=has_report,
+            prefer_recent=prefer_recent,
+            date=date,
         )
 
         route.requires_comparison = len(symbols) >= 2 or self._contains_any(cleaned, lowered, self.COMPARE_KEYWORDS)
@@ -232,9 +261,12 @@ class QueryRouter:
             route.requires_info = self._contains_any(cleaned, lowered, self.INFO_KEYWORDS)
         elif route_type == QueryType.KNOWLEDGE:
             route.requires_knowledge = True
+            route.requires_web = prefer_recent
+            route.requires_sec = has_report
         elif route_type == QueryType.NEWS:
             route.requires_web = True
             route.requires_sec = has_report
+            route.requires_knowledge = has_report or bool(symbols)
         elif route_type == QueryType.HYBRID:
             route.requires_price = bool(symbols)
             route.requires_change = bool(symbols)
@@ -243,6 +275,13 @@ class QueryRouter:
             route.requires_web = True
             route.requires_sec = has_report
             route.requires_knowledge = has_knowledge or has_report
+
+        if has_report and symbols:
+            route.requires_knowledge = True
+            route.requires_sec = True
+
+        if prefer_recent and route.requires_knowledge:
+            route.requires_web = True
 
         if route.requires_comparison:
             route.requires_history = True
@@ -258,13 +297,16 @@ class QueryRouter:
         lines = [line for line in query.splitlines() if not line.strip().startswith("[Hint:")]
         return "\n".join(lines).strip()
 
-    def _extract_symbols(self, query: str) -> List[str]:
+    def _extract_symbols(self, query: str, definition_intent: bool = False) -> List[str]:
         symbols = [TickerMapper.normalize(symbol) for symbol in QueryEnricher.extract_symbols(query)]
         if symbols:
+            if definition_intent:
+                symbols = [symbol for symbol in symbols if symbol.upper() not in self.SYMBOL_STOPWORDS]
             return list(dict.fromkeys(symbols))
 
         inline_symbols = re.findall(r"(?<![A-Za-z])([A-Z]{2,5}(?:\.[A-Z]{1,3})?|\^[A-Z]{1,5})(?![A-Za-z])", query)
-        filtered = [symbol for symbol in inline_symbols if symbol.upper() not in self.SYMBOL_STOPWORDS]
+        stopwords = set(self.SYMBOL_STOPWORDS)
+        filtered = [symbol for symbol in inline_symbols if symbol.upper() not in stopwords]
         if filtered:
             return list(dict.fromkeys(TickerMapper.normalize(symbol) for symbol in filtered))
 
@@ -306,6 +348,19 @@ class QueryRouter:
         for key, value in self.RANGE_MAP.items():
             if key in original or key in lowered:
                 return value
+        return None
+
+    def _extract_date(self, query: str) -> Optional[str]:
+        # Match YYYY-MM-DD
+        iso_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", query)
+        if iso_match:
+            return iso_match.group(0)
+        # Match X月X日
+        cn_match = re.search(r"(\d{1,2})月(\d{1,2})[日号]?", query)
+        if cn_match:
+            month = cn_match.group(1).zfill(2)
+            day = cn_match.group(2).zfill(2)
+            return f"{month}-{day}"
         return None
 
     @staticmethod

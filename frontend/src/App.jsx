@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchChat, fetchMarketOverview } from "./services/api";
+import { streamChat, fetchMarketOverview } from "./services/api";
 import { C, F } from "./theme";
 import { LoadSteps, Skel } from "./components/UI/LoadingComponents";
 import {
@@ -9,6 +9,7 @@ import {
   SourcesPanel,
   StreamingText,
 } from "./components/Chat/ChatComponents";
+import { TechnicalIndicators } from "./components/Chat/TechnicalIndicators";
 import { Chart } from "./components/Chart";
 import { InputBox } from "./components/UI/InputBox";
 import { MarketOverview } from "./components/Market/MarketOverview";
@@ -29,6 +30,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [streamingText, setStreamingText] = useState("");
+  const [currentBlocks, setCurrentBlocks] = useState([]);
   const [marketData, setMarketData] = useState(null);
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [marketError, setMarketError] = useState("");
@@ -68,17 +70,40 @@ export default function App() {
       setLoading(true);
       setCurrentStep(0);
       setStreamingText("");
+      setCurrentBlocks([]);
 
       try {
-        const events = await fetchChat(q, sessionId.current);
         let fullText = "";
         let sources = [];
         let symbol = null;
         let rangeKey = "1y";
         let trace = [];
         let meta = {};
+        let finalized = false;
 
-        for (const event of events) {
+        const finalize = () => {
+          if (finalized) return;
+          finalized = true;
+          setMsgs((prev) => [
+            ...prev,
+            {
+              role: "ai",
+              text: fullText,
+              symbol,
+              rangeKey,
+              sources,
+              trace,
+              confidence: meta.confidence,
+              blocks: meta.blocks || [],
+              disclaimer: meta.disclaimer,
+              technicalData: meta.technicalData,
+            },
+          ]);
+          setStreamingText("");
+        };
+
+        await streamChat(q, sessionId.current, {
+          onEvent: (event) => {
           if (event.type === "model_selected") {
             setCurrentStep(0);
             trace.push(`Model: ${event.model}`);
@@ -93,33 +118,31 @@ export default function App() {
             if (event.data?.range_key) {
               rangeKey = event.data.range_key;
             }
+            // 收集技术分析数据
+            if (event.tool === "get_history" && event.data?.data?.length >= 20) {
+              meta.technicalData = event.data;
+            }
+          } else if (event.type === "blocks") { // New event to receive structured blocks immediately
+            const blocksData = Array.isArray(event.data) ? event.data : [];
+            meta.blocks = blocksData;
+            setCurrentBlocks([...blocksData]);
           } else if (event.type === "chunk") {
             fullText += event.text || "";
             setStreamingText(fullText);
           } else if (event.type === "done") {
             sources = event.sources || [];
-            meta = event.data || {};
+            meta = { ...meta, ...(event.data || {}) };
             if (meta?.route?.range_key) {
               rangeKey = meta.route.range_key;
             }
+            finalize();
           }
-        }
-
-        setMsgs((prev) => [
-          ...prev,
-          {
-            role: "ai",
-            text: fullText,
-            symbol,
-            rangeKey,
-            sources,
-            trace,
-            confidence: meta.confidence,
-            blocks: meta.blocks || [],
-            disclaimer: meta.disclaimer,
           },
-        ]);
-        setStreamingText("");
+        });
+
+        if (!finalized) {
+          finalize();
+        }
       } catch (error) {
         setMsgs((prev) => [
           ...prev,
@@ -179,7 +202,7 @@ export default function App() {
               onClick={goHome}
               style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}
             >
-              Home
+              返回
             </button>
           )}
           <div onClick={goHome} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -212,7 +235,7 @@ export default function App() {
             fontFamily: F.m,
           }}
         >
-          LIVE DATA
+          实时数据
         </span>
       </header>
 
@@ -300,42 +323,69 @@ export default function App() {
                       whiteSpace: "pre-wrap",
                     }}
                   >
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: -9,
-                        left: 12,
-                        background: C.accentL,
-                        color: C.accent,
-                        fontSize: 9.5,
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: 8,
-                        border: "1px solid #BFD5F0",
-                      }}
-                    >
-                      AI 分析
-                    </div>
-                    <div style={{ position: "absolute", top: -10, right: 12 }}>
-                      <ConfidenceBadge confidence={msg.confidence} />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                      <div
+                        style={{
+                          position: "relative",
+                          top: -9,
+                          left: 0,
+                          background: C.accentL,
+                          color: C.accent,
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: 8,
+                          border: "1px solid #BFD5F0",
+                        }}
+                      >
+                        AI 分析
+                      </div>
+                      <div style={{ position: "relative", top: -10 }}>
+                        <ConfidenceBadge confidence={msg.confidence} />
+                      </div>
                     </div>
                     {msg.text}
                   </div>
 
                   <ResponseBlocks blocks={msg.blocks} />
+
+                  {/* 技术指标展示 - 如果有历史数据 */}
+                  {msg.technicalData && <TechnicalIndicators data={msg.technicalData} />}
+
                   {msg.symbol && !msg.blocks?.some((block) => block.type === "chart") && <Chart symbol={msg.symbol} rangeKey={msg.rangeKey} />}
 
                   {(msg.trace?.length || msg.sources?.length) && (
                     <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
                       {msg.trace?.length > 0 && (
-                        <div style={{ marginBottom: msg.sources?.length ? 12 : 0 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: C.ts, marginBottom: 8, fontFamily: F.m }}>调用链路</div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11.5, color: C.text }}>
+                        <details style={{ marginBottom: msg.sources?.length ? 12 : 0 }}>
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              listStyle: "none",
+                              userSelect: "none",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              background: "#F8FAFC",
+                              border: `1px solid ${C.border}`,
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                              color: C.ts,
+                              fontFamily: F.m,
+                            }}
+                          >
+                            调用链路
+                            <span style={{ fontSize: 10, fontWeight: 700, color: C.td }}>({msg.trace.length})</span>
+                            <span style={{ fontSize: 10, color: C.td }}>点击展开</span>
+                          </summary>
+                          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6, fontSize: 11.5, color: C.text }}>
                             {msg.trace.map((item, traceIndex) => (
                               <div key={traceIndex}>{item}</div>
                             ))}
                           </div>
-                        </div>
+                        </details>
                       )}
                       <SourcesPanel items={msg.sources} />
                     </div>
@@ -350,6 +400,14 @@ export default function App() {
           {loading && (
             <div style={{ animation: "fadeUp .3s ease-out" }}>
               <LoadSteps currentStep={currentStep} />
+              
+              {/* Show structured blocks natively even while streaming */}
+              {currentBlocks.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <ResponseBlocks blocks={currentBlocks} />
+                </div>
+              )}
+              
               {streamingText ? <StreamingText text={streamingText} /> : <Skel />}
             </div>
           )}

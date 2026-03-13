@@ -32,11 +32,12 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     global cache_warmer
 
-    # Build knowledge index if needed
+    # Start background index building (non-blocking)
     logger = logging.getLogger(__name__)
     logger.info("Checking knowledge index...")
 
     from pathlib import Path
+    import asyncio
     chroma_dir = Path(__file__).parent.parent / "data" / "chroma_db"
 
     # Check if index exists and has content
@@ -48,16 +49,25 @@ async def lifespan(app: FastAPI):
             logger.info(f"Knowledge index exists with {len(chroma_files)} files")
 
     if needs_build:
-        logger.info("Building knowledge index...")
-        try:
-            from scripts.build_knowledge_index import build_index
-            success = build_index()
-            if success:
-                logger.info("Knowledge index built successfully")
-            else:
-                logger.warning("Knowledge index build returned False")
-        except Exception as e:
-            logger.error(f"Failed to build knowledge index: {e}", exc_info=True)
+        logger.info("Starting background knowledge index build...")
+        # Run index building in background thread to avoid blocking startup
+        async def build_index_async():
+            try:
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    loop = asyncio.get_event_loop()
+                    from scripts.build_knowledge_index import build_index
+                    success = await loop.run_in_executor(executor, build_index)
+                    if success:
+                        logger.info("Background knowledge index build completed successfully")
+                    else:
+                        logger.warning("Background knowledge index build returned False")
+            except Exception as e:
+                logger.error(f"Background knowledge index build failed: {e}", exc_info=True)
+
+        # Start the task but don't wait for it
+        asyncio.create_task(build_index_async())
+        logger.info("Knowledge index build started in background")
 
     if settings.CACHE_WARM_ENABLED:
         market_service = MarketDataService()

@@ -23,9 +23,9 @@ class TestHybridRAGPipelineInitialization:
         pipeline = HybridRAGPipeline()
 
         assert pipeline is not None
-        assert pipeline.bm25_index is not None
-        assert len(pipeline.corpus_texts) > 0
-        assert len(pipeline.corpus_ids) > 0
+        assert pipeline.bm25_index is None
+        assert pipeline.corpus_texts == []
+        assert pipeline.corpus_ids == []
 
 
 class TestBM25Index:
@@ -52,9 +52,6 @@ class TestBM25Index:
 
     def test_bm25_search_no_index(self, pipeline):
         """测试无索引时搜索"""
-        pipeline.bm25_index = None
-        pipeline.corpus_texts = []
-        pipeline.corpus_ids = []
         results = pipeline._bm25_search("测试查询")
 
         assert results == []

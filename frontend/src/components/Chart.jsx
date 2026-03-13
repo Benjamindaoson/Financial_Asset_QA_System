@@ -15,21 +15,39 @@ import { fetchChart } from "../services/api";
 import { C, F } from "../theme";
 
 const RANGE_OPTIONS = [
+  { key: "7D", label: "7D" },
+  { key: "1M", label: "1M" },
+  { key: "3M", label: "3M" },
   { key: "ytd", label: "YTD" },
   { key: "1y", label: "1Y" },
   { key: "5y", label: "5Y" },
 ];
 
+// Map display keys to API range keys
+const RANGE_KEY_MAP = {
+  "7D": null,   // 7 days uses days param
+  "1M": "1m",
+  "3M": "3m",
+  "YTD": "ytd",
+  "ytd": "ytd",
+  "1Y": "1y",
+  "1y": "1y",
+  "5Y": "5y",
+  "5y": "5y",
+};
+
 const COMPARE_COLORS = ["#1A6EF5", "#D97706", "#0D9B53", "#D93A3A"];
 
-export function Chart({ symbol, rangeKey = "1y", embeddedSeries = null, chartType = "history" }) {
-  const [activeRange, setActiveRange] = useState(rangeKey);
+export function Chart({ symbol, rangeKey = "1y", defaultRange = null, embeddedSeries = null, chartType = "history" }) {
+  const initialRange = defaultRange || rangeKey || "1y";
+  const [activeRange, setActiveRange] = useState(initialRange);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(!embeddedSeries);
 
   useEffect(() => {
-    setActiveRange(rangeKey);
-  }, [rangeKey]);
+    const newRange = defaultRange || rangeKey || "1y";
+    setActiveRange(newRange);
+  }, [rangeKey, defaultRange]);
 
   useEffect(() => {
     if (embeddedSeries) {
@@ -40,7 +58,10 @@ export function Chart({ symbol, rangeKey = "1y", embeddedSeries = null, chartTyp
 
     let cancelled = false;
     setLoading(true);
-    fetchChart(symbol, { rangeKey: activeRange })
+    // Map display range key to API range key
+    const apiRangeKey = RANGE_KEY_MAP[activeRange] || activeRange;
+    const fetchDays = activeRange === "7D" ? 7 : undefined;
+    fetchChart(symbol, { rangeKey: fetchDays ? undefined : apiRangeKey, days: fetchDays })
       .then((res) => {
         if (cancelled || !res?.data) {
           return;
@@ -98,28 +119,26 @@ export function Chart({ symbol, rangeKey = "1y", embeddedSeries = null, chartTyp
         <div style={titleStyle}>
           {chartType === "comparison" ? "归一化对比图" : `${symbol} 价格走势`}
         </div>
-        {!embeddedSeries && (
-          <div style={{ display: "flex", gap: 6 }}>
-            {RANGE_OPTIONS.map((option) => (
-              <button
-                key={option.key}
-                onClick={() => setActiveRange(option.key)}
-                style={{
-                  border: `1px solid ${activeRange === option.key ? C.accent : C.border}`,
-                  background: activeRange === option.key ? C.accentL : C.white,
-                  color: activeRange === option.key ? C.accent : C.ts,
-                  borderRadius: 999,
-                  padding: "4px 10px",
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ display: "flex", gap: 5 }}>
+          {RANGE_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              onClick={() => setActiveRange(option.key)}
+              style={{
+                border: `1px solid ${activeRange === option.key ? C.accent : C.border}`,
+                background: activeRange === option.key ? C.accentL : C.white,
+                color: activeRange === option.key ? C.accent : C.ts,
+                borderRadius: 999,
+                padding: "4px 9px",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ResponsiveContainer width="100%" height={220}>

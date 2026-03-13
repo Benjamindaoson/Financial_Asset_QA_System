@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { streamChat, fetchMarketOverview } from "./services/api";
+import { fetchChat, fetchChatStream, fetchMarketOverview } from "./services/api";
 import { C, F } from "./theme";
 import { LoadSteps, Skel } from "./components/UI/LoadingComponents";
 import {
@@ -9,13 +9,92 @@ import {
   SourcesPanel,
   StreamingText,
 } from "./components/Chat/ChatComponents";
-import { TechnicalIndicators } from "./components/Chat/TechnicalIndicators";
 import { Chart } from "./components/Chart";
 import { InputBox } from "./components/UI/InputBox";
 import { MarketOverview } from "./components/Market/MarketOverview";
 import { SignalFeed } from "./components/Market/SignalFeed";
 import { MarketSummary } from "./components/Market/MarketSummary";
 import { SectorHeatmap } from "./components/Market/SectorHeatmap";
+
+function AiMessage({ msg }) {
+  const [traceOpen, setTraceOpen] = useState(false);
+  const hasAnalysis = msg.blocks?.some((b) => b.type === "analysis");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Template text card — only shown when no LLM analysis block */}
+      {!hasAnalysis && msg.text && (
+        <div
+          style={{
+            background: "#FAFCFF",
+            borderRadius: 12,
+            padding: "18px 18px 14px",
+            border: "1px solid #D6E4F7",
+            position: "relative",
+            fontSize: 13,
+            lineHeight: 1.85,
+            color: C.text,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: -9,
+              left: 12,
+              background: C.accentL,
+              color: C.accent,
+              fontSize: 9.5,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 8,
+              border: "1px solid #BFD5F0",
+            }}
+          >
+            AI 分析
+          </div>
+          <div style={{ position: "absolute", top: -10, right: 12 }}>
+            <ConfidenceBadge confidence={msg.confidence} />
+          </div>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Structured blocks (sorted internally by ResponseBlocks) */}
+      <ResponseBlocks blocks={msg.blocks} />
+
+      {/* Fallback standalone chart if no chart block */}
+      {msg.symbol && !msg.blocks?.some((b) => b.type === "chart") && (
+        <Chart symbol={msg.symbol} rangeKey={msg.rangeKey} />
+      )}
+
+      {/* Sources panel */}
+      {msg.sources?.length > 0 && <SourcesPanel items={msg.sources} />}
+
+      {/* Collapsible trace */}
+      {msg.trace?.length > 0 && (
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 12px" }}>
+          <div
+            onClick={() => setTraceOpen((v) => !v)}
+            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: C.ts, fontSize: 11, fontFamily: F.m, userSelect: "none" }}
+          >
+            <span style={{ fontSize: 9 }}>{traceOpen ? "▼" : "▶"}</span>
+            {traceOpen ? "隐藏调用详情" : "查看调用详情"}
+          </div>
+          {traceOpen && (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, color: C.text }}>
+              {msg.trace.map((item, i) => (
+                <div key={i} style={{ padding: "2px 0", borderBottom: `1px solid ${C.borderL}` }}>{item}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Disc text={msg.disclaimer} />
+    </div>
+  );
+}
 
 const QUICK_PROMPTS = [
   "AAPL 近1年波动率和最大回撤",
@@ -30,7 +109,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [streamingText, setStreamingText] = useState("");
-  const [currentBlocks, setCurrentBlocks] = useState([]);
   const [marketData, setMarketData] = useState(null);
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [marketError, setMarketError] = useState("");
@@ -70,7 +148,6 @@ export default function App() {
       setLoading(true);
       setCurrentStep(0);
       setStreamingText("");
-      setCurrentBlocks([]);
 
       try {
         let fullText = "";
@@ -79,31 +156,9 @@ export default function App() {
         let rangeKey = "1y";
         let trace = [];
         let meta = {};
-        let finalized = false;
+        let analysisText = "";
 
-        const finalize = () => {
-          if (finalized) return;
-          finalized = true;
-          setMsgs((prev) => [
-            ...prev,
-            {
-              role: "ai",
-              text: fullText,
-              symbol,
-              rangeKey,
-              sources,
-              trace,
-              confidence: meta.confidence,
-              blocks: meta.blocks || [],
-              disclaimer: meta.disclaimer,
-              technicalData: meta.technicalData,
-            },
-          ]);
-          setStreamingText("");
-        };
-
-        await streamChat(q, sessionId.current, {
-          onEvent: (event) => {
+        for await (const event of fetchChatStream(q, sessionId.current)) {
           if (event.type === "model_selected") {
             setCurrentStep(0);
             trace.push(`Model: ${event.model}`);
@@ -118,31 +173,36 @@ export default function App() {
             if (event.data?.range_key) {
               rangeKey = event.data.range_key;
             }
-            // 收集技术分析数据
-            if (event.tool === "get_history" && event.data?.data?.length >= 20) {
-              meta.technicalData = event.data;
-            }
-          } else if (event.type === "blocks") { // New event to receive structured blocks immediately
-            const blocksData = Array.isArray(event.data) ? event.data : [];
-            meta.blocks = blocksData;
-            setCurrentBlocks([...blocksData]);
           } else if (event.type === "chunk") {
             fullText += event.text || "";
             setStreamingText(fullText);
+          } else if (event.type === "analysis_chunk") {
+            analysisText += event.text || "";
+            setStreamingText(fullText + "\n\n" + analysisText);
           } else if (event.type === "done") {
             sources = event.sources || [];
-            meta = { ...meta, ...(event.data || {}) };
+            meta = event.data || {};
             if (meta?.route?.range_key) {
               rangeKey = meta.route.range_key;
             }
-            finalize();
           }
-          },
-        });
-
-        if (!finalized) {
-          finalize();
         }
+
+        setMsgs((prev) => [
+          ...prev,
+          {
+            role: "ai",
+            text: fullText,
+            symbol,
+            rangeKey,
+            sources,
+            trace,
+            confidence: meta.confidence,
+            blocks: meta.blocks || [],
+            disclaimer: meta.disclaimer,
+          },
+        ]);
+        setStreamingText("");
       } catch (error) {
         setMsgs((prev) => [
           ...prev,
@@ -202,7 +262,7 @@ export default function App() {
               onClick={goHome}
               style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}
             >
-              返回
+              Home
             </button>
           )}
           <div onClick={goHome} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -235,7 +295,7 @@ export default function App() {
             fontFamily: F.m,
           }}
         >
-          实时数据
+          LIVE DATA
         </span>
       </header>
 
@@ -309,90 +369,7 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div
-                    style={{
-                      background: "#FAFCFF",
-                      borderRadius: 12,
-                      padding: "18px 18px 14px",
-                      border: "1px solid #D6E4F7",
-                      position: "relative",
-                      fontSize: 13,
-                      lineHeight: 1.85,
-                      color: C.text,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                      <div
-                        style={{
-                          position: "relative",
-                          top: -9,
-                          left: 0,
-                          background: C.accentL,
-                          color: C.accent,
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          padding: "2px 8px",
-                          borderRadius: 8,
-                          border: "1px solid #BFD5F0",
-                        }}
-                      >
-                        AI 分析
-                      </div>
-                      <div style={{ position: "relative", top: -10 }}>
-                        <ConfidenceBadge confidence={msg.confidence} />
-                      </div>
-                    </div>
-                    {msg.text}
-                  </div>
-
-                  <ResponseBlocks blocks={msg.blocks} />
-
-                  {/* 技术指标展示 - 如果有历史数据 */}
-                  {msg.technicalData && <TechnicalIndicators data={msg.technicalData} />}
-
-                  {msg.symbol && !msg.blocks?.some((block) => block.type === "chart") && <Chart symbol={msg.symbol} rangeKey={msg.rangeKey} />}
-
-                  {(msg.trace?.length || msg.sources?.length) && (
-                    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-                      {msg.trace?.length > 0 && (
-                        <details style={{ marginBottom: msg.sources?.length ? 12 : 0 }}>
-                          <summary
-                            style={{
-                              cursor: "pointer",
-                              listStyle: "none",
-                              userSelect: "none",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "4px 10px",
-                              borderRadius: 999,
-                              background: "#F8FAFC",
-                              border: `1px solid ${C.border}`,
-                              fontSize: 10.5,
-                              fontWeight: 800,
-                              color: C.ts,
-                              fontFamily: F.m,
-                            }}
-                          >
-                            调用链路
-                            <span style={{ fontSize: 10, fontWeight: 700, color: C.td }}>({msg.trace.length})</span>
-                            <span style={{ fontSize: 10, color: C.td }}>点击展开</span>
-                          </summary>
-                          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6, fontSize: 11.5, color: C.text }}>
-                            {msg.trace.map((item, traceIndex) => (
-                              <div key={traceIndex}>{item}</div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                      <SourcesPanel items={msg.sources} />
-                    </div>
-                  )}
-
-                  <Disc text={msg.disclaimer} />
-                </div>
+                <AiMessage msg={msg} />
               )}
             </div>
           ))}
@@ -400,14 +377,6 @@ export default function App() {
           {loading && (
             <div style={{ animation: "fadeUp .3s ease-out" }}>
               <LoadSteps currentStep={currentStep} />
-              
-              {/* Show structured blocks natively even while streaming */}
-              {currentBlocks.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <ResponseBlocks blocks={currentBlocks} />
-                </div>
-              )}
-              
               {streamingText ? <StreamingText text={streamingText} /> : <Skel />}
             </div>
           )}

@@ -19,27 +19,27 @@ class TestMarketFallback:
     async def test_get_price_uses_alpha_vantage_fallback(self, service):
         service._get_cache = Mock(return_value=None)
         service._fetch_yfinance_info = AsyncMock(return_value=None)
-        service._fetch_stooq_quote = AsyncMock(
+        service._fetch_alpha_vantage_quote = AsyncMock(
             return_value=MarketData(
                 symbol="AAPL",
                 price=150.0,
                 currency="USD",
                 name="Apple Inc.",
-                source="stooq",
+                source="alpha_vantage",
                 timestamp="2026-03-06T00:00:00",
             )
         )
 
         result = await service.get_price("AAPL")
 
-        assert result.source == "stooq"
+        assert result.source == "alpha_vantage"
         assert result.price == 150.0
 
     @pytest.mark.asyncio
     async def test_get_history_uses_alpha_vantage_fallback(self, service):
         service._get_cache = Mock(return_value=None)
         service._fetch_yfinance_history = AsyncMock(return_value=None)
-        service._fetch_stooq_history = AsyncMock(
+        service._fetch_alpha_vantage_history = AsyncMock(
             return_value=HistoryData(
                 symbol="AAPL",
                 days=7,
@@ -47,14 +47,14 @@ class TestMarketFallback:
                     PricePoint(date="2026-03-01", open=100, high=101, low=99, close=100, volume=1),
                     PricePoint(date="2026-03-02", open=101, high=102, low=100, close=101, volume=1),
                 ],
-                source="stooq",
+                source="alpha_vantage",
                 timestamp="2026-03-06T00:00:00",
             )
         )
 
         result = await service.get_history("AAPL", 7)
 
-        assert result.source == "stooq"
+        assert result.source == "alpha_vantage"
         assert len(result.data) == 2
 
 

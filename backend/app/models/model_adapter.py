@@ -22,29 +22,12 @@ class ModelAdapter(ABC):
     ) -> AsyncGenerator:
         """Create a streaming message generator."""
 
-    @abstractmethod
-    async def chat(
-        self,
-        messages: List[Dict[str, str]],
-        tools: List[Dict[str, Any]] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-    ) -> Dict[str, Any]:
-        """Non-streaming chat completion for function calling."""
-
 
 class DeepSeekAdapter(ModelAdapter):
     """OpenAI-compatible SDK adapter used for DeepSeek."""
 
     def __init__(self, config: ModelConfig):
-        import httpx
-        # Create HTTP client without proxy to avoid connection issues
-        http_client = httpx.Client(proxies=None)
-        self.client = OpenAI(
-            api_key=config.api_key,
-            base_url=config.base_url,
-            http_client=http_client
-        )
+        self.client = OpenAI(api_key=config.api_key, base_url=config.base_url)
         self.model_name = config.model_name
 
     def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -143,57 +126,6 @@ class DeepSeekAdapter(ModelAdapter):
             )
 
         yield {"final_message": SimpleNamespace(content=final_content)}
-
-    async def chat(
-        self,
-        messages: List[Dict[str, str]],
-        tools: List[Dict[str, Any]] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-    ) -> Dict[str, Any]:
-        """Non-streaming chat completion for function calling."""
-        import asyncio
-        import json
-
-        request_tools = self._convert_tools(tools) if tools else None
-
-        loop = asyncio.get_event_loop()
-
-        def _create_completion():
-            return self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                tools=request_tools,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=False,
-            )
-
-        response = await loop.run_in_executor(None, _create_completion)
-
-        # Parse response
-        choice = response.choices[0]
-        message = choice.message
-
-        result = {
-            "content": message.content or "",
-            "tool_calls": []
-        }
-
-        # Extract tool calls
-        if message.tool_calls:
-            for tool_call in message.tool_calls:
-                try:
-                    arguments = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
-                except json.JSONDecodeError:
-                    arguments = {}
-
-                result["tool_calls"].append({
-                    "name": tool_call.function.name,
-                    "input": arguments
-                })
-
-        return result
 
 
 def _safe_json_loads(value: str) -> Dict[str, Any]:

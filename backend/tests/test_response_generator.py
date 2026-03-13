@@ -1,267 +1,161 @@
-"""
-测试 ResponseGenerator
-"""
+"""Tests for ResponseGenerator."""
+
 import pytest
-from app.reasoning.response_generator import ResponseGenerator
+from unittest.mock import AsyncMock, patch
+from app.core.response_generator import ResponseGenerator
 
 
-class TestResponseGenerator:
-    """测试响应生成器"""
+@pytest.mark.asyncio
+async def test_response_generator_initialization():
+    """Test that ResponseGenerator initializes correctly."""
+    generator = ResponseGenerator()
 
-    @pytest.fixture
-    def generator(self):
-        """创建生成器实例"""
-        return ResponseGenerator()
+    assert generator is not None
+    assert generator.prompt_manager is not None
+    assert generator.llm_client is not None
 
-    @pytest.fixture
-    def sample_analysis_result(self):
-        """示例分析结果"""
-        return {
-            "success": True,
-            "data": {
-                "symbol": "AAPL",
-                "name": "Apple Inc.",
-                "price": {
-                    "current": 150.25,
-                    "currency": "USD",
-                    "source": "yfinance"
-                },
-                "change": {
-                    "change_pct": 2.5,
-                    "trend": "上涨"
-                },
-                "info": {
-                    "market_cap": 2500000000000,
-                    "pe_ratio": 28.5
-                },
-                "technical": {
-                    "rsi": {
-                        "value": 65.0,
-                        "level": "中性",
-                        "signal": "持有",
-                        "description": "RSI处于中性区域"
-                    },
-                    "macd": {
-                        "macd": 1.5,
-                        "signal_type": "金叉",
-                        "trend": "上涨",
-                        "description": "MACD金叉，看涨信号"
-                    },
-                    "trend": {
-                        "direction": "上涨",
-                        "strength": 75.0,
-                        "change_pct": 2.5
-                    }
-                }
-            }
-        }
 
-    @pytest.fixture
-    def sample_decision_result(self):
-        """示例决策结果"""
-        return {
-            "success": True,
-            "reference_view": {
-                "view": "偏多",
-                "score": 0.7,
-                "description": "技术面偏强，建议关注"
-            },
-            "opportunities": [
-                "技术指标显示上涨趋势",
-                "成交量放大"
-            ],
-            "risks": [
-                "估值偏高",
-                "市场波动加大"
-            ],
-            "risk_warnings": {
-                "technical_risks": ["RSI接近超买区域"],
-                "market_risks": ["大盘调整风险"],
-                "other_risks": ["政策风险"]
-            },
-            "disclaimer": "以上内容仅供参考，不构成投资建议"
-        }
+@pytest.mark.asyncio
+async def test_generate_basic_response():
+    """Test generating a basic response."""
+    generator = ResponseGenerator()
 
-    @pytest.fixture
-    def sample_integrated_data(self):
-        """示例整合数据"""
-        return {
-            "metadata": {
-                "timestamp": "2024-01-01T00:00:00",
-                "sources": ["yfinance", "alpha_vantage"]
-            }
-        }
+    with patch.object(generator.llm_client, 'chat_completion', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = """## AAPL股价查询
 
-    def test_generate_success(self, generator, sample_analysis_result, sample_decision_result, sample_integrated_data):
-        """测试成功生成响应"""
-        result = generator.generate(
-            sample_analysis_result,
-            sample_decision_result,
-            sample_integrated_data
+### 📊 数据摘要
+当前价格: $150.25
+涨跌幅: +2.5%
+数据来源：Yahoo Finance | 时间：2026-03-12 10:00:00
+
+### 📝 分析说明
+苹果股价今日上涨2.5%，表现强劲。
+
+### 📎 参考来源
+- Yahoo Finance | 数据时间：2026-03-12 10:00:00
+
+### 💡 相关问题
+- AAPL的历史走势如何？
+- AAPL与MSFT的对比如何？
+
+---
+⚠️ 免责声明：本回答仅供信息参考，不构成投资建议。"""
+
+        response = await generator.generate(
+            user_question="AAPL今天涨了多少？",
+            api_data={"price": 150.25, "change_percent": 2.5},
+            rag_context="",
+            api_completeness=1.0,
+            rag_relevance=0.0
         )
 
-        assert result["success"] is True
-        assert "sections" in result
-        assert "metadata" in result
-        assert result["metadata"]["symbol"] == "AAPL"
+        assert "AAPL" in response
+        assert "150.25" in response
+        assert "免责声明" in response
 
-    def test_generate_analysis_failure(self, generator, sample_decision_result, sample_integrated_data):
-        """测试分析失败时的响应"""
-        failed_analysis = {
-            "success": False,
-            "error": "分析失败"
-        }
 
-        result = generator.generate(
-            failed_analysis,
-            sample_decision_result,
-            sample_integrated_data
+@pytest.mark.asyncio
+async def test_generate_with_rag_context():
+    """Test generating response with RAG context."""
+    generator = ResponseGenerator()
+
+    with patch.object(generator.llm_client, 'chat_completion', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = """## 市盈率解释
+
+### 📊 数据摘要
+市盈率（P/E Ratio）是股票价格与每股收益的比率。
+
+### 📝 分析说明
+市盈率是衡量股票估值的重要指标。
+
+### 📎 参考来源
+- 金融知识库 | 发布日期：2026-01-01
+
+### 💡 相关问题
+- 如何计算市盈率？
+- 市盈率多少算合理？
+
+---
+⚠️ 免责声明：本回答仅供信息参考，不构成投资建议。"""
+
+        response = await generator.generate(
+            user_question="什么是市盈率？",
+            api_data={},
+            rag_context="市盈率是股票价格与每股收益的比率...",
+            api_completeness=0.0,
+            rag_relevance=0.95
         )
 
-        assert result["success"] is False
-        assert result["error"] == "分析失败"
+        assert "市盈率" in response
+        assert "免责声明" in response
 
-    def test_data_summary_section(self, generator, sample_analysis_result, sample_decision_result, sample_integrated_data):
-        """测试数据摘要章节"""
-        result = generator.generate(
-            sample_analysis_result,
-            sample_decision_result,
-            sample_integrated_data
+
+@pytest.mark.asyncio
+async def test_generate_uses_correct_temperature():
+    """Test that generator uses correct temperature from config."""
+    generator = ResponseGenerator()
+
+    with patch.object(generator.llm_client, 'chat_completion', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = "Test response"
+
+        await generator.generate(
+            user_question="Test",
+            api_data={},
+            rag_context="",
+            api_completeness=0.0,
+            rag_relevance=0.0
         )
 
-        data_summary = result["sections"]["data_summary"]
-        assert data_summary["title"] == "📊 数据摘要"
-        assert len(data_summary["items"]) > 0
+        call_kwargs = mock_llm.call_args[1]
+        assert call_kwargs['temperature'] == 0.3  # Generator should use 0.3
 
-        # 检查价格项
-        price_item = next((item for item in data_summary["items"] if item["label"] == "当前价格"), None)
-        assert price_item is not None
-        assert "150.25" in price_item["value"]
 
-    def test_technical_analysis_section(self, generator, sample_analysis_result, sample_decision_result, sample_integrated_data):
-        """测试技术分析章节"""
-        result = generator.generate(
-            sample_analysis_result,
-            sample_decision_result,
-            sample_integrated_data
+@pytest.mark.asyncio
+async def test_generate_formats_api_data():
+    """Test that API data is properly formatted."""
+    generator = ResponseGenerator()
+
+    with patch.object(generator.llm_client, 'chat_completion', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = "Test response"
+
+        await generator.generate(
+            user_question="Test",
+            api_data={"price": 150.25, "volume": 1000000},
+            rag_context="",
+            api_completeness=1.0,
+            rag_relevance=0.0
         )
 
-        technical = result["sections"]["technical_analysis"]
-        assert technical["title"] == "📈 技术分析"
-        assert len(technical["items"]) > 0
+        # Check that API data was formatted in the prompt
+        call_args = mock_llm.call_args
+        messages = call_args[1]["messages"]
+        user_message = messages[1]["content"]
+        assert "price" in user_message or "150.25" in user_message
 
-        # 检查RSI指标
-        rsi_item = next((item for item in technical["items"] if item["indicator"] == "RSI"), None)
-        assert rsi_item is not None
-        assert rsi_item["level"] == "中性"
 
-    def test_reference_view_section(self, generator, sample_analysis_result, sample_decision_result, sample_integrated_data):
-        """测试参考观点章节"""
-        result = generator.generate(
-            sample_analysis_result,
-            sample_decision_result,
-            sample_integrated_data
+@pytest.mark.asyncio
+async def test_generate_handles_empty_data():
+    """Test handling of empty API and RAG data."""
+    generator = ResponseGenerator()
+
+    with patch.object(generator.llm_client, 'chat_completion', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = """## 查询结果
+
+### 📊 数据摘要
+暂无相关数据
+
+### 📝 分析说明
+抱歉，未能获取到相关数据。
+
+---
+⚠️ 免责声明：本回答仅供信息参考，不构成投资建议。"""
+
+        response = await generator.generate(
+            user_question="Test",
+            api_data={},
+            rag_context="",
+            api_completeness=0.0,
+            rag_relevance=0.0
         )
 
-        reference = result["sections"]["reference_view"]
-        assert reference["title"] == "💡 参考观点"
-        assert len(reference["items"]) > 0
-
-        # 检查综合观点
-        overall = next((item for item in reference["items"] if item["type"] == "overall"), None)
-        assert overall is not None
-        assert overall["view"] == "偏多"
-
-    def test_risk_warnings_section(self, generator, sample_analysis_result, sample_decision_result, sample_integrated_data):
-        """测试风险提示章节"""
-        result = generator.generate(
-            sample_analysis_result,
-            sample_decision_result,
-            sample_integrated_data
-        )
-
-        risk_warnings = result["sections"]["risk_warnings"]
-        assert risk_warnings["title"] == "⚠️ 风险提示"
-        assert len(risk_warnings["categories"]) > 0
-
-        # 检查技术风险
-        tech_risks = next((cat for cat in risk_warnings["categories"] if cat["category"] == "技术风险"), None)
-        assert tech_risks is not None
-        assert len(tech_risks["risks"]) > 0
-
-    def test_empty_technical_data(self, generator, sample_decision_result, sample_integrated_data):
-        """测试技术数据为空时的处理"""
-        analysis_result = {
-            "success": True,
-            "data": {
-                "symbol": "AAPL",
-                "name": "Apple Inc.",
-                "technical": {}
-            }
-        }
-
-        result = generator.generate(
-            analysis_result,
-            sample_decision_result,
-            sample_integrated_data
-        )
-
-        technical = result["sections"]["technical_analysis"]
-        assert technical["title"] == "📈 技术分析"
-        assert len(technical["items"]) == 0
-        assert technical["note"] == "技术指标数据不足"
-
-    def test_decision_failure(self, generator, sample_analysis_result, sample_integrated_data):
-        """测试决策失败时的处理"""
-        failed_decision = {
-            "success": False
-        }
-
-        result = generator.generate(
-            sample_analysis_result,
-            failed_decision,
-            sample_integrated_data
-        )
-
-        reference = result["sections"]["reference_view"]
-        assert reference["title"] == "💡 参考观点"
-        assert len(reference["items"]) == 0
-        assert reference["note"] == "决策数据不可用"
-
-    def test_type_safety_for_price_info(self, generator, sample_decision_result, sample_integrated_data):
-        """测试价格信息类型安全"""
-        analysis_result = {
-            "success": True,
-            "data": {
-                "symbol": "AAPL",
-                "name": "Apple Inc.",
-                "price": 150.25,  # 直接是float，不是dict
-                "change": "2.5%",  # 字符串，不是dict
-                "info": "some info"  # 字符串，不是dict
-            }
-        }
-
-        result = generator.generate(
-            analysis_result,
-            sample_decision_result,
-            sample_integrated_data
-        )
-
-        # 应该不会抛出异常，而是优雅地处理
-        assert result["success"] is True
-        data_summary = result["sections"]["data_summary"]
-        assert data_summary["title"] == "📊 数据摘要"
-
-    def test_metadata_extraction(self, generator, sample_analysis_result, sample_decision_result, sample_integrated_data):
-        """测试元数据提取"""
-        result = generator.generate(
-            sample_analysis_result,
-            sample_decision_result,
-            sample_integrated_data
-        )
-
-        metadata = result["metadata"]
-        assert metadata["symbol"] == "AAPL"
-        assert metadata["name"] == "Apple Inc."
-        assert metadata["timestamp"] == "2024-01-01T00:00:00"
-        assert "yfinance" in metadata["sources"]
+        assert "暂无" in response or "未能" in response

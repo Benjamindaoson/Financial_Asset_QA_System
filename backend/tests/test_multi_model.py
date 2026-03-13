@@ -36,15 +36,12 @@ class TestMultiModelManager:
 
         assert "deepseek-chat" in manager.models
         assert manager.select_model() == "deepseek-chat"
-        assert manager.is_degraded_mode() is False
 
     def test_manager_initialization_without_key(self):
         manager = build_manager(api_key="")
 
         assert manager.models == {}
         assert manager.select_model() is None
-        assert manager.is_degraded_mode() is True
-        assert manager.list_models() == [{"id": "degraded-local", "name": "本地降级模式", "available": True}]
 
     def test_classify_query(self):
         manager = build_manager()

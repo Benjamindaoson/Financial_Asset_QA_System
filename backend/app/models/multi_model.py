@@ -40,22 +40,17 @@ class ModelConfig:
 class MultiModelManager:
     """Manage the only supported chat model: DeepSeek."""
 
-    DEGRADED_MODEL_ID = "degraded-local"
-    DEGRADED_MODEL_NAME = "本地降级模式"
-
     SIMPLE_KEYWORDS = {
         "price",
         "quote",
         "cost",
         "what is",
         "definition",
-        "实时价格",
-        "当前价格",
+        "价格",
+        "股价",
         "多少钱",
         "定义",
-        "什么是",
-        "市盈率",
-        "市净率",
+        "是什么",
     }
     COMPLEX_KEYWORDS = {
         "analyze",
@@ -65,17 +60,14 @@ class MultiModelManager:
         "detailed",
         "comprehensive",
         "分析",
-        "比较",
         "对比",
+        "比较",
         "影响",
         "预测",
         "为什么",
         "如何",
         "详细",
         "深入",
-        "最大回撤",
-        "波动率",
-        "收益率",
     }
 
     def __init__(self, settings_obj=settings):
@@ -120,16 +112,6 @@ class MultiModelManager:
             "total_tokens_output": 0,
             "total_cost": 0.0,
             "errors": 0,
-        }
-
-    def is_degraded_mode(self) -> bool:
-        return not bool(self.settings.DEEPSEEK_API_KEY)
-
-    def get_degraded_model(self) -> Dict[str, Any]:
-        return {
-            "id": self.DEGRADED_MODEL_ID,
-            "name": self.DEGRADED_MODEL_NAME,
-            "available": True,
         }
 
     def classify_query(self, query: str) -> QueryComplexity:
@@ -186,9 +168,6 @@ class MultiModelManager:
         }
 
     def list_models(self) -> List[Dict[str, Any]]:
-        if self.is_degraded_mode():
-            return [self.get_degraded_model()]
-
         return [
             {
                 "name": name,

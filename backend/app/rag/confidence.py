@@ -1,107 +1,127 @@
-"""Confidence scorer for retrieval quality."""
-
-from __future__ import annotations
-
-from typing import Iterable, List
-
+"""
+置信度评分器 - 量化答案可信度
+Confidence Scorer for answer reliability
+"""
+from typing import List
 import jieba
-
 from app.models import Document
 
 
 class ConfidenceScorer:
-    """Quantify retrieval quality for knowledge-grounded answers."""
+    """
+    置信度评分器
+
+    评分维度：
+    1. 检索分数 (40%) - 重排序后的相似度
+    2. 分数差距 (30%) - Top-1 vs Top-2 的差距
+    3. 覆盖度 (30%) - 查询词在文档中的覆盖率
+    """
 
     def __init__(self):
         self.weights = {
-            "retrieval": 0.35,
-            "gap": 0.2,
-            "coverage": 0.25,
-            "support": 0.2,
-        }
-        self.stopwords = {
-            "的",
-            "了",
-            "是",
-            "在",
-            "有",
-            "和",
-            "与",
-            "及",
-            "对",
-            "吗",
-            "呢",
-            "啊",
-            "什么",
-            "如何",
-            "请问",
-            "一下",
+            'retrieval': 0.4,
+            'gap': 0.3,
+            'coverage': 0.3
         }
 
-    def calculate(self, query: str, documents: List[Document]) -> float:
+    def calculate(
+        self,
+        query: str,
+        documents: List[Document]
+    ) -> float:
+        """
+        计算置信度分数
+
+        Args:
+            query: 查询文本
+            documents: 检索到的文档列表
+
+        Returns:
+            置信度分数 (0-1)
+        """
         if not documents:
             return 0.0
 
-        top_score = self._clamp(documents[0].score)
+        # 1. 检索分数 (重排序后的相似度)
+        retrieval_score = documents[0].score
+
+        # 2. 分数差距 (Top-1 vs Top-2)
         score_gap = 0.0
         if len(documents) >= 2:
-            score_gap = self._clamp(documents[0].score - documents[1].score)
+            gap = documents[0].score - documents[1].score
+            # 归一化到0-1，差距越大置信度越高
+            score_gap = min(gap * 2, 1.0)
 
-        top_coverage = self._calculate_coverage(query, documents[0].content)
-        support = self._calculate_support(query, documents)
+        # 3. 覆盖度 (查询词在文档中的比例)
+        coverage = self._calculate_coverage(query, documents[0].content)
 
+        # 4. 综合置信度
         confidence = (
-            self.weights["retrieval"] * top_score
-            + self.weights["gap"] * score_gap
-            + self.weights["coverage"] * top_coverage
-            + self.weights["support"] * support
+            self.weights['retrieval'] * retrieval_score +
+            self.weights['gap'] * score_gap +
+            self.weights['coverage'] * coverage
         )
-        return round(self._clamp(confidence), 2)
 
-    @staticmethod
-    def _clamp(value: float) -> float:
-        return max(0.0, min(float(value), 1.0))
-
-    def _query_terms(self, query: str) -> set[str]:
-        tokens = {token.strip().lower() for token in jieba.cut(query) if token and token.strip()}
-        return {token for token in tokens if len(token) >= 2 and token not in self.stopwords}
+        return round(confidence, 2)
 
     def _calculate_coverage(self, query: str, document: str) -> float:
-        query_terms = self._query_terms(query)
-        if not query_terms:
+        """
+        计算查询词覆盖度
+
+        Args:
+            query: 查询文本
+            document: 文档文本
+
+        Returns:
+            覆盖度 (0-1)
+        """
+        # 分词
+        query_tokens = set(jieba.cut(query))
+        doc_tokens = set(jieba.cut(document))
+
+        # 移除停用词（简单版本）
+        stopwords = {'的', '了', '是', '在', '有', '和', '与', '或', '等', '吗', '呢', '啊'}
+        query_tokens = query_tokens - stopwords
+
+        if not query_tokens:
             return 0.0
 
-        doc_terms = {token.strip().lower() for token in jieba.cut(document) if token and token.strip()}
-        hit_count = len(query_terms & doc_terms)
-        return hit_count / len(query_terms)
+        # 计算交集
+        intersection = query_tokens & doc_tokens
 
-    def _calculate_support(self, query: str, documents: Iterable[Document]) -> float:
-        query_terms = self._query_terms(query)
-        if not query_terms:
-            return 0.0
+        # 覆盖率
+        coverage = len(intersection) / len(query_tokens)
 
-        covered = set()
-        distinct_sources = set()
-        total = 0
-        for document in documents:
-            total += 1
-            distinct_sources.add(document.source)
-            doc_terms = {token.strip().lower() for token in jieba.cut(document.content) if token and token.strip()}
-            covered.update(query_terms & doc_terms)
-
-        source_bonus = min(len(distinct_sources) / 2, 1.0) * 0.2
-        doc_bonus = min(total / 3, 1.0) * 0.2
-        term_support = len(covered) / len(query_terms)
-        return self._clamp(term_support * 0.6 + source_bonus + doc_bonus)
+        return coverage
 
     def get_confidence_level(self, confidence: float) -> str:
+        """
+        获取置信度等级
+
+        Args:
+            confidence: 置信度分数
+
+        Returns:
+            置信度等级描述
+        """
         if confidence >= 0.8:
             return "高"
-        if confidence >= 0.6:
+        elif confidence >= 0.6:
             return "中"
-        if confidence >= 0.4:
+        elif confidence >= 0.4:
             return "低"
-        return "极低"
+        else:
+            return "极低"
 
     def should_answer(self, confidence: float, threshold: float = 0.4) -> bool:
+        """
+        判断是否应该回答
+
+        Args:
+            confidence: 置信度分数
+            threshold: 置信度阈值
+
+        Returns:
+            是否应该回答
+        """
         return confidence >= threshold

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List
 
 from app.models import ToolResult
+
+logger = logging.getLogger(__name__)
 
 
 class DataValidator:
@@ -25,9 +28,11 @@ class DataValidator:
         has_knowledge = False
 
         for result in tool_results:
+            logger.info(f"[DEBUG] Processing result: tool={result.tool}, status={result.status}")
             if result.status != "success":
                 continue
             data = result.data
+            logger.info(f"[DEBUG] Data type: {type(data)}, keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
 
             if result.tool == "get_price":
                 if data.get("price") is not None:
@@ -79,11 +84,22 @@ class DataValidator:
                     missing.append("SEC/财报检索")
 
             elif result.tool == "search_knowledge":
+                logger.info(f"[DEBUG] search_knowledge validation:")
+                logger.info(f"  data type: {type(data)}")
+                logger.info(f"  data keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
+                logger.info(f"  data.get('documents'): {data.get('documents') if isinstance(data, dict) else 'N/A'}")
+                logger.info(f"  documents type: {type(data.get('documents')) if isinstance(data, dict) else 'N/A'}")
+                if isinstance(data, dict) and data.get("documents"):
+                    logger.info(f"  documents length: {len(data.get('documents'))}")
+                    logger.info(f"  bool(data.get('documents')): {bool(data.get('documents'))}")
+
                 if data.get("documents"):
                     has_knowledge = True
                     score += 20
+                    logger.info(f"  [DEBUG] has_knowledge set to True, score += 20")
                 else:
                     missing.append("知识库检索")
+                    logger.info(f"  [DEBUG] Missing knowledge, documents is falsy")
 
         if score >= 75:
             level = "high"
@@ -92,7 +108,7 @@ class DataValidator:
         else:
             level = "low"
 
-        return {
+        validation_result = {
             "confidence": score,
             "level": level,
             "has_price": has_price,
@@ -106,6 +122,8 @@ class DataValidator:
             "missing": sorted(set(missing)),
             "can_analyze": has_price or has_history or has_news or has_sec or has_knowledge,
         }
+        logger.info(f"[DEBUG] Final validation result: {validation_result}")
+        return validation_result
 
     @staticmethod
     def should_block_response(validation: Dict[str, Any]) -> bool:
@@ -114,4 +132,7 @@ class DataValidator:
     @staticmethod
     def get_fallback_message(validation: Dict[str, Any], symbol: str) -> str:
         missing = "、".join(validation.get("missing") or ["关键数据"])
-        return f"当前无法为 {symbol} 生成可靠结论，缺少 {missing}。请稍后重试，或改问基础知识和单一行情问题。"
+        return (
+            f"当前无法为 {symbol} 生成可靠结论，缺少 {missing}。"
+            " 请稍后重试，或改问基础知识/单一行情问题。"
+        )

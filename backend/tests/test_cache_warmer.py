@@ -37,24 +37,25 @@ async def test_cache_warmer_preloads_popular_stocks():
 
 @pytest.mark.asyncio
 async def test_cache_warmer_with_real_cache():
-    """Test cache-backed price reads without calling external providers."""
+    """Test cache warmer with real Redis cache."""
     service = MarketDataService()
 
+    # Manually populate cache with test data
+    import json
     test_data = {
-        "symbol": "AAPL",
-        "price": 180.0,
-        "currency": "USD",
-        "name": "Apple Inc.",
-        "source": "test",
-        "timestamp": "2026-03-07T15:00:00",
-        "error": None,
+        'symbol': 'AAPL',
+        'price': 180.0,
+        'currency': 'USD',
+        'name': 'Apple Inc.',
+        'source': 'test',
+        'timestamp': '2026-03-07T15:00:00',
+        'error': None
     }
+    service._set_cache('price:AAPL', test_data, 300)
 
-    with patch.object(service, "_get_cache", return_value=test_data), \
-         patch.object(service.finnhub_provider, "get_quote", new_callable=AsyncMock) as mock_get_quote:
-        result = await service.get_price("AAPL")
+    # Verify cache hit
+    result = await service.get_price("AAPL")
 
     assert result.cache_hit is True
-    assert result.latency_ms < 100
+    assert result.latency_ms < 100  # Should be fast from cache
     assert result.price == 180.0
-    mock_get_quote.assert_not_called()

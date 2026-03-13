@@ -6,7 +6,14 @@ import pytest
 
 from app.agent.core import AgentCore, ResponseGuard
 from app.models.multi_model import ModelConfig, ModelProvider, QueryComplexity
-from app.models.schemas import ChangeData, HistoryData, MarketData, PricePoint, RiskMetrics
+from app.models.schemas import (
+    ChangeData,
+    CompanyInfo,
+    HistoryData,
+    MarketData,
+    PricePoint,
+    RiskMetrics,
+)
 
 
 def build_test_agent(preferred_model=None):
@@ -15,12 +22,10 @@ def build_test_agent(preferred_model=None):
     ), patch("app.agent.core.WebSearchService"), patch("app.agent.core.SECFilingsService"):
         agent = AgentCore(preferred_model=preferred_model)
 
-    # Use real API key from config for integration tests
-    from app.config import settings
     agent.model_manager.models["deepseek-chat"] = ModelConfig(
         provider=ModelProvider.DEEPSEEK,
         model_name="deepseek-chat",
-        api_key=settings.DEEPSEEK_API_KEY,
+        api_key="test-key",
         base_url="https://api.deepseek.com",
     )
     agent.model_manager.usage_stats["deepseek-chat"] = {
@@ -32,7 +37,6 @@ def build_test_agent(preferred_model=None):
     }
     for complexity in QueryComplexity:
         agent.model_manager.routing_rules[complexity] = ["deepseek-chat"]
-    agent.model_manager.settings.DEEPSEEK_API_KEY = "test-key"
     return agent
 
 
@@ -146,9 +150,9 @@ class TestAgentRun:
             )()
         )
         agent.confidence_scorer.calculate.return_value = 0.9
-        agent.confidence_scorer.get_confidence_level.return_value = "高"
+        agent.confidence_scorer.get_confidence_level.return_value = "high"
 
-        events = [event async for event in agent.run("什么是市盈率？")]
+        events = [event async for event in agent.run("什么是市盈率")]
 
         assert any(event.type == "model_selected" for event in events)
         assert any(event.type == "tool_start" for event in events)
@@ -181,7 +185,7 @@ class TestAgentRun:
             )
         )
 
-        events = [event async for event in agent.run("AAPL 价格")]
+        events = [event async for event in agent.run("AAPL价格")]
 
         assert any(event.type == "tool_start" for event in events)
         assert any(event.type == "tool_data" for event in events)
@@ -189,7 +193,7 @@ class TestAgentRun:
 
     @pytest.mark.asyncio
     async def test_run_with_advice_refusal(self, agent):
-        events = [event async for event in agent.run("AAPL 现在可以买入吗？")]
+        events = [event async for event in agent.run("AAPL 现在可以买入吗")]
         assert any(event.type == "chunk" for event in events)
         done = next(event for event in events if event.type == "done")
         assert done.verified is True

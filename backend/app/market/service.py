@@ -21,11 +21,6 @@ import httpx
 import numpy as np
 import redis
 import yfinance as yf
-try:
-    import akshare as ak
-    AKSHARE_AVAILABLE = True
-except ImportError:
-    AKSHARE_AVAILABLE = False
 
 from app.cache.popular_stocks import get_popular_stocks
 from app.config import settings
@@ -53,26 +48,12 @@ TREND_DOWN = "下跌"
 TREND_FLAT = "震荡"
 
 RANGE_TO_DAYS = {
-    "1d": 1,
-    "5d": 5,
     "1m": 30,
     "3m": 90,
     "6m": 180,
-    "ytd": 365,
+    "ytd": None,  # YTD is calculated dynamically
     "1y": 365,
     "5y": 365 * 5,
-}
-
-# yfinance period 映射
-RANGE_TO_YFINANCE_PERIOD = {
-    "1d": "1d",
-    "5d": "5d",
-    "1m": "1mo",
-    "3m": "3mo",
-    "6m": "6mo",
-    "ytd": "ytd",
-    "1y": "1y",
-    "5y": "5y",
 }
 
 INDEX_WATCHLIST = [
@@ -97,7 +78,7 @@ class TickerMapper:
     """Maps company names and common aliases to ticker symbols."""
 
     EXACT_MAP = {
-        "阿里巴巴": "9988.HK",
+        "阿里巴巴": "BABA",
         "苹果": "AAPL",
         "腾讯": "0700.HK",
         "特斯拉": "TSLA",
@@ -154,19 +135,7 @@ class TickerMapper:
 
 
 class MarketDataService:
-    """市场数据服务，支持多数据源故障切换和内存缓存。
-
-    数据源优先级：
-    - 美股/ETF/指数：yfinance (主) -> stooq (备) -> alpha_vantage (兜底)
-    - A股：akshare (主) -> yfinance (备)
-    - 港股：yfinance (主) -> akshare (备)
-    """
-
-    # 数据源超时设置（秒）
-    TIMEOUT_YFINANCE = 3
-    TIMEOUT_AKSHARE = 3
-    TIMEOUT_STOOQ = 3
-    TIMEOUT_ALPHA_VANTAGE = 3
+    """Market data service with Redis caching and Alpha Vantage fallback."""
 
     def __init__(self):
         try:
@@ -178,105 +147,29 @@ class MarketDataService:
             )
         except Exception:
             self.redis_client = None
-
-        # 内存缓存（当 Redis 不可用时使用）
-        self._memory_cache: Dict[str, tuple[Any, float]] = {}  # key -> (value, expire_time)
-
         self.ticker_mapper = TickerMapper()
         self.news_provider = NewsAPIProvider()
         self.finnhub_provider = FinnhubProvider()
-        self._stooq_semaphore = asyncio.Semaphore(3)
-        self._market_timezones = {
-            "US": "US/Eastern",
-            "HK": "Asia/Hong_Kong",
-            "CN": "Asia/Shanghai"
-        }
+        self._stooq_semaphore = asyncio.Semaphore(3)  # Limit concurrent Stooq requests
 
     def _get_cache(self, key: str) -> Optional[dict]:
-        """从缓存获取数据，优先使用 Redis，不可用时使用内存缓存。"""
-        # 尝试 Redis
-        if self.redis_client:
-            try:
-                data = self.redis_client.get(key)
-                if data:
-                    return json.loads(data)
-            except Exception:
-                pass
-
-        # 回退到内存缓存
-        if key in self._memory_cache:
-            value, expire_time = self._memory_cache[key]
-            if datetime.utcnow().timestamp() < expire_time:
-                return value
-            else:
-                del self._memory_cache[key]
-
+        if not self.redis_client:
+            return None
+        try:
+            data = self.redis_client.get(key)
+            if data:
+                return json.loads(data)
+        except Exception:
+            return None
         return None
 
     def _set_cache(self, key: str, value: dict, ttl: int) -> None:
-        """设置缓存，优先使用 Redis，不可用时使用内存缓存。"""
-        # 尝试 Redis
-        if self.redis_client:
-            try:
-                self.redis_client.setex(key, ttl, json.dumps(value))
-                return
-            except Exception:
-                pass
-
-        # 回退到内存缓存
-        expire_time = datetime.utcnow().timestamp() + ttl
-        self._memory_cache[key] = (value, expire_time)
-
-        # 清理过期的内存缓存条目（简单策略：每100次写入清理一次）
-        if len(self._memory_cache) > 100:
-            now = datetime.utcnow().timestamp()
-            expired_keys = [k for k, (_, exp) in self._memory_cache.items() if exp < now]
-            for k in expired_keys:
-                del self._memory_cache[k]
- 
-    def _get_market_status(self, symbol: str) -> str:
-        """Determines if the market for a given symbol is currently open."""
-        now = datetime.utcnow()
-        
-        # Simple heuristic for timezones and hours
-        if self._is_china_a_stock(symbol):
-            # CN: 9:30-11:30, 13:00-15:00 CST (UTC+8)
-            cn_now = now + timedelta(hours=8)
-            if cn_now.weekday() >= 5: return "closed"
-            h, m = cn_now.hour, cn_now.minute
-            if (9, 30) <= (h, m) <= (11, 30) or (13, 0) <= (h, m) <= (15, 0):
-                return "open"
-        elif self._is_hk_stock(symbol):
-            # HK: 9:30-12:00, 13:00-16:00 HKT (UTC+8)
-            hk_now = now + timedelta(hours=8)
-            if hk_now.weekday() >= 5: return "closed"
-            h, m = hk_now.hour, hk_now.minute
-            if (9, 30) <= (h, m) <= (12, 0) or (13, 0) <= (h, m) <= (16, 0):
-                return "open"
-        else:
-            # US: 9:30-16:00 ET (UTC-5/UTC-4) - Simplified to UTC-5
-            us_now = now - timedelta(hours=5)
-            if us_now.weekday() >= 5: return "closed"
-            h, m = us_now.hour, us_now.minute
-            if (9, 30) <= (h, m) <= (16, 0):
-                return "open"
-        
-        return "closed"
-
-    def _get_dynamic_ttl(self, symbol: str, data_type: str) -> int:
-        """Returns TTL in seconds based on market status and data type."""
-        status = self._get_market_status(symbol)
-        
-        if data_type == "price":
-            return 60 if status == "open" else 3600
-        if data_type == "history":
-            return 3600 if status == "open" else 86400
-        if data_type == "info":
-            return 86400 * 7  # 1 week
-        if data_type == "news":
-            return 300 if status == "open" else 3600
-            
-        return settings.CACHE_TTL_PRICE
+        if not self.redis_client:
+            return
+        try:
+            self.redis_client.setex(key, ttl, json.dumps(value))
+        except Exception:
+            return
 
     @staticmethod
     def _utc_now() -> str:
@@ -310,17 +203,23 @@ class MarketDataService:
 
     @staticmethod
     def _range_to_period(range_key: Optional[str], days: int) -> tuple[str, int]:
-        """将 range_key 转换为 yfinance period 和天数。"""
         if not range_key:
             safe_days = max(7, days)
             return f"{safe_days}d", safe_days
 
         normalized = range_key.lower()
-        if normalized not in RANGE_TO_YFINANCE_PERIOD:
+        if normalized not in RANGE_TO_DAYS:
             safe_days = max(7, days)
             return f"{safe_days}d", safe_days
 
-        return RANGE_TO_YFINANCE_PERIOD[normalized], RANGE_TO_DAYS.get(normalized, days)
+        if normalized == "ytd":
+            # Calculate days from Jan 1 to today
+            today = datetime.utcnow()
+            jan_1 = datetime(today.year, 1, 1)
+            ytd_days = (today - jan_1).days + 1
+            return "ytd", ytd_days
+
+        return normalized, RANGE_TO_DAYS[normalized]
 
     @staticmethod
     def _infer_asset_type(info: Optional[dict], symbol: str) -> str:
@@ -342,175 +241,28 @@ class MarketDataService:
             return "crypto"
         return "equity"
 
-    @staticmethod
-    def _is_china_a_stock(symbol: str) -> bool:
-        """判断是否为A股代码。"""
-        if symbol.endswith((".SS", ".SZ")):
-            return True
-        # 纯数字6位代码
-        if symbol.isdigit() and len(symbol) == 6:
-            return True
-        return False
-
-    @staticmethod
-    def _is_hk_stock(symbol: str) -> bool:
-        """判断是否为港股代码。"""
-        return symbol.endswith(".HK")
-
     async def _fetch_yfinance(self, symbol: str) -> Optional[yf.Ticker]:
-        """获取 yfinance Ticker 对象，带超时控制。"""
         try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(yf.Ticker, symbol),
-                timeout=self.TIMEOUT_YFINANCE
-            )
-        except (asyncio.TimeoutError, Exception):
+            return await asyncio.to_thread(yf.Ticker, symbol)
+        except Exception:
             return None
 
     async def _fetch_yfinance_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """获取 yfinance 股票信息，带超时控制。"""
         ticker = await self._fetch_yfinance(symbol)
         if not ticker:
             return None
         try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(lambda: ticker.info),
-                timeout=self.TIMEOUT_YFINANCE
-            )
-        except (asyncio.TimeoutError, Exception):
+            return await asyncio.to_thread(lambda: ticker.info)
+        except Exception:
             return None
 
     async def _fetch_yfinance_history(self, symbol: str, period: str):
-        """获取 yfinance 历史数据，带超时控制。"""
         ticker = await self._fetch_yfinance(symbol)
         if not ticker:
             return None
         try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(lambda: ticker.history(period=period, auto_adjust=False)),
-                timeout=self.TIMEOUT_YFINANCE
-            )
-        except (asyncio.TimeoutError, Exception):
-            return None
-
-    async def _fetch_akshare_price(self, symbol: str) -> Optional[MarketData]:
-        """使用 akshare 获取A股实时价格，带超时控制。"""
-        if not AKSHARE_AVAILABLE:
-            return None
-
-        try:
-            # 提取纯数字代码
-            if symbol.endswith(".SS") or symbol.endswith(".SZ"):
-                code = symbol[:-3]
-            elif symbol.isdigit() and len(symbol) == 6:
-                code = symbol
-            else:
-                return None
-
-            # 获取实时行情
-            df = await asyncio.wait_for(
-                asyncio.to_thread(ak.stock_zh_a_spot_em),
-                timeout=self.TIMEOUT_AKSHARE
-            )
-
-            # 查找对应股票
-            row = df[df['代码'] == code]
-            if row.empty:
-                return None
-
-            price = self._coerce_float(row.iloc[0]['最新价'])
-            if price is None:
-                return None
-
-            return MarketData(
-                symbol=symbol,
-                price=price,
-                currency="CNY",
-                name=str(row.iloc[0].get('名称', symbol)),
-                asset_type="equity",
-                source="akshare",
-                timestamp=self._utc_now(),
-            )
-        except (asyncio.TimeoutError, Exception):
-            return None
-
-    async def _fetch_akshare_history(self, symbol: str, days: int, range_key: Optional[str] = None) -> Optional[HistoryData]:
-        """使用 akshare 获取A股历史数据，带超时控制。"""
-        if not AKSHARE_AVAILABLE:
-            return None
-
-        try:
-            # 提取纯数字代码
-            if symbol.endswith(".SS") or symbol.endswith(".SZ"):
-                code = symbol[:-3]
-            elif symbol.isdigit() and len(symbol) == 6:
-                code = symbol
-            else:
-                return None
-
-            # 计算日期范围
-            end_date = datetime.now().strftime("%Y%m%d")
-            start_date = (datetime.now() - timedelta(days=days + 30)).strftime("%Y%m%d")
-
-            # 获取历史数据
-            df = await asyncio.wait_for(
-                asyncio.to_thread(
-                    ak.stock_zh_a_hist,
-                    symbol=code,
-                    period="daily",
-                    start_date=start_date,
-                    end_date=end_date,
-                    adjust=""
-                ),
-                timeout=self.TIMEOUT_AKSHARE
-            )
-
-            if df.empty:
-                return None
-
-            # 转换为 PricePoint
-            points: List[PricePoint] = []
-            for _, row in df.iterrows():
-                date_str = str(row['日期'])
-                if len(date_str) == 8:
-                    date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
-
-                open_price = self._coerce_float(row.get('开盘'))
-                high = self._coerce_float(row.get('最高'))
-                low = self._coerce_float(row.get('最低'))
-                close = self._coerce_float(row.get('收盘'))
-                volume = self._coerce_int(row.get('成交量')) or 0
-
-                if None in {open_price, high, low, close}:
-                    continue
-
-                points.append(
-                    PricePoint(
-                        date=date_str,
-                        open=open_price,
-                        high=high,
-                        low=low,
-                        close=close,
-                        volume=volume,
-                    )
-                )
-
-            if not points:
-                return None
-
-            # 限制返回的数据点数量
-            if len(points) > days:
-                points = points[-days:]
-
-            return HistoryData(
-                symbol=symbol,
-                days=len(points),
-                range_key=range_key,
-                data=points,
-                source="akshare",
-                timestamp=self._utc_now(),
-            )
-        except (asyncio.TimeoutError, Exception):
+            return await asyncio.to_thread(lambda: ticker.history(period=period, auto_adjust=False))
+        except Exception:
             return None
 
     async def _request_alpha_vantage(self, function: str, symbol: str, **extra_params) -> Optional[dict]:
@@ -547,11 +299,9 @@ class MarketDataService:
         if normalized in index_map:
             return index_map[normalized]
         if normalized.endswith(".HK"):
-            # Check for 4-digit numeric symbols (common in HK)
-            base = normalized[:-3]
-            if base.isdigit():
-                return f"{int(base)}.hk"
-            return f"{base.lower()}.hk"
+            # Stooq HK format uses no leading zeros: 0700.HK → 700.hk
+            code = normalized[:-3].lstrip("0") or "0"
+            return f"{code.lower()}.hk"
         if normalized.endswith(".SS") or normalized.endswith(".SZ"):
             return f"{normalized[:6].lower()}.cn"
         if normalized.endswith("-USD"):
@@ -617,18 +367,28 @@ class MarketDataService:
         if not rows:
             return None
 
+        # Filter out future dates (data quality issue from Stooq)
+        today = datetime.utcnow().date()
+        rows = [row for row in rows if datetime.strptime(row["Date"], "%Y-%m-%d").date() <= today]
+
+        print(f"[Stooq] Symbol: {symbol}, range_key: {range_key}, days: {days}, total_rows: {len(rows)}")
+
+        # Calculate target date based on range_key
         if range_key == "5y":
-            limit = 365 * 5
+            target_date = today - timedelta(days=365 * 5)
+            rows = [row for row in rows if datetime.strptime(row["Date"], "%Y-%m-%d").date() >= target_date]
         elif range_key == "1y":
-            limit = 365
+            target_date = today - timedelta(days=365)
+            rows = [row for row in rows if datetime.strptime(row["Date"], "%Y-%m-%d").date() >= target_date]
         elif range_key == "ytd":
             current_year = datetime.utcnow().year
             rows = [row for row in rows if row["Date"].startswith(str(current_year))]
-            limit = len(rows)
         else:
-            limit = days
+            # For custom days, take last N rows
+            rows = rows[-days:] if len(rows) > days else rows
 
-        selected = rows[-max(limit, 1):]
+        print(f"[Stooq] After filtering: {len(rows)} rows, date range: {rows[0]['Date'] if rows else 'N/A'} to {rows[-1]['Date'] if rows else 'N/A'}")
+        selected = rows
         points: List[PricePoint] = []
         for row in selected:
             open_price = self._coerce_float(row.get("Open"))
@@ -682,13 +442,20 @@ class MarketDataService:
         )
 
     async def _fetch_alpha_vantage_history(self, symbol: str, days: int, range_key: Optional[str] = None) -> Optional[HistoryData]:
-        outputsize = "full" if (range_key or "").lower() == "5y" or days > 100 else "compact"
+        outputsize = "full" if (range_key or "").lower() in ("5y", "ytd") or days > 100 else "compact"
         data = await self._request_alpha_vantage("TIME_SERIES_DAILY", symbol, outputsize=outputsize)
         series = data.get("Time Series (Daily)") if data else None
         if not series:
             return None
 
-        sorted_rows = sorted(series.items())[-days:]
+        # Filter for YTD if needed
+        if range_key == "ytd":
+            current_year = datetime.utcnow().year
+            filtered_series = {k: v for k, v in series.items() if k.startswith(str(current_year))}
+            sorted_rows = sorted(filtered_series.items())
+        else:
+            sorted_rows = sorted(series.items())[-days:]
+
         points: List[PricePoint] = []
         for trade_date, values in sorted_rows:
             open_price = self._coerce_float(values.get("1. open"))
@@ -766,12 +533,6 @@ class MarketDataService:
         return points
 
     async def get_price(self, symbol: str) -> MarketData:
-        """获取实时价格，优先使用 yfinance，A股使用 akshare。
-
-        数据源优先级：
-        - A股：akshare -> yfinance -> stooq -> alpha_vantage
-        - 港股/美股：yfinance -> stooq -> alpha_vantage
-        """
         start_time = datetime.utcnow()
         normalized = self.ticker_mapper.normalize(symbol)
         if not normalized:
@@ -785,22 +546,34 @@ class MarketDataService:
             result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
             return result
 
-        attempted_sources = []
+        # Try Finnhub first (fast API with key), then Stooq (works in China without VPN)
+        finnhub_quote = await self.finnhub_provider.get_quote(normalized)
+        if finnhub_quote and finnhub_quote.get("c"):
+            result = MarketData(
+                symbol=normalized,
+                price=finnhub_quote["c"],
+                currency="USD",
+                name=normalized,
+                asset_type=self._infer_asset_type(None, normalized),
+                source="finnhub",
+                timestamp=self._utc_now(),
+                latency_ms=(datetime.utcnow() - start_time).total_seconds() * 1000,
+            )
+            self._set_cache(cache_key, result.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
+            return result
 
-        # A股优先使用 akshare
-        if self._is_china_a_stock(normalized):
-            akshare_result = await self._fetch_akshare_price(normalized)
-            attempted_sources.append("akshare")
-            if akshare_result:
-                akshare_result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-                self._set_cache(cache_key, akshare_result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
-                return akshare_result
+        fallback = await self._fetch_stooq_quote(normalized)
+        if not fallback:
+            fallback = await self._fetch_alpha_vantage_quote(normalized)
+        if fallback:
+            fallback.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            self._set_cache(cache_key, fallback.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
+            return fallback
 
-        # 主数据源：yfinance
+        # Fallback to yfinance
         info = await self._fetch_yfinance_info(normalized)
-        attempted_sources.append("yfinance")
         if info:
-            price = self._coerce_float(info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose"))
+            price = self._coerce_float(info.get("currentPrice") or info.get("regularMarketPrice"))
             if price is not None:
                 result = MarketData(
                     symbol=normalized,
@@ -812,41 +585,18 @@ class MarketDataService:
                     timestamp=self._utc_now(),
                     latency_ms=(datetime.utcnow() - start_time).total_seconds() * 1000,
                 )
-                self._set_cache(cache_key, result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
+                self._set_cache(cache_key, result.model_dump(exclude={"cache_hit", "latency_ms"}), settings.CACHE_TTL_PRICE)
                 return result
 
-        # 备用数据源：stooq
-        stooq_result = await self._fetch_stooq_quote(normalized)
-        attempted_sources.append("stooq")
-        if stooq_result:
-            stooq_result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-            self._set_cache(cache_key, stooq_result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
-            return stooq_result
-
-        # 兜底数据源：alpha_vantage
-        av_result = await self._fetch_alpha_vantage_quote(normalized)
-        attempted_sources.append("alpha_vantage")
-        if av_result:
-            av_result.latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-            self._set_cache(cache_key, av_result.model_dump(exclude={"cache_hit", "latency_ms"}), self._get_dynamic_ttl(normalized, "price"))
-            return av_result
-
-        # 所有数据源都失败
         return MarketData(
             symbol=normalized,
             source="unavailable",
             timestamp=self._utc_now(),
-            error=f"all_sources_failed: {', '.join(attempted_sources)}",
+            error="Data unavailable from all sources",
             latency_ms=(datetime.utcnow() - start_time).total_seconds() * 1000,
         )
 
     async def get_history(self, symbol: str, days: int = 30, range_key: Optional[str] = None) -> HistoryData:
-        """获取历史数据，优先使用 yfinance，A股使用 akshare。
-
-        数据源优先级：
-        - A股：akshare -> yfinance -> stooq -> alpha_vantage
-        - 港股/美股：yfinance -> stooq -> alpha_vantage
-        """
         normalized = self.ticker_mapper.normalize(symbol)
         period, normalized_days = self._range_to_period(range_key, self._safe_days(days))
         cache_key = f"history:{normalized}:{range_key or normalized_days}"
@@ -854,21 +604,18 @@ class MarketDataService:
         if cached:
             return HistoryData(**cached)
 
-        attempted_sources = []
+        # Stooq for history (Finnhub candle requires paid plan)
+        fallback = await self._fetch_stooq_history(normalized, normalized_days, range_key=range_key)
+        if not fallback:
+            fallback = await self._fetch_alpha_vantage_history(normalized, normalized_days, range_key=range_key)
+        if fallback:
+            self._set_cache(cache_key, fallback.model_dump(), settings.CACHE_TTL_HISTORY)
+            return fallback
 
-        # A股优先使用 akshare
-        if self._is_china_a_stock(normalized):
-            akshare_result = await self._fetch_akshare_history(normalized, normalized_days, range_key=range_key)
-            attempted_sources.append("akshare")
-            if akshare_result and len(akshare_result.data) >= 2:
-                self._set_cache(cache_key, akshare_result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
-                return akshare_result
-
-        # 主数据源：yfinance
+        # Fallback to yfinance
         hist = await self._fetch_yfinance_history(normalized, period)
-        attempted_sources.append("yfinance")
         points = self._history_to_points(hist)
-        if points and len(points) >= 2:
+        if points:
             result = HistoryData(
                 symbol=normalized,
                 days=normalized_days,
@@ -877,30 +624,15 @@ class MarketDataService:
                 source="yfinance",
                 timestamp=self._utc_now(),
             )
-            self._set_cache(cache_key, result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
+            self._set_cache(cache_key, result.model_dump(), settings.CACHE_TTL_HISTORY)
             return result
 
-        # 备用数据源：stooq
-        stooq_result = await self._fetch_stooq_history(normalized, normalized_days, range_key=range_key)
-        attempted_sources.append("stooq")
-        if stooq_result and len(stooq_result.data) >= 2:
-            self._set_cache(cache_key, stooq_result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
-            return stooq_result
-
-        # 兜底数据源：alpha_vantage
-        av_result = await self._fetch_alpha_vantage_history(normalized, normalized_days, range_key=range_key)
-        attempted_sources.append("alpha_vantage")
-        if av_result and len(av_result.data) >= 2:
-            self._set_cache(cache_key, av_result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
-            return av_result
-
-        # 所有数据源都失败
         return HistoryData(
             symbol=normalized,
             days=normalized_days,
             range_key=range_key,
             data=[],
-            source=f"unavailable ({', '.join(attempted_sources)})",
+            source="unavailable",
             timestamp=self._utc_now(),
         )
 
@@ -949,7 +681,7 @@ class MarketDataService:
         # Try Alpha Vantage first, then yfinance as fallback
         fallback = await self._fetch_alpha_vantage_info(normalized)
         if fallback:
-            self._set_cache(cache_key, fallback.model_dump(by_alias=True), self._get_dynamic_ttl(normalized, "info"))
+            self._set_cache(cache_key, fallback.model_dump(by_alias=True), settings.CACHE_TTL_INFO)
             return fallback
 
         info = await self._fetch_yfinance_info(normalized)
@@ -967,43 +699,32 @@ class MarketDataService:
                 source="yfinance",
                 timestamp=self._utc_now(),
             )
-            self._set_cache(cache_key, result.model_dump(by_alias=True), self._get_dynamic_ttl(normalized, "info"))
+            self._set_cache(cache_key, result.model_dump(by_alias=True), settings.CACHE_TTL_INFO)
             return result
 
         return CompanyInfo(symbol=normalized, name=normalized or symbol, source="unavailable", timestamp=self._utc_now())
 
     async def get_metrics(self, symbol: str, range_key: str = "1y") -> RiskMetrics:
-        """计算风险指标：总收益、波动率、最大回撤、夏普比率。
-
-        计算方法：
-        - total_return: (终值 - 初值) / 初值 * 100
-        - volatility: 日收益率标准差 * √252 * 100 (年化)
-        - max_drawdown: 区间内最大的峰谷跌幅
-        - sharpe_ratio: (年化收益率 - 4%) / 年化波动率
-        """
         normalized = self.ticker_mapper.normalize(symbol)
-        cache_key = f"metrics:{normalized}:{range_key}"
-        cached = self._get_cache(cache_key)
-        if cached:
-            return RiskMetrics(**cached)
-
-        # 获取历史数据
         history = await self.get_history(normalized, days=RANGE_TO_DAYS.get(range_key, 365), range_key=range_key)
-
-        # 数据不足时返回错误
+        if len(history.data) < 2:
+            stooq_retry = await self._fetch_stooq_history(normalized, RANGE_TO_DAYS.get(range_key, 365), range_key=range_key)
+            if stooq_retry and len(stooq_retry.data) >= 2:
+                history = stooq_retry
+            else:
+                fallback_history = await self.get_history(normalized, days=365)
+                if len(fallback_history.data) >= 2:
+                    history = fallback_history
         if len(history.data) < 2:
             return RiskMetrics(
                 symbol=normalized,
                 range_key=range_key,
                 source=history.source,
                 timestamp=self._utc_now(),
-                error=f"数据不足：仅获取到 {len(history.data)} 个数据点，至少需要 2 个",
+                error="Insufficient history for metrics",
             )
 
-        # 提取收盘价
         closes = np.array([point.close for point in history.data], dtype=float)
-
-        # 计算日收益率
         returns = np.diff(closes) / closes[:-1]
         if returns.size == 0:
             return RiskMetrics(
@@ -1011,33 +732,19 @@ class MarketDataService:
                 range_key=range_key,
                 source=history.source,
                 timestamp=self._utc_now(),
-                error="无法计算收益率",
+                error="Insufficient returns for metrics",
             )
 
-        # 1. 总收益率
         total_return = ((closes[-1] / closes[0]) - 1.0) * 100
-
-        # 2. 年化波动率
-        volatility = float(np.std(returns, ddof=1)) * math.sqrt(252) * 100 if returns.size > 1 else 0.0
-
-        # 3. 最大回撤
         cumulative = np.cumprod(1.0 + returns)
         running_peak = np.maximum.accumulate(cumulative)
         drawdowns = (cumulative / running_peak) - 1.0
         max_drawdown = float(drawdowns.min()) * 100 if drawdowns.size else 0.0
+        volatility = float(np.std(returns, ddof=1)) * math.sqrt(252) * 100 if returns.size > 1 else 0.0
+        annualized_return = (float(np.prod(1.0 + returns)) ** (252 / max(len(returns), 1)) - 1.0) * 100
+        sharpe_ratio = (annualized_return / volatility) if volatility else None
 
-        # 4. 年化收益率
-        trading_days = len(returns)
-        if trading_days > 0:
-            annualized_return = (float(np.prod(1.0 + returns)) ** (252 / trading_days) - 1.0) * 100
-        else:
-            annualized_return = 0.0
-
-        # 5. 夏普比率（无风险利率假设为 4%）
-        risk_free_rate = 4.0
-        sharpe_ratio = ((annualized_return - risk_free_rate) / volatility) if volatility > 0 else None
-
-        result = RiskMetrics(
+        return RiskMetrics(
             symbol=normalized,
             range_key=range_key,
             annualized_volatility=round(volatility, 2),
@@ -1049,16 +756,11 @@ class MarketDataService:
             timestamp=self._utc_now(),
         )
 
-        self._set_cache(cache_key, result.model_dump(), self._get_dynamic_ttl(normalized, "history"))
-        return result
-
     async def compare_assets(self, symbols: Sequence[str], range_key: str = "1y") -> ComparisonData:
-        """对比多个资产的表现，返回价格、收益、波动率、最大回撤等指标。"""
         normalized_symbols = [self.ticker_mapper.normalize(symbol) for symbol in symbols[:4] if symbol]
         if not normalized_symbols:
             return ComparisonData(symbols=[], range_key=range_key, rows=[], chart=[], source="unavailable", timestamp=self._utc_now())
 
-        # 并行获取价格、指标和历史数据
         prices_task = [self.get_price(symbol) for symbol in normalized_symbols]
         metrics_task = [self.get_metrics(symbol, range_key=range_key) for symbol in normalized_symbols]
         history_task = [
@@ -1070,25 +772,32 @@ class MarketDataService:
             asyncio.gather(*history_task),
         )
 
-        # 构建对比表格
+        repaired_histories: List[HistoryData] = []
+        for symbol, history in zip(normalized_symbols, histories):
+            if history.data:
+                repaired_histories.append(history)
+                continue
+            fallback_history = await self._fetch_stooq_history(symbol, RANGE_TO_DAYS.get(range_key, 365), range_key=range_key)
+            repaired_histories.append(fallback_history or history)
+        histories = repaired_histories
+
         rows: List[ComparisonRow] = []
         for symbol, price, metric in zip(normalized_symbols, prices, metrics):
             rows.append(
                 ComparisonRow(
                     symbol=symbol,
-                    name=price.name if price.name else symbol,
-                    price=price.price if price.price is not None else None,
-                    total_return_pct=metric.total_return_pct if metric.total_return_pct is not None else None,
-                    annualized_volatility=metric.annualized_volatility if metric.annualized_volatility is not None else None,
-                    max_drawdown_pct=metric.max_drawdown_pct if metric.max_drawdown_pct is not None else None,
+                    name=price.name,
+                    price=price.price,
+                    total_return_pct=metric.total_return_pct,
+                    annualized_volatility=metric.annualized_volatility,
+                    max_drawdown_pct=metric.max_drawdown_pct,
                     source=f"{price.source}/{metric.source}",
                     timestamp=metric.timestamp,
                 )
             )
 
-        # 构建对比图表
         chart = self._build_comparison_chart(normalized_symbols, histories)
-        sources = {history.source for history in histories if history.source and history.source != "unavailable"}
+        sources = {history.source for history in histories if history.source}
         return ComparisonData(
             symbols=normalized_symbols,
             range_key=range_key,
@@ -1149,64 +858,39 @@ class MarketDataService:
         summary = self._build_market_summary(index_payload, signals, sector_payload)
         return MarketOverviewResponse(indices=index_payload, signals=signals, sectors=sector_payload, summary=summary)
 
-    async def _get_quote_with_change(self, symbol: str) -> tuple[Optional[float], Optional[float]]:
-        # First try finnhub if available
-        quote = await self.finnhub_provider.get_quote(symbol)
-        if quote and quote.get("c"):
-            return quote.get("c"), quote.get("dp")
-            
-        # Fallback to history (gets latest 5 days)
-        history = await self.get_history(symbol, days=5)
-        if history and history.data and len(history.data) >= 1:
-            current_price = history.data[-1].close
-            change_pct = None
-            if len(history.data) >= 2:
-                prev_close = history.data[-2].close
-                if prev_close and prev_close > 0:
-                    change_pct = ((current_price - prev_close) / prev_close) * 100.0
-            elif current_price and history.data[-1].open:
-                open_price = history.data[-1].open
-                if open_price > 0:
-                    change_pct = ((current_price - open_price) / open_price) * 100.0
-            return current_price, change_pct
-            
-        # Last resort: just get price
-        price_data = await self.get_price(symbol)
-        if price_data and price_data.price:
-            return price_data.price, None
-            
-        return None, None
-
     async def _build_index_snapshot(self, symbol: str, display_name: str) -> MarketIndexSnapshot:
-        price, change_pct = await self._get_quote_with_change(symbol)
+        quote = await self.finnhub_provider.get_quote(symbol)
+        price = quote.get("c") if quote else None
+        change_pct = quote.get("dp") if quote else None
         return MarketIndexSnapshot(
             symbol=symbol,
             name=display_name,
             price=price,
             change_pct=change_pct,
-            source="mixed",
+            source="finnhub",
             timestamp=self._utc_now(),
         )
 
     async def _build_sector_snapshot(self, symbol: str, display_name: str) -> SectorSnapshot:
-        _, change_pct = await self._get_quote_with_change(symbol)
+        quote = await self.finnhub_provider.get_quote(symbol)
+        change_pct = quote.get("dp") if quote else None
         return SectorSnapshot(
             name=display_name,
             symbol=symbol,
             change_pct=change_pct,
-            source="mixed",
+            source="finnhub",
             timestamp=self._utc_now(),
         )
 
     async def _build_market_signals(self) -> List[MarketSignal]:
         candidates = get_popular_stocks(limit=10)
-        # Fetch prices with history fallback
-        quotes = await asyncio.gather(*[self._get_quote_with_change(s) for s in candidates])
+        # Use Finnhub quotes for signals (fast, no history needed)
+        quotes = await asyncio.gather(*[self.finnhub_provider.get_quote(s) for s in candidates])
         signals: List[MarketSignal] = []
-        for symbol, (price, change_pct) in zip(candidates, quotes):
-            if price is None:
+        for symbol, quote in zip(candidates, quotes):
+            if not quote or not quote.get("c"):
                 continue
-            change_pct = change_pct if change_pct is not None else 0.0
+            change_pct = quote.get("dp") or 0.0
             signal_type = "price_spike"
             score = min(99, int(abs(change_pct) * 10))
             if score < 5:
@@ -1304,9 +988,9 @@ class MarketDataService:
         # Sort by published date (newest first)
         all_news.sort(key=lambda x: x.get("published_at") or "", reverse=True)
 
-        # Cache based on market status
+        # Cache for 1 hour
         if all_news:
-            self._set_cache(cache_key, all_news, ttl=self._get_dynamic_ttl(normalized, "news"))
+            self._set_cache(cache_key, all_news, ttl=3600)
 
         return all_news
 

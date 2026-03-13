@@ -25,8 +25,6 @@ class QueryRoute:
     symbols: List[str] = field(default_factory=list)
     days: Optional[int] = None
     range_key: Optional[str] = None
-    report_focus: bool = False
-    prefer_recent: bool = False
     requires_price: bool = False
     requires_history: bool = False
     requires_change: bool = False
@@ -37,69 +35,26 @@ class QueryRoute:
     requires_web: bool = False
     requires_sec: bool = False
     refuses_advice: bool = False
-    date: Optional[str] = None
 
 
 class QueryRouter:
     """Rule-based router that produces deterministic execution plans."""
 
-    SYMBOL_STOPWORDS = {
-        "ETF",
-        "YTD",
-        "SEC",
-        "PE",
-        "PB",
-        "PS",
-        "EPS",
-        "PEG",
-        "ROE",
-        "FCF",
-        "EV",
-        "EBITDA",
-        "RSI",
-        "MACD",
-        "BVPS",
-        "TTM",
-    }
-    CHINESE_ALIAS_MAP = {
-        "苹果": "AAPL",
-        "特斯拉": "TSLA",
-        "阿里巴巴": "9988.HK",
-        "腾讯": "0700.HK",
-        "英伟达": "NVDA",
-        "微软": "MSFT",
-        "亚马逊": "AMZN",
-        "谷歌": "GOOGL",
-        "茅台": "600519.SS",
-        "贵州茅台": "600519.SS",
-        "比亚迪": "002594.SZ",
-        "比特币": "BTC-USD",
-        "以太坊": "ETH-USD",
-        "纳指": "^IXIC",
-        "标普500": "^GSPC",
-        "道琼斯": "^DJI",
-        "波动率指数": "^VIX",
-        "美国国债": "TLT",
-        "债券": "BND",
-    }
-
     MARKET_KEYWORDS = {
-        "实时价格",
-        "当前价格",
+        "价格",
+        "股价",
         "行情",
         "走势",
         "涨跌",
-        "涨跌幅",
-        "图表",
-        "历史走势",
-        "价格",
-        "股价",
+        "涨幅",
+        "跌幅",
+        "市值",
+        "quote",
+        "price",
         "k线",
-        "history",
+        "历史",
         "chart",
         "trend",
-        "price",
-        "quote",
         "volume",
         "etf",
         "债券",
@@ -129,8 +84,8 @@ class QueryRouter:
         "财报",
         "消息",
         "影响",
-        "最新",
         "最近",
+        "最新",
         "today",
         "yesterday",
         "news",
@@ -138,57 +93,33 @@ class QueryRouter:
         "reason",
         "earnings",
     }
-    CURRENT_PRICE_KEYWORDS = {"当前", "现在", "实时", "最新价格", "现价", "today", "now"}
-    CHANGE_KEYWORDS = {"涨跌", "涨跌幅", "表现", "走势", "trend", "performance", "回报", "收益率"}
-    HISTORY_KEYWORDS = {
-        "历史",
-        "历史走势",
-        "图表",
-        "走势",
-        "chart",
-        "trend",
-        "今天",
-        "本周",
-        "近7天",
-        "近30天",
-        "近1年",
-        "今年以来",
-        "ytd",
-        "1y",
-        "5y",
-        "1年",
-        "5年",
-    }
-    INFO_KEYWORDS = {"市值", "市盈率", "市净率", "pe", "pb", "行业", "sector", "industry", "基本面", "信息"}
+    CURRENT_PRICE_KEYWORDS = {"当前", "现在", "实时", "最新价", "现价", "today", "now"}
+    CHANGE_KEYWORDS = {"涨跌", "涨幅", "跌幅", "表现", "走势", "trend", "performance", "回报", "收益率"}
+    HISTORY_KEYWORDS = {"历史", "k线", "chart", "走势", "trend", "ytd", "1年", "5年", "1y", "5y"}
+    INFO_KEYWORDS = {"市值", "市盈率", "pe", "行业", "sector", "industry", "基本面", "信息"}
     METRIC_KEYWORDS = {"波动率", "收益率", "最大回撤", "回撤", "volatility", "return", "drawdown", "sharpe"}
     REPORT_KEYWORDS = {"季度", "财报", "业绩", "earnings", "10-k", "10-q", "8-k", "filing", "sec", "edgar"}
     COMPARE_KEYWORDS = {"对比", "比较", "哪个好", "vs", "versus", "compare"}
-    RECENCY_KEYWORDS = {"最新", "最近", "近期", "today", "latest", "recent", "yesterday", "本周", "近"}
     ADVICE_KEYWORDS = {
+        "可以买",
+        "值得买吗",
+        "该买吗",
         "买入",
         "卖出",
         "推荐",
-        "预测",
-        "建议",
-        "应该买",
-        "适合投资",
-        "可以买",
-        "值得买",
+        "投资建议",
         "目标价",
+        "会涨吗",
+        "会跌吗",
         "should i buy",
         "buy or sell",
         "target price",
         "recommend",
     }
     RANGE_MAP = {
-        "今天": "1m",
-        "本周": "1m",
-        "近7天": "1m",
-        "近30天": "1m",
-        "近1年": "1y",
-        "今年以来": "ytd",
-        "今年": "ytd",
         "ytd": "ytd",
+        "年初至今": "ytd",
+        "今年以来": "ytd",
         "1年": "1y",
         "一年": "1y",
         "1y": "1y",
@@ -212,22 +143,17 @@ class QueryRouter:
     def classify(self, query: str) -> QueryRoute:
         cleaned = self._clean_query(query)
         lowered = cleaned.lower()
-        definition_intent = self._contains_any(cleaned, lowered, self.KNOWLEDGE_KEYWORDS)
-        symbols = self._extract_symbols(cleaned, definition_intent=definition_intent)
+        symbols = self._extract_symbols(cleaned)
         days = self._extract_days(cleaned)
-        date = self._extract_date(cleaned)
         range_key = self._extract_range(cleaned, lowered)
 
         has_market = self._contains_any(cleaned, lowered, self.MARKET_KEYWORDS) or bool(symbols)
         has_knowledge = self._contains_any(cleaned, lowered, self.KNOWLEDGE_KEYWORDS)
         has_news = self._contains_any(cleaned, lowered, self.NEWS_KEYWORDS)
         has_report = self._contains_any(cleaned, lowered, self.REPORT_KEYWORDS)
-        prefer_recent = self._contains_any(cleaned, lowered, self.RECENCY_KEYWORDS)
 
         if has_market and (has_news or has_report):
             route_type = QueryType.HYBRID
-        elif has_knowledge and not has_market and not has_report:
-            route_type = QueryType.KNOWLEDGE
         elif has_market:
             route_type = QueryType.MARKET
         elif has_news or has_report:
@@ -241,9 +167,6 @@ class QueryRouter:
             symbols=symbols,
             days=days,
             range_key=range_key,
-            report_focus=has_report,
-            prefer_recent=prefer_recent,
-            date=date,
         )
 
         route.requires_comparison = len(symbols) >= 2 or self._contains_any(cleaned, lowered, self.COMPARE_KEYWORDS)
@@ -261,12 +184,9 @@ class QueryRouter:
             route.requires_info = self._contains_any(cleaned, lowered, self.INFO_KEYWORDS)
         elif route_type == QueryType.KNOWLEDGE:
             route.requires_knowledge = True
-            route.requires_web = prefer_recent
-            route.requires_sec = has_report
         elif route_type == QueryType.NEWS:
             route.requires_web = True
             route.requires_sec = has_report
-            route.requires_knowledge = has_report or bool(symbols)
         elif route_type == QueryType.HYBRID:
             route.requires_price = bool(symbols)
             route.requires_change = bool(symbols)
@@ -276,13 +196,6 @@ class QueryRouter:
             route.requires_sec = has_report
             route.requires_knowledge = has_knowledge or has_report
 
-        if has_report and symbols:
-            route.requires_knowledge = True
-            route.requires_sec = True
-
-        if prefer_recent and route.requires_knowledge:
-            route.requires_web = True
-
         if route.requires_comparison:
             route.requires_history = True
             route.requires_metrics = True
@@ -291,56 +204,44 @@ class QueryRouter:
         if route.requires_metrics:
             route.requires_history = True
 
+        # When the user asks for change over an explicit N-day window (e.g. "最近7天涨跌"),
+        # also fetch full history so the frontend can render a price chart.
+        if route.requires_change and days is not None:
+            route.requires_history = True
+
         return route
 
     def _clean_query(self, query: str) -> str:
         lines = [line for line in query.splitlines() if not line.strip().startswith("[Hint:")]
         return "\n".join(lines).strip()
 
-    def _extract_symbols(self, query: str, definition_intent: bool = False) -> List[str]:
+    def _extract_symbols(self, query: str) -> List[str]:
         symbols = [TickerMapper.normalize(symbol) for symbol in QueryEnricher.extract_symbols(query)]
         if symbols:
-            if definition_intent:
-                symbols = [symbol for symbol in symbols if symbol.upper() not in self.SYMBOL_STOPWORDS]
             return list(dict.fromkeys(symbols))
 
         inline_symbols = re.findall(r"(?<![A-Za-z])([A-Z]{2,5}(?:\.[A-Z]{1,3})?|\^[A-Z]{1,5})(?![A-Za-z])", query)
-        stopwords = set(self.SYMBOL_STOPWORDS)
-        filtered = [symbol for symbol in inline_symbols if symbol.upper() not in stopwords]
-        if filtered:
-            return list(dict.fromkeys(TickerMapper.normalize(symbol) for symbol in filtered))
+        if inline_symbols:
+            return list(dict.fromkeys(TickerMapper.normalize(symbol) for symbol in inline_symbols))
 
         matched: List[str] = []
-        for alias, symbol in self.CHINESE_ALIAS_MAP.items():
+        for alias, symbol in TickerMapper.EXACT_MAP.items():
             if alias in query:
                 matched.append(symbol)
         return list(dict.fromkeys(matched))
 
     def _extract_days(self, query: str) -> Optional[int]:
-        if "今天" in query:
-            return 1
-        if "本周" in query or "近7天" in query:
-            return 7
-        if "近30天" in query:
-            return 30
-        if "近1年" in query:
-            return 365
-
-        day_match = re.search(r"(?:近)?(\d+)\s*天", query)
+        day_match = re.search(r"(\d+)\s*天", query)
         if day_match:
             return int(day_match.group(1))
 
-        week_match = re.search(r"(?:近)?(\d+)\s*周", query)
+        week_match = re.search(r"(\d+)\s*周", query)
         if week_match:
             return int(week_match.group(1)) * 7
 
-        month_match = re.search(r"(?:近)?(\d+)\s*(?:个月|月)", query)
+        month_match = re.search(r"(\d+)\s*(月|个月)", query)
         if month_match:
             return int(month_match.group(1)) * 30
-
-        year_match = re.search(r"(?:近)?(\d+)\s*年", query)
-        if year_match:
-            return int(year_match.group(1)) * 365
 
         return None
 
@@ -348,19 +249,6 @@ class QueryRouter:
         for key, value in self.RANGE_MAP.items():
             if key in original or key in lowered:
                 return value
-        return None
-
-    def _extract_date(self, query: str) -> Optional[str]:
-        # Match YYYY-MM-DD
-        iso_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", query)
-        if iso_match:
-            return iso_match.group(0)
-        # Match X月X日
-        cn_match = re.search(r"(\d{1,2})月(\d{1,2})[日号]?", query)
-        if cn_match:
-            month = cn_match.group(1).zfill(2)
-            day = cn_match.group(2).zfill(2)
-            return f"{month}-{day}"
         return None
 
     @staticmethod

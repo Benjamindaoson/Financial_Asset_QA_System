@@ -177,11 +177,6 @@ class Document(BaseModel):
     content: str
     source: str
     score: float
-    title: Optional[str] = None
-    section: Optional[str] = None
-    chunk_id: Optional[str] = None
-    retrieval_stage: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
 
 
 class KnowledgeResult(BaseModel):
@@ -189,8 +184,6 @@ class KnowledgeResult(BaseModel):
 
     documents: List[Document]
     total_found: int
-    query: Optional[str] = None
-    retrieval_meta: Optional[Dict[str, Any]] = None
 
 
 class SearchResult(BaseModel):
@@ -215,7 +208,6 @@ class ChatRequest(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=500)
     session_id: Optional[str] = None
-    model_name: Optional[str] = None
 
 
 class Source(BaseModel):
@@ -229,20 +221,19 @@ class Source(BaseModel):
 class StructuredBlock(BaseModel):
     """Rich UI block emitted with the final answer."""
 
-    type: Literal["bullets", "table", "chart", "warning", "quote"]
+    type: Literal["bullets", "table", "chart", "warning", "quote", "analysis", "key_metrics"]
     title: str
     data: Dict[str, Any]
-    supporting_chunks: Optional[List[Dict[str, Any]]] = None
 
 
 class SSEEvent(BaseModel):
     """Server-Sent Event."""
 
-    type: Literal["tool_start", "tool_data", "chunk", "done", "error", "model_selected", "blocks"]
+    type: Literal["tool_start", "tool_data", "chunk", "analysis_chunk", "done", "error", "model_selected"]
     name: Optional[str] = None
     display: Optional[str] = None
     tool: Optional[str] = None
-    data: Optional[Any] = None
+    data: Optional[dict] = None
     text: Optional[str] = None
     verified: Optional[bool] = None
     sources: Optional[List[Source]] = None
@@ -264,8 +255,6 @@ class HealthResponse(BaseModel):
     version: str
     timestamp: str
     components: dict
-    reason: Optional[str] = None
-    available_features: Optional[List[str]] = None
 
 
 class ChartResponse(BaseModel):
@@ -294,82 +283,3 @@ class ToolResult(BaseModel):
     data_source: str
     cache_hit: bool
     error_message: Optional[str] = None
-
-
-# ============================================================================
-# Layered Attribution System Models
-# ============================================================================
-
-
-class DataPoint(BaseModel):
-    """单个数据点"""
-    metric: str  # "price", "change_pct", "volume"
-    value: float
-    unit: str
-    timestamp: str
-    source: str
-    confidence: Optional[str] = None
-
-
-class Event(BaseModel):
-    """Time-bound event with attribution."""
-
-    date: str = Field(..., description="Event date (YYYY-MM-DD)")
-    title: str = Field(..., description="Event title")
-    description: Optional[str] = Field(None, description="Event description")
-    source: str = Field(..., description="Source of the event information")
-    url: Optional[str] = Field(None, description="Reference URL")
-
-
-class Factor(BaseModel):
-    """Causal or correlational factor with explanation."""
-
-    name: str = Field(..., description="Factor name")
-    impact: Literal["positive", "negative", "neutral"] = Field(..., description="Impact direction")
-    strength: Optional[Literal["strong", "moderate", "weak"]] = Field(None, description="Impact strength")
-    explanation: str = Field(..., description="Explanation of the factor's impact")
-    sources: List[str] = Field(default_factory=list, description="Supporting sources")
-
-
-class FactLayer(BaseModel):
-    """事实层：客观数据平衡"""
-    data_points: List[DataPoint] = Field(default_factory=list)
-    timestamp: str
-    sources: List[Source] = Field(default_factory=list)
-    summary: Optional[str] = None
-
-
-class ContextLayer(BaseModel):
-    """Context layer: background information and related events."""
-
-    events: List[Event] = Field(default_factory=list, description="Related events")
-    background: Optional[str] = Field(None, description="Background context")
-    market_conditions: Optional[str] = Field(None, description="Current market conditions")
-
-
-class AttributionLayer(BaseModel):
-    """归因层：因果推理"""
-    primary_factors: List[Factor] = Field(default_factory=list)
-    confidence: str  # "high", "medium", "low"
-    reasoning: str
-
-
-class DisclaimerLayer(BaseModel):
-    """免责层"""
-    text: str
-    risk_level: str  # "high", "medium", "low"
-    limitations: List[str] = Field(default_factory=list)
-    risks: List[str] = Field(default_factory=list)
-
-
-class LayeredResponse(BaseModel):
-    """Complete layered response with fact/context/attribution/disclaimer separation."""
-
-    query: str = Field(..., description="Original user query")
-    answer: str = Field(..., description="Natural language answer")
-    fact_layer: Optional[FactLayer] = Field(None, description="Objective facts with attribution")
-    context_layer: Optional[ContextLayer] = Field(None, description="Background and events")
-    attribution_layer: Optional[AttributionLayer] = Field(None, description="Causal analysis")
-    disclaimer_layer: Optional[DisclaimerLayer] = Field(None, description="Limitations and risks")
-    timestamp: str = Field(..., description="Response generation timestamp")
-    request_id: Optional[str] = Field(None, description="Request tracking ID")

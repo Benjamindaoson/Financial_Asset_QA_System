@@ -96,62 +96,6 @@ class TestModelsEndpoint:
         assert data["models"][0]["name"] == "deepseek-chat"
 
 
-class TestRAGEndpoints:
-    @patch("app.api.routes.agent")
-    @pytest.mark.asyncio
-    async def test_rag_status(self, mock_agent, client):
-        mock_agent.rag_pipeline.get_status.return_value = {
-            "sources": 5,
-            "chunks": 24,
-            "vector_index_count": 24,
-            "bm25_ready": True,
-        }
-
-        response = await client.get("/api/rag/status")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["sources"] == 5
-        assert data["chunks"] == 24
-        assert data["bm25_ready"] is True
-
-    @patch("app.api.routes.agent")
-    @pytest.mark.asyncio
-    async def test_rag_search(self, mock_agent, client):
-        from app.models.schemas import KnowledgeResult, Document
-
-        mock_agent.rag_pipeline.search = AsyncMock(
-            return_value=KnowledgeResult(
-                documents=[
-                    Document(
-                        content="市盈率是衡量股票估值的常用指标。",
-                        source="valuation_metrics.md",
-                        score=0.92,
-                        title="估值指标",
-                        section="市盈率",
-                        retrieval_stage="hybrid_rerank",
-                    )
-                ],
-                total_found=1,
-                query="什么是市盈率？",
-            )
-        )
-        mock_agent.rag_pipeline.get_status.return_value = {
-            "sources": 5,
-            "chunks": 24,
-            "vector_index_count": 24,
-            "bm25_ready": True,
-        }
-
-        response = await client.get("/api/rag/search?query=什么是市盈率")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_found"] == 1
-        assert data["documents"][0]["source"] == "valuation_metrics.md"
-        assert data["status"]["bm25_ready"] is True
-
-
 class TestChartEndpoint:
     @patch("app.api.routes.market_service")
     @pytest.mark.asyncio

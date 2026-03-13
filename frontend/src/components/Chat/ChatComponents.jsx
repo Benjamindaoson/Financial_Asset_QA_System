@@ -1,13 +1,6 @@
+import { useState } from "react";
 import { Chart } from "../Chart";
 import { C, F } from "../../theme";
-import {
-  formatCellValue,
-  getColumnLabel,
-  getMetricLabel,
-  getUnitLabel,
-  getChangeColor,
-  getTrendIcon,
-} from "../../utils/formatters";
 
 export function StreamingText({ text }) {
   return (
@@ -28,72 +21,104 @@ export function StreamingText({ text }) {
   );
 }
 
+const BLOCK_ORDER = {
+  chart: 1,
+  key_metrics: 2,
+  analysis: 3,
+  table: 4,
+  quote: 5,
+  bullets: 6,
+  warning: 7,
+  source: 8,
+  trace: 9,
+};
+
 export function ResponseBlocks({ blocks = [] }) {
   if (!blocks.length) {
     return null;
   }
 
+  const sorted = [...blocks].sort(
+    (a, b) => (BLOCK_ORDER[a.type] || 99) - (BLOCK_ORDER[b.type] || 99)
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {blocks.map((block, index) => (
+      {sorted.map((block, index) => (
         <Block key={`${block.type}-${index}`} block={block} />
       ))}
     </div>
   );
 }
 
-// 智能高亮 bullet 项中的数据
-function BulletItem({ text }) {
-  // 匹配百分比、价格、数字等
-  const parts = text.split(/(\+?\-?\d+\.?\d*%?|\$\d+\.?\d*|[↑↓])/g);
-
-  return (
-    <span>
-      {parts.map((part, i) => {
-        // 百分比
-        if (part.match(/^[\+\-]?\d+\.?\d*%$/)) {
-          const value = parseFloat(part);
-          return (
-            <span key={i} style={{ color: getChangeColor(value), fontWeight: 600 }}>
-              {part}
-            </span>
-          );
-        }
-        // 价格
-        if (part.match(/^\$\d+\.?\d*$/)) {
-          return (
-            <span key={i} style={{ color: C.accent, fontWeight: 600 }}>
-              {part}
-            </span>
-          );
-        }
-        // 箭头
-        if (part === "↑" || part === "↓") {
-          return (
-            <span key={i} style={{ color: part === "↑" ? "#16A34A" : "#DC2626", fontWeight: 700, fontSize: 14 }}>
-              {part}
-            </span>
-          );
-        }
-        return <span key={i}>{part}</span>;
-      })}
-    </span>
-  );
-}
-
 function Block({ block }) {
+  if (block.type === "key_metrics") {
+    const d = block.data || {};
+    const isUp = (d.change_pct ?? d.change ?? 0) >= 0;
+    const changeColor = isUp ? "#16a34a" : "#dc2626";
+    const arrow = isUp ? "▲" : "▼";
+    const hasPeriodChange = d.change_pct != null;
+    const hasOHLCV = d.open != null || d.high != null || d.low != null;
+
+    return (
+      <div style={{ ...panelStyle, padding: "14px 16px" }}>
+        {/* Price row */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: "1.75rem", fontWeight: 800, color: C.text, fontFamily: F.m, letterSpacing: "-0.5px" }}>
+            {d.currency && d.currency !== "USD" ? d.currency + " " : "$"}
+            {d.price != null ? d.price.toFixed(2) : (d.end_price != null ? d.end_price.toFixed(2) : "—")}
+          </span>
+          {hasPeriodChange && (
+            <span style={{ fontSize: "0.95rem", color: changeColor, fontWeight: 700 }}>
+              {arrow}{" "}
+              {d.change != null ? `${d.change > 0 ? "+" : ""}${d.change.toFixed(2)} ` : ""}
+              ({d.change_pct > 0 ? "+" : ""}{d.change_pct.toFixed(2)}%
+              {d.period_days && d.period_days > 1 ? `, ${d.period_days}日` : ""})
+            </span>
+          )}
+          {d.trend && (
+            <span style={{
+              fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "3px 8px",
+              background: d.trend === "上涨" ? "#DCFCE7" : d.trend === "下跌" ? "#FEE2E2" : "#F1F5F9",
+              color: d.trend === "上涨" ? "#166534" : d.trend === "下跌" ? "#991B1B" : "#475569",
+              fontFamily: F.m,
+            }}>
+              {d.trend}
+            </span>
+          )}
+        </div>
+
+        {/* OHLCV row */}
+        {hasOHLCV && (
+          <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: "0.82rem", color: C.ts, flexWrap: "wrap" }}>
+            {d.open != null && <span>开 <b style={{ color: C.text }}>{d.open.toFixed(2)}</b></span>}
+            {d.high != null && <span>高 <b style={{ color: "#16a34a" }}>{d.high.toFixed(2)}</b></span>}
+            {d.low != null && <span>低 <b style={{ color: "#dc2626" }}>{d.low.toFixed(2)}</b></span>}
+            {d.volume != null && (
+              <span>量 <b style={{ color: C.text }}>{d.volume >= 1e6 ? `${(d.volume / 1e6).toFixed(1)}M` : d.volume.toLocaleString()}</b></span>
+            )}
+          </div>
+        )}
+
+        {/* Period summary row */}
+        {d.start_price != null && d.end_price != null && d.period_days && (
+          <div style={{ marginTop: 6, fontSize: "0.8rem", color: C.ts }}>
+            {d.period_days}日区间：{d.start_price.toFixed(2)} → {d.end_price.toFixed(2)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (block.type === "bullets") {
     return (
       <div style={panelStyle}>
         <div style={panelTitleStyle}>{block.title}</div>
         <ul style={{ margin: 0, paddingLeft: 18, color: C.text, fontSize: 12.5, lineHeight: 1.7 }}>
           {(block.data?.items || []).map((item, index) => (
-            <li key={index}>
-              <BulletItem text={item} />
-            </li>
+            <li key={index}>{item}</li>
           ))}
         </ul>
-        <SupportEvidence items={block.supporting_chunks} />
       </div>
     );
   }
@@ -103,12 +128,12 @@ function Block({ block }) {
       <div style={panelStyle}>
         <div style={panelTitleStyle}>{block.title}</div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr>
                 {(block.data?.columns || []).map((column) => (
                   <th key={column} style={tableHeadStyle}>
-                    {getColumnLabel(column)}
+                    {column}
                   </th>
                 ))}
               </tr>
@@ -116,28 +141,16 @@ function Block({ block }) {
             <tbody>
               {(block.data?.rows || []).map((row, rowIndex) => (
                 <tr key={rowIndex}>
-                  {(block.data?.columns || []).map((column) => {
-                    const rawValue = row?.[column];
-                    const isMetricColumn = column === "metric";
-                    const isUnitColumn = column === "unit";
-                    const displayValue = isMetricColumn ? getMetricLabel(rawValue) : isUnitColumn ? getUnitLabel(rawValue) : formatCellValue(rawValue, column);
-                    const isPercentage = column.includes("pct") || column.includes("return") || column.includes("volatility") || column.includes("drawdown");
-                    const color = isPercentage ? getChangeColor(rawValue) : C.text;
-                    const icon = isPercentage && rawValue !== null && rawValue !== undefined ? getTrendIcon(rawValue) : "";
-
-                    return (
-                      <td key={column} style={{ ...tableCellStyle, color }}>
-                        {displayValue}
-                        {icon && <span style={{ marginLeft: 4, fontSize: 13, fontWeight: 700 }}>{icon}</span>}
-                      </td>
-                    );
-                  })}
+                  {(block.data?.columns || []).map((column) => (
+                    <td key={column} style={tableCellStyle}>
+                      {row?.[column] ?? "-"}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <SupportEvidence items={block.supporting_chunks} />
       </div>
     );
   }
@@ -146,15 +159,28 @@ function Block({ block }) {
     const chartType = block.data?.chart_type === "comparison" ? "comparison" : "history";
     const symbol = block.data?.symbol;
     const series = block.data?.series || [];
-    return <Chart symbol={symbol} chartType={chartType} embeddedSeries={series} rangeKey={block.data?.range_key || "1y"} />;
+    const defaultRange = block.data?.default_range || null;
+    return (
+      <Chart
+        symbol={symbol}
+        chartType={chartType}
+        embeddedSeries={series}
+        rangeKey={block.data?.range_key || "1y"}
+        defaultRange={defaultRange}
+      />
+    );
   }
 
   if (block.type === "quote") {
+    // Strip YAML frontmatter from quote content
+    const cleanContent = (block.data?.text || '')
+      .replace(/^-?\s*---\s*\n[\s\S]*?\n---\s*\n/gm, '')
+      .trim();
+
     return (
       <div style={{ ...panelStyle, background: "#FAFCFF", borderColor: "#D6E4F7" }}>
         <div style={panelTitleStyle}>{block.title}</div>
-        <SimpleMarkdown text={block.data?.text} />
-        <SupportEvidence items={block.supporting_chunks} />
+        <div style={{ fontSize: 12.5, lineHeight: 1.8, whiteSpace: "pre-wrap", color: C.text }}>{cleanContent}</div>
       </div>
     );
   }
@@ -168,7 +194,20 @@ function Block({ block }) {
             <li key={index}>{item}</li>
           ))}
         </ul>
-        <SupportEvidence items={block.supporting_chunks} />
+      </div>
+    );
+  }
+
+  if (block.type === "analysis") {
+    return (
+      <div style={analysisBlockStyle}>
+        <div style={analysisBadgeStyle}>{block.title || "AI 分析"}</div>
+        <div style={analysisContentStyle}>
+          <MarkdownText text={block.data?.text || ""} />
+        </div>
+        <div style={analysisDisclaimerStyle}>
+          以上分析由 AI 基于公开数据生成，不构成投资建议
+        </div>
       </div>
     );
   }
@@ -176,73 +215,90 @@ function Block({ block }) {
   return null;
 }
 
-function SupportEvidence({ items = [] }) {
-  if (!items?.length) {
-    return null;
+function MarkdownText({ text }) {
+  // Simple markdown parser for basic formatting
+  const lines = text.split("\n");
+  const elements = [];
+  let currentParagraph = [];
+  let inList = false;
+  let listItems = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      elements.push(
+        <p key={`p-${elements.length}`} style={{ margin: "0 0 12px 0" }}>
+          {parseInlineMarkdown(currentParagraph.join(" "))}
+        </p>
+      );
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} style={{ margin: "0 0 12px 0", paddingLeft: 20 }}>
+          {listItems.map((item, idx) => (
+            <li key={idx} style={{ marginBottom: 4 }}>
+              {parseInlineMarkdown(item)}
+            </li>
+          ))}
+        </ul>
+      );
+      listItems = [];
+      inList = false;
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+
+    // List item
+    if (trimmed.match(/^[-*]\s+/)) {
+      flushParagraph();
+      inList = true;
+      listItems.push(trimmed.replace(/^[-*]\s+/, ""));
+    }
+    // Empty line
+    else if (trimmed === "") {
+      flushList();
+      flushParagraph();
+    }
+    // Regular text
+    else {
+      if (inList) {
+        flushList();
+      }
+      currentParagraph.push(trimmed);
+    }
+  });
+
+  flushList();
+  flushParagraph();
+
+  return <div>{elements}</div>;
+}
+
+function parseInlineMarkdown(text) {
+  // Parse bold **text**
+  const parts = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    if (boldMatch) {
+      const before = remaining.substring(0, boldMatch.index);
+      if (before) parts.push(<span key={key++}>{before}</span>);
+      parts.push(<strong key={key++}>{boldMatch[1]}</strong>);
+      remaining = remaining.substring(boldMatch.index + boldMatch[0].length);
+    } else {
+      parts.push(<span key={key++}>{remaining}</span>);
+      break;
+    }
   }
 
-  return (
-    <details style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${C.border}` }}>
-      <summary
-        style={{
-          cursor: "pointer",
-          listStyle: "none",
-          userSelect: "none",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "4px 10px",
-          borderRadius: 999,
-          background: "#F8FAFC",
-          border: `1px solid ${C.border}`,
-          fontSize: 10.5,
-          fontWeight: 800,
-          color: C.ts,
-          fontFamily: F.m,
-        }}
-      >
-        证据/来源
-        <span style={{ fontSize: 10, fontWeight: 700, color: C.td }}>({items.length})</span>
-        <span style={{ fontSize: 10, color: C.td }}>点击展开</span>
-      </summary>
-
-      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.map((item, index) => (
-          <div
-            key={`${item.title || item.source}-${index}`}
-            style={{
-              background: "#F8FAFC",
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              padding: "8px 10px",
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 800, color: C.text }}>
-              {[item.title, item.section].filter(Boolean).join(" / ") || item.source || "证据"}
-            </div>
-            <div style={{ fontSize: 10.5, color: C.ts, marginTop: 2 }}>
-              {[item.source_type, item.chunk_type, item.asset_code, item.date].filter(Boolean).join(" | ")}
-            </div>
-            {item.snippet ? (
-              <div style={{ marginTop: 4 }}>
-                <SimpleMarkdown text={item.snippet} fontSize={11.5} />
-              </div>
-            ) : null}
-            {item.url && (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: C.accent, textDecoration: "none", fontSize: 10.5, marginTop: 4, display: "inline-block" }}
-              >
-                打开原文
-              </a>
-            )}
-          </div>
-        ))}
-      </div>
-    </details>
-  );
+  return parts.length > 0 ? parts : text;
 }
 
 export function ConfidenceBadge({ confidence }) {
@@ -250,36 +306,29 @@ export function ConfidenceBadge({ confidence }) {
     return null;
   }
 
-  const palette = {
-    high: { bg: "#DCFCE7", color: "#166534", icon: "✓", label: "高" },
-    medium: { bg: "#FEF3C7", color: "#92400E", icon: "◐", label: "中" },
-    low: { bg: "#FEE2E2", color: "#991B1B", icon: "!", label: "低" },
+  const getConfidenceLabel = (score) => {
+    if (score >= 70) return { text: '数据充分', color: '#16a34a', bg: '#DCFCE7' };
+    if (score >= 40) return { text: '数据参考', color: '#2563eb', bg: '#DBEAFE' };
+    return null; // Don't show for low confidence
   };
-  const style = palette[confidence.level] || palette.medium;
+
+  const label = getConfidenceLabel(confidence.score);
+  if (!label) return null;
 
   return (
-    <div
+    <span
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 700,
-        borderRadius: 8,
-        padding: "6px 12px",
-        background: style.bg,
-        color: style.color,
+        borderRadius: 999,
+        padding: "4px 8px",
+        background: label.bg,
+        color: label.color,
         fontFamily: F.m,
-        border: `1.5px solid ${style.color}20`,
-        boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
       }}
     >
-      <span style={{ fontSize: 14 }}>{style.icon}</span>
-      <span>置信度: {style.label}</span>
-      {confidence.score !== undefined && (
-        <span style={{ fontSize: 10, opacity: 0.8 }}>({confidence.score})</span>
-      )}
-    </div>
+      {label.text}
+    </span>
   );
 }
 
@@ -288,56 +337,39 @@ export function SourcesPanel({ items = [] }) {
     return null;
   }
 
-  return (
-    <details>
-      <summary
-        style={{
-          cursor: "pointer",
-          listStyle: "none",
-          userSelect: "none",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "4px 10px",
-          borderRadius: 999,
-          background: "#F8FAFC",
-          border: `1px solid ${C.border}`,
-          fontSize: 10.5,
-          fontWeight: 800,
-          color: C.ts,
-          fontFamily: F.m,
-        }}
-      >
-        数据来源
-        <span style={{ fontSize: 10, fontWeight: 700, color: C.td }}>({items.length})</span>
-        <span style={{ fontSize: 10, color: C.td }}>点击展开</span>
-      </summary>
+  // Get unique source names
+  const sourceNames = [...new Set(items.map(s => s.name))];
 
-      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.map((source, index) => (
-          <div
-            key={`${source.name}-${source.timestamp}-${index}`}
-            style={{
-              fontSize: 10.5,
-              padding: "6px 8px",
-              borderRadius: 10,
-              background: C.bg,
-              border: `1px solid ${C.border}`,
-              color: C.ts,
-              fontFamily: F.m,
-            }}
-          >
-            <div style={{ color: C.accent, marginBottom: 2 }}>{source.name}</div>
-            <div>{formatTimestamp(source.timestamp)}</div>
-            {source.url && (
-              <a href={source.url} target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: "none" }}>
-                打开链接
-              </a>
-            )}
-          </div>
-        ))}
-      </div>
-    </details>
+  // Get the most recent timestamp
+  const latestTimestamp = items.reduce((latest, source) => {
+    const sourceTime = new Date(source.timestamp).getTime();
+    const latestTime = new Date(latest).getTime();
+    return sourceTime > latestTime ? source.timestamp : latest;
+  }, items[0].timestamp);
+
+  const formatTimestamp = (ts) => {
+    try {
+      const date = new Date(ts);
+      return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+    } catch {
+      return ts;
+    }
+  };
+
+  return (
+    <div
+      style={{
+        fontSize: 10.5,
+        padding: "6px 10px",
+        borderRadius: 8,
+        background: C.bg,
+        border: `1px solid ${C.border}`,
+        color: C.ts,
+        fontFamily: F.m,
+      }}
+    >
+      数据来源：{sourceNames.join(' · ')} | 更新时间：{formatTimestamp(latestTimestamp)}
+    </div>
   );
 }
 
@@ -396,8 +428,7 @@ const panelStyle = {
   background: C.white,
   borderRadius: 12,
   border: `1px solid ${C.border}`,
-  padding: "14px 16px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  padding: "12px 14px",
 };
 
 const panelTitleStyle = {
@@ -411,85 +442,51 @@ const panelTitleStyle = {
 
 const tableHeadStyle = {
   textAlign: "left",
-  padding: "10px 12px",
-  borderBottom: `2px solid ${C.border}`,
+  padding: "8px 10px",
+  borderBottom: `1px solid ${C.border}`,
   color: C.ts,
   fontWeight: 700,
   fontFamily: F.m,
-  fontSize: 12,
-  background: "#F8FAFC",
 };
 
 const tableCellStyle = {
-  padding: "10px 12px",
+  padding: "8px 10px",
   borderBottom: `1px solid ${C.borderL}`,
   color: C.text,
-  fontSize: 13,
-  whiteSpace: "nowrap",
 };
 
-// --- New Helper Components for Markdown Rendering ---
+const analysisBlockStyle = {
+  background: "#FAFCFF",
+  borderRadius: 12,
+  border: "1px solid #D6E4F7",
+  padding: "18px 18px 14px",
+  position: "relative",
+};
 
-function SimpleMarkdown({ text, fontSize = 12.5 }) {
-  if (!text) return null;
-  
-  // Split by double newline for paragraphs to separate distinct blocks
-  const paragraphs = text.split(/\n\n+/);
-  
-  return (
-    <div style={{ fontSize, lineHeight: 1.6, color: C.text }}>
-      {paragraphs.map((para, i) => {
-        const trimmed = para.trim();
-        if (!trimmed) return null;
+const analysisBadgeStyle = {
+  position: "absolute",
+  top: -9,
+  left: 12,
+  background: C.purpleL,
+  color: C.purple,
+  fontSize: 9.5,
+  fontWeight: 700,
+  padding: "2px 8px",
+  borderRadius: 8,
+  border: "1px solid #DDD6FE",
+};
 
-        // Check if paragraph is a header (starts with #)
-        if (trimmed.startsWith('#')) {
-             const match = trimmed.match(/^#+/);
-             const level = match ? match[0].length : 0;
-             const content = trimmed.replace(/^#+\s*/, '');
-             const size = level === 1 ? fontSize + 3 : level === 2 ? fontSize + 1.5 : fontSize + 0.5;
-             return <div key={i} style={{fontWeight: 700, fontSize: size, margin: '8px 0 4px', color: C.ts}}>{content}</div>;
-        }
-        
-        // Handle lists within paragraph
-        if (trimmed.includes('\n- ') || trimmed.startsWith('- ')) {
-            const lines = trimmed.split('\n');
-            return (
-                <div key={i} style={{marginBottom: 8}}>
-                    {lines.map((line, j) => {
-                        const lineTrimmed = line.trim();
-                        if (lineTrimmed.startsWith('- ')) {
-                            return (
-                                <div key={j} style={{display: 'flex', gap: 6, marginLeft: 8}}>
-                                    <span style={{color: C.accent, fontWeight: "bold"}}>•</span>
-                                    <span style={{flex: 1}}><FormattedText text={lineTrimmed.substring(2)} /></span>
-                                </div>
-                            );
-                        }
-                        return <div key={j}><FormattedText text={line} /></div>;
-                    })}
-                </div>
-            );
-        }
+const analysisContentStyle = {
+  fontSize: 13,
+  lineHeight: 1.85,
+  color: C.text,
+};
 
-        return <div key={i} style={{marginBottom: 8, whiteSpace: "pre-wrap"}}><FormattedText text={para} /></div>;
-      })}
-    </div>
-  );
-}
-
-function FormattedText({ text }) {
-  if (!text) return null;
-  // Handle bold **text**
-  const parts = text.split(/(\*\*.*?\*\*)/g);
-  return (
-    <span>
-      {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} style={{fontWeight: 700, color: C.ts}}>{part.slice(2, -2)}</strong>;
-        }
-        return part;
-      })}
-    </span>
-  );
-}
+const analysisDisclaimerStyle = {
+  fontSize: 9.5,
+  color: C.td,
+  marginTop: 12,
+  paddingTop: 10,
+  borderTop: `1px solid ${C.borderL}`,
+  fontStyle: "italic",
+};

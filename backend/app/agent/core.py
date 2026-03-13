@@ -768,7 +768,7 @@ class AgentCore:
             if tool_plan is None:
                 logger.info("[AgentCore.run] Building tool plan from route")
                 tool_plan = await self._build_tool_plan(route)
-                logger.info(f"[AgentCore.run] Tool plan built: {[step['name'] for step in tool_plan] if tool_plan else []}")
+                logger.info(f"[AgentCore.run] Tool plan built: {[[step['name'] for step in stage] for stage in tool_plan] if tool_plan else []}")
 
             stages = tool_plan if tool_plan and isinstance(tool_plan[0], list) else [tool_plan]
             logger.info(f"[AgentCore.run] Executing {len(stages)} stages")

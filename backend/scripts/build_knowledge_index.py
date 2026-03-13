@@ -68,10 +68,8 @@ def build_index():
     logger.info("初始化RAG pipeline...")
     pipeline = HybridRAGPipeline()
 
-    # 确保使用中文embedding模型
-    logger.info("加载中文embedding模型...")
-    pipeline._ensure_embedding_model()
-    logger.info(f"Embedding模型: {pipeline.embedding_model}")
+    # 不使用自定义embedding，让ChromaDB使用默认的embedding函数
+    logger.info("使用ChromaDB默认embedding函数...")
 
     # 加载文档
     logger.info("加载文档到向量数据库...")
@@ -110,20 +108,14 @@ def build_index():
             logger.error(f"处理文件失败 {md_file.name}: {e}")
             continue
 
-    # 批量生成embeddings并添加到数据库
+    # 批量添加到ChromaDB（让ChromaDB自动生成embeddings）
     if all_chunks:
-        logger.info(f"生成 {len(all_chunks)} 个文档的embeddings...")
+        logger.info(f"添加 {len(all_chunks)} 个文档到向量数据库...")
         try:
-            # 使用pipeline的embedding模型生成向量
-            embeddings = pipeline._embed_texts(all_chunks)
-            logger.info(f"Embeddings shape: {len(embeddings)} x {len(embeddings[0]) if embeddings else 0}")
-
-            # 批量添加到ChromaDB
-            logger.info("添加到向量数据库...")
+            # 不传递embeddings参数，让ChromaDB使用默认embedding函数
             pipeline.collection.add(
                 ids=all_ids,
                 documents=all_chunks,
-                embeddings=embeddings,
                 metadatas=all_metadatas
             )
             documents_loaded = len(all_chunks)

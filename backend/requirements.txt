@@ -19,6 +19,7 @@ jieba==0.42.1
 rank-bm25==0.2.2
 pytest==7.4.4
 pytest-asyncio==0.23.3
+PyJWT==2.8.0
 
 # Financial Data APIs
 alpha-vantage==2.3.1

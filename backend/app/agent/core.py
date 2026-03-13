@@ -341,9 +341,11 @@ class AgentCore:
 
     async def _build_tool_plan(self, route: QueryRoute) -> List[List[Dict[str, Any]]]:
         """Builds a multi-stage tool execution plan (DAG)."""
+        logger.info(f"[_build_tool_plan] START - route type: {route.query_type}, requires_knowledge: {route.requires_knowledge}")
         stages: List[List[Dict[str, Any]]] = [[], []]
 
         def add_tool(name: str, params: Dict[str, Any], display: str, stage: int = 0) -> None:
+            logger.info(f"[_build_tool_plan] Adding tool: {name} to stage {stage}")
             stages[stage].append({"name": name, "params": params, "display": display})
 
         primary_symbol = route.symbols[0] if route.symbols else None
@@ -391,7 +393,8 @@ class AgentCore:
                     if route.report_focus:
                         step["params"]["source_type"] = "report"
             final_stages.append(stage)
-            
+
+        logger.info(f"[_build_tool_plan] COMPLETE - {len(final_stages)} stages, tools: {[[s['name'] for s in stage] for stage in final_stages]}")
         return final_stages
 
     def _normalize_tool_result(self, raw_result: Dict[str, Any]) -> ToolResult:

@@ -32,6 +32,33 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     global cache_warmer
 
+    # Build knowledge index if needed
+    logger = logging.getLogger(__name__)
+    logger.info("Checking knowledge index...")
+
+    from pathlib import Path
+    chroma_dir = Path(__file__).parent.parent / "data" / "chroma_db"
+
+    # Check if index exists and has content
+    needs_build = True
+    if chroma_dir.exists():
+        chroma_files = list(chroma_dir.rglob("*"))
+        if len(chroma_files) > 5:  # Has some content
+            needs_build = False
+            logger.info(f"Knowledge index exists with {len(chroma_files)} files")
+
+    if needs_build:
+        logger.info("Building knowledge index...")
+        try:
+            from scripts.build_knowledge_index import build_index
+            success = build_index()
+            if success:
+                logger.info("Knowledge index built successfully")
+            else:
+                logger.warning("Knowledge index build returned False")
+        except Exception as e:
+            logger.error(f"Failed to build knowledge index: {e}", exc_info=True)
+
     if settings.CACHE_WARM_ENABLED:
         market_service = MarketDataService()
         cache_warmer = CacheWarmer(

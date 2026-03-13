@@ -955,6 +955,7 @@ class AgentCore:
                 },
             )
         except Exception as exc:
+            logger.error(f"[AgentCore.run] EXCEPTION caught: {exc}", exc_info=True)
             self.model_manager.record_usage(model_name=selected_model, tokens_input=len(query) // 4, tokens_output=0, success=False)
             yield SSEEvent(type="error", message=str(exc), code="LLM_ERROR", model=selected_model)
 

@@ -22,22 +22,43 @@ logger = logging.getLogger(__name__)
 
 def build_index():
     """构建知识库索引"""
-    from app.rag.hybrid_pipeline import HybridRAGPipeline
-    from app.config import settings
-
     logger.info("="*60)
     logger.info("开始构建知识库索引")
     logger.info("="*60)
 
+    # 打印当前工作目录
+    cwd = Path.cwd()
+    logger.info(f"当前工作目录: {cwd}")
+
+    # 打印脚本位置
+    script_dir = Path(__file__).parent
+    logger.info(f"脚本目录: {script_dir}")
+
+    from app.rag.hybrid_pipeline import HybridRAGPipeline
+    from app.config import settings
+
     # 检查知识库目录
     knowledge_dir = Path(__file__).parent.parent / "data" / "knowledge"
+    logger.info(f"知识库目录路径: {knowledge_dir}")
+    logger.info(f"知识库目录存在: {knowledge_dir.exists()}")
+
     if not knowledge_dir.exists():
         logger.error(f"知识库目录不存在: {knowledge_dir}")
+        # 尝试列出父目录内容
+        parent_dir = knowledge_dir.parent
+        if parent_dir.exists():
+            logger.info(f"父目录 {parent_dir} 内容:")
+            for item in parent_dir.iterdir():
+                logger.info(f"  - {item.name}")
         return False
 
     # 统计知识文件
     md_files = list(knowledge_dir.glob("*.md"))
     logger.info(f"找到 {len(md_files)} 个知识文件")
+
+    # 列出前5个文件
+    for i, f in enumerate(md_files[:5]):
+        logger.info(f"  [{i+1}] {f.name}")
 
     if len(md_files) == 0:
         logger.error("没有找到任何知识文件")

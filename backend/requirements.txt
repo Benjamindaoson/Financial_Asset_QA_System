@@ -5,7 +5,7 @@ pydantic==2.5.3
 pydantic-settings==2.1.0
 openai==1.68.2
 yfinance==0.2.35
-akshare==1.14.30
+akshare>=1.16.72
 chromadb==0.5.23
 redis==5.0.1
 httpx==0.28.1

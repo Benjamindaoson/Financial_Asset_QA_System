@@ -699,10 +699,12 @@ class AgentCore:
         return f"上下文不足，无法可靠回答：{query}", blocks
 
     async def run(self, query: str, model_name: Optional[str] = None) -> AsyncGenerator[SSEEvent, None]:
+        logger.info(f"[AgentCore.run] START - Query: {query}")
         request_id = str(uuid.uuid4())
         tool_results: List[ToolResult] = []
         degraded_mode = self.is_degraded_mode()
         selected_model = model_name or self._select_model(query)
+        logger.info(f"[AgentCore.run] Model selected: {selected_model}, degraded_mode: {degraded_mode}")
 
         if degraded_mode:
             selected_model = self.DEGRADED_MODEL_ID
@@ -721,11 +723,13 @@ class AgentCore:
         )
 
         route = await self.query_router.classify_async(query)
+        logger.info(f"[AgentCore.run] Route classified: type={route.query_type}, requires_knowledge={route.requires_knowledge}")
         should_force_rule_route = (
             route.query_type == QueryType.KNOWLEDGE
             and route.requires_knowledge
             and not route.symbols
         )
+        logger.info(f"[AgentCore.run] should_force_rule_route: {should_force_rule_route}")
 
         if self.use_llm_routing and not degraded_mode and not should_force_rule_route:
             llm_route = await self.llm_router.route(query)
@@ -759,24 +763,32 @@ class AgentCore:
 
         try:
             if tool_plan is None:
+                logger.info("[AgentCore.run] Building tool plan from route")
                 tool_plan = await self._build_tool_plan(route)
+                logger.info(f"[AgentCore.run] Tool plan built: {[step['name'] for step in tool_plan] if tool_plan else []}")
 
             stages = tool_plan if tool_plan and isinstance(tool_plan[0], list) else [tool_plan]
-            for stage in stages:
+            logger.info(f"[AgentCore.run] Executing {len(stages)} stages")
+            for stage_idx, stage in enumerate(stages):
                 if not stage:
                     continue
+                logger.info(f"[AgentCore.run] Stage {stage_idx}: {[step['name'] for step in stage]}")
                 for step in stage:
                     yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
 
                 raw_results = await self._execute_tools_parallel(stage, degraded_mode=degraded_mode)
+                logger.info(f"[AgentCore.run] Stage {stage_idx} completed, {len(raw_results)} results")
                 for raw_result in raw_results:
                     if not raw_result["success"]:
+                        logger.warning(f"[AgentCore.run] Tool {raw_result['tool']} failed")
                         continue
                     tool_result = self._normalize_tool_result(raw_result)
                     tool_results.append(tool_result)
                     yield SSEEvent(type="tool_data", tool=raw_result["tool"], data=raw_result["data"])
 
+            logger.info(f"[AgentCore.run] All tools executed, total results: {len(tool_results)}")
             validation = self.data_validator.validate_tool_results(tool_results)
+            logger.info(f"[AgentCore.run] Validation result: {validation}")
             knowledge_payload = next(
                 (result.data for result in tool_results if result.tool == "search_knowledge" and result.status == "success"),
                 None,

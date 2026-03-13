@@ -7,6 +7,7 @@ import html
 import math
 import os
 import re
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -15,6 +16,8 @@ from chromadb.config import Settings as ChromaSettings
 
 from app.config import settings
 from app.models import Document, KnowledgeResult
+
+logger = logging.getLogger(__name__)
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -315,20 +318,26 @@ class RAGPipeline:
         return None
 
     def _ensure_embedding_model(self):
+        logger.info(f"[RAG Pipeline] _ensure_embedding_model called, current model: {self.embedding_model}, attempted: {self._embedding_attempted}")
         if self.embedding_model is not None or self._embedding_attempted:
             return
 
         self._embedding_attempted = True
         if SentenceTransformer is None:
+            logger.warning("[RAG Pipeline] SentenceTransformer not available, using local-hash")
             self.embedding_backend = "local-hash"
             return
 
+        logger.info("[RAG Pipeline] Configuring model runtime...")
         self._configure_model_runtime()
         model_path = self._resolve_local_model_path(settings.EMBEDDING_MODEL)
+        logger.info(f"[RAG Pipeline] Model path resolved: {model_path}")
         if model_path is None:
+            logger.warning("[RAG Pipeline] Model path not found, using local-hash")
             self.embedding_backend = "local-hash"
             return
         try:
+            logger.info(f"[RAG Pipeline] Loading SentenceTransformer from {model_path}...")
             try:
                 self.embedding_model = SentenceTransformer(
                     str(model_path),
@@ -338,7 +347,9 @@ class RAGPipeline:
             except TypeError:
                 self.embedding_model = SentenceTransformer(str(model_path))
             self.embedding_backend = "sentence-transformers"
-        except Exception:
+            logger.info("[RAG Pipeline] SentenceTransformer loaded successfully")
+        except Exception as e:
+            logger.error(f"[RAG Pipeline] Failed to load SentenceTransformer: {e}", exc_info=True)
             self.embedding_model = None
             self.embedding_backend = "local-hash"
 
@@ -1032,8 +1043,11 @@ class RAGPipeline:
         return [value / norm for value in vector]
 
     def _embed_texts(self, texts: Sequence[str], show_progress_bar: bool = False) -> List[List[float]]:
+        logger.info(f"[RAG Pipeline] _embed_texts called with {len(texts)} texts")
         self._ensure_embedding_model()
+        logger.info(f"[RAG Pipeline] After _ensure_embedding_model, backend: {self.embedding_backend}")
         if self.embedding_model is not None:
+            logger.info("[RAG Pipeline] Using SentenceTransformer for embedding")
             embeddings = self.embedding_model.encode(
                 list(texts),
                 normalize_embeddings=True,
@@ -1043,8 +1057,10 @@ class RAGPipeline:
                 embeddings = embeddings.tolist()
             if embeddings and not isinstance(embeddings[0], list):
                 embeddings = [embeddings]
+            logger.info(f"[RAG Pipeline] Generated {len(embeddings)} embeddings")
             return embeddings
 
+        logger.info("[RAG Pipeline] Falling back to local-hash embedding")
         self.embedding_backend = "local-hash"
         return [self._local_hash_embedding(text) for text in texts]
 

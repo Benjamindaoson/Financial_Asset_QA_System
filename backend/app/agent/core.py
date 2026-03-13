@@ -6,8 +6,11 @@ import asyncio
 import re
 import time
 import uuid
+import logging
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from app.analysis.technical import TechnicalAnalyzer
 from app.analysis.validator import DataValidator
@@ -188,20 +191,30 @@ class AgentCore:
 
     async def _search_knowledge(self, tool_input: Dict[str, Any], degraded_mode: bool = False) -> KnowledgeResult:
         query = tool_input["query"]
+        logger.info(f"[RAG Step 1] _search_knowledge called with query: {query}")
         metadata_filter = self._build_knowledge_metadata_filter(tool_input)
 
         if degraded_mode:
+            logger.info("[RAG Step 2] Using degraded mode")
             base_result = await self._search_knowledge_degraded(query)
         else:
-            base_result = await self.rag_pipeline.search(query, use_hybrid=True, metadata_filter=metadata_filter)
+            logger.info("[RAG Step 2] Calling rag_pipeline.search with use_hybrid=True")
+            try:
+                base_result = await self.rag_pipeline.search(query, use_hybrid=True, metadata_filter=metadata_filter)
+                logger.info(f"[RAG Step 3] rag_pipeline.search returned {len(base_result.documents)} documents")
+            except Exception as e:
+                logger.error(f"[RAG Step 3 ERROR] rag_pipeline.search failed: {e}", exc_info=True)
+                raise
 
         base_documents = list(base_result.documents)
         confidence = self.confidence_scorer.calculate(query, base_documents) if base_documents else 0.0
+        logger.info(f"[RAG Step 4] Confidence calculated: {confidence}")
 
         include_web_fallback = bool(tool_input.get("include_web_fallback"))
         include_sec_fallback = bool(tool_input.get("include_sec_fallback"))
         should_expand = include_web_fallback or include_sec_fallback
         if not should_expand:
+            logger.info(f"[RAG Step 5] Returning base result with {len(base_documents)} documents")
             return base_result
 
         combined_documents = list(base_documents)
@@ -261,11 +274,14 @@ class AgentCore:
                 result = await self.market_service.compare_assets(tool_input["symbols"], range_key=tool_input.get("range_key", "1y"))
                 data = result.model_dump()
             elif tool_name == "search_knowledge":
+                logger.info(f"[Tool Execution] Starting search_knowledge with input: {tool_input}")
                 result = await self._search_knowledge(tool_input, degraded_mode=degraded_mode)
+                logger.info(f"[Tool Execution] search_knowledge completed, documents: {len(result.documents)}")
                 confidence = self.confidence_scorer.calculate(tool_input["query"], result.documents) if result.documents else 0.0
                 data = result.model_dump()
                 data["confidence"] = confidence
                 data["confidence_level"] = self.confidence_scorer.get_confidence_level(confidence)
+                logger.info(f"[Tool Execution] Final data keys: {list(data.keys())}, documents count: {len(data.get('documents', []))}")
             elif tool_name == "search_web":
                 result = await self.search_service.search(
                     tool_input["query"],

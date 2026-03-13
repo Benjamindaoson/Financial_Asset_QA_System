@@ -339,20 +339,29 @@ class HybridRAGPipeline(RAGPipeline):
         metadata_filter: Optional[Dict[str, Any]] = None,
     ) -> KnowledgeResult:
         """Search with optional metadata filtering."""
+        logger.info(f"[HybridRAG] search called with query: {query}, use_hybrid: {use_hybrid}")
         query_variants = self.generate_query_variants(query) if settings.RAG_USE_QUERY_REWRITING else [query]
+        logger.info(f"[HybridRAG] Query variants: {query_variants}")
         local_groups: List[List[Dict[str, Any]]] = []
         bm25_groups: List[List[Dict[str, Any]]] = []
         vector_groups: List[List[Dict[str, Any]]] = []
         profile = None
 
         for variant in query_variants:
+            logger.info(f"[HybridRAG] Processing variant: {variant}")
             local_candidates, profile = self._search_local_candidates(variant, limit=settings.RAG_LEXICAL_TOP_K)
+            logger.info(f"[HybridRAG] Local candidates: {len(local_candidates)}")
             local_groups.append(local_candidates)
             if use_hybrid:
-                bm25_groups.append(self._bm25_search(variant, top_k=max(settings.RAG_TOP_K, settings.RAG_LEXICAL_TOP_K)))
-                vector_groups.append(self._vector_search_candidates(variant, limit=settings.RAG_VECTOR_TOP_K))
+                bm25_results = self._bm25_search(variant, top_k=max(settings.RAG_TOP_K, settings.RAG_LEXICAL_TOP_K))
+                logger.info(f"[HybridRAG] BM25 results: {len(bm25_results)}")
+                bm25_groups.append(bm25_results)
+                vector_results = self._vector_search_candidates(variant, limit=settings.RAG_VECTOR_TOP_K)
+                logger.info(f"[HybridRAG] Vector results: {len(vector_results)}")
+                vector_groups.append(vector_results)
 
         local_candidates = self._combine_variant_candidates(local_groups)
+        logger.info(f"[HybridRAG] Combined local candidates: {len(local_candidates)}")
 
         # Apply category filter if specified
         if category_filter:

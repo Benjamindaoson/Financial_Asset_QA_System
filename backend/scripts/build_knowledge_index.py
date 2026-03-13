@@ -68,9 +68,19 @@ def build_index():
     logger.info("初始化RAG pipeline...")
     pipeline = HybridRAGPipeline()
 
+    # 确保使用中文embedding模型
+    logger.info("加载中文embedding模型...")
+    pipeline._ensure_embedding_model()
+    logger.info(f"Embedding模型: {pipeline.embedding_model}")
+
     # 加载文档
     logger.info("加载文档到向量数据库...")
     documents_loaded = 0
+
+    # 批量处理以提高效率
+    all_chunks = []
+    all_ids = []
+    all_metadatas = []
 
     for md_file in md_files:
         try:
@@ -82,7 +92,7 @@ def build_index():
 
             logger.info(f"  切分为 {len(paragraphs)} 个段落")
 
-            # 添加到向量数据库
+            # 收集文档块
             for idx, para in enumerate(paragraphs):
                 chunk_id = f"{md_file.stem}_{idx}"
                 metadata = {
@@ -92,20 +102,35 @@ def build_index():
                     "file_path": str(md_file)
                 }
 
-                # 使用pipeline的collection添加文档
-                try:
-                    pipeline.collection.add(
-                        ids=[chunk_id],
-                        documents=[para],
-                        metadatas=[metadata]
-                    )
-                    documents_loaded += 1
-                except Exception as e:
-                    logger.warning(f"  添加文档失败 {chunk_id}: {e}")
+                all_chunks.append(para)
+                all_ids.append(chunk_id)
+                all_metadatas.append(metadata)
 
         except Exception as e:
             logger.error(f"处理文件失败 {md_file.name}: {e}")
             continue
+
+    # 批量生成embeddings并添加到数据库
+    if all_chunks:
+        logger.info(f"生成 {len(all_chunks)} 个文档的embeddings...")
+        try:
+            # 使用pipeline的embedding模型生成向量
+            embeddings = pipeline._embed_texts(all_chunks)
+            logger.info(f"Embeddings shape: {len(embeddings)} x {len(embeddings[0]) if embeddings else 0}")
+
+            # 批量添加到ChromaDB
+            logger.info("添加到向量数据库...")
+            pipeline.collection.add(
+                ids=all_ids,
+                documents=all_chunks,
+                embeddings=embeddings,
+                metadatas=all_metadatas
+            )
+            documents_loaded = len(all_chunks)
+            logger.info(f"成功添加 {documents_loaded} 个文档块")
+        except Exception as e:
+            logger.error(f"批量添加失败: {e}", exc_info=True)
+            return False
 
     logger.info("="*60)
     logger.info(f"索引构建完成！共加载 {documents_loaded} 个文档块")

@@ -2,6 +2,13 @@
 FastAPI Main Application
 """
 import os
+import logging
+
+# Configure logging FIRST
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:     %(name)s - %(message)s'
+)
 
 # Set HuggingFace mirror for users in restricted network environments BEFORE any model imports
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"

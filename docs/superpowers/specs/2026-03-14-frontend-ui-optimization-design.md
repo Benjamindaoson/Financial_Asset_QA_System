@@ -41,13 +41,28 @@ backend blocks → <ThreeZoneLayout> → 三区 UI
 **显示方式：** 始终可见的精简版（3-4个关键步骤）
 
 **事件映射：**
-```
-model_selected     → 🧠 选择分析模型
-tool_start: market_data → 📊 获取实时行情
-tool_start: rag_search  → 📚 搜索知识库
-tool_start: web_search  → 🔍 网络搜索
-tool_start: sec_filings → 📄 查询SEC公告
-analysis_chunk     → ✍️ 生成分析报告
+
+后端实际工具名称到前端显示的映射：
+
+```javascript
+const toolDisplayMap = {
+  // Market data tools
+  'get_price': '📊 获取实时价格',
+  'get_history': '📊 获取历史数据',
+  'get_change': '📊 计算涨跌幅',
+  'get_info': '📊 获取公司信息',
+  'get_metrics': '📊 计算风险指标',
+  'compare_assets': '📊 对比资产表现',
+
+  // Search tools
+  'search_knowledge': '📚 搜索知识库',
+  'search_web': '🔍 网络搜索',
+  'search_sec': '📄 查询SEC公告',
+
+  // Special events
+  'model_selected': '🧠 选择分析模型',
+  'analysis_chunk': '✍️ 生成分析报告'
+};
 ```
 
 **状态显示：**
@@ -74,16 +89,23 @@ analysis_chunk     → ✍️ 生成分析报告
 **映射逻辑：**
 ```javascript
 const zoneMapping = {
-  zone1: ['key_metrics', 'quote', 'table'],
-  zone2: ['analysis', 'bullets', 'chart', 'news', 'warning'],
-  zone3: ['source', 'trace']
+  zone1: ['key_metrics', 'quote', 'table'],  // 数据块
+  zone2: ['analysis', 'bullets', 'chart', 'warning'],  // 分析块
+  // Zone 3 使用 msg.sources 和 msg.trace 数组，不是 blocks
 };
 ```
+
+**注意：** Zone 3 的内容来自消息对象的 `sources` 和 `trace` 属性，不是 blocks 数组中的块类型。
 
 **降级处理：**
 - Zone 1 无块 → 隐藏
 - Zone 2 无块 → 显示 `msg.text` (兼容旧版)
 - Zone 3 → 始终显示
+
+**错误处理：**
+- 无效的块类型 → 记录警告，跳过该块
+- `msg.text` 为空且 Zone 2 为空 → 显示 "分析生成失败，请重试"
+- 块渲染错误 → 优雅降级到纯文本显示
 
 ### 2. QueryTimeline 组件
 
@@ -103,15 +125,28 @@ const zoneMapping = {
 
 **渲染逻辑：**
 - 过滤关键事件（model_selected, tool_start, analysis_chunk）
-- 映射到中文描述 + 图标
+- 映射到中文描述 + 图标（使用 toolDisplayMap）
 - 显示状态（完成/进行中）
-- 横向或纵向布局（根据空间自适应）
+- 横向布局（桌面端 >768px），最多显示 5 个步骤
+- 如果步骤 > 5：显示前 2 个 + "..." + 最后 1 个
+- 位置：AI 消息上方，blocks 之前
+- 始终可见（不可折叠，保证透明度）
 
 ### 3. AnalysisBlock 增强
 
 **Markdown 手风琴解析：**
 
-**方案 A + C 混合：**
+**方案选择背景：**
+- **方案 A**: 基于 Markdown 标题自动分段（轻量级正则解析）
+- **方案 B**: 固定的分析结构（硬编码关键词识别）
+- **方案 C**: 暂不实现手风琴（仅优化排版）
+
+**选择：方案 A + C 混合**
+- 优先尝试解析 `## 标题` 格式生成手风琴
+- 如果解析失败或无标题，降级到优化排版的完整文本显示
+- 理由：LLM 天然擅长输出 Markdown，后端只需 Prompt 引导，前端实现简单且灵活
+
+**实现逻辑：**
 1. 检测 `## 标题` 格式
 2. 如果存在 → 生成手风琴，默认展开第一个
 3. 如果不存在 → 显示完整文本 + 优化排版
@@ -135,19 +170,31 @@ const iconMap = {
 
 ## 后端 Prompt 优化
 
-**文件：** `backend/prompts.yaml` 或相关配置
+**文件：** `backend/prompts.yaml`
 
-**修改点：**
+**修改策略：**
+1. 保持现有 `system_prompt` 不变
+2. 在 `user_template` 中，针对 `route_type == "market"` 和 `route_type == "hybrid"` 添加 Markdown 结构引导
+3. 保留现有的字数限制和小节要求
+4. 新增指令：使用 `## 标题` 格式划分小节
 
-在生成分析的系统提示词中添加：
+**具体修改：**
+
+在 `generator.user_template` 的市场分析部分添加：
 
 ```yaml
-analysis_structure: |
-  输出分析时，请使用 Markdown 格式组织内容：
-  - 使用 ## 标题 划分不同小节
-  - 建议的标题：## 近期走势、## 技术面观察、## 风险提示
-  - 如果某个小节没有相关信息，可以省略
-  - 每个小节内容保持简洁，2-3段为宜
+generator:
+  user_template: |
+    {% if route_type == "market" %}
+    请按以下结构回答（共200-350字）：
+
+    使用 Markdown 格式组织内容，用 ## 标题 划分小节：
+    - ## 近期走势：价格变化、关键价位
+    - ## 技术面观察：技术指标、支撑阻力
+    - ## 风险提示：需要关注的因素
+
+    如果某个小节没有相关信息，可以省略。每个小节保持简洁，2-3段为宜。
+    {% endif %}
 ```
 
 **预期效果：**
@@ -164,18 +211,23 @@ AAPL 在过去7天上涨3.7%，突破了前期阻力位...
 
 ## 实现优先级
 
-**P0 (必须完成):**
-1. ThreeZoneLayout 组件 + 映射逻辑
-2. QueryTimeline 组件 + 事件映射
-3. 后端 Prompt 修改
+**P0 (必须完成 - CTO 演示核心):**
+1. ThreeZoneLayout 组件 + 映射逻辑 - 直接展示信息层次重构
+2. QueryTimeline 组件 + 事件映射 - 可视化系统架构能力
+3. 后端 Prompt 修改 - 支持结构化输出
 
-**P1 (建议完成):**
-4. AnalysisBlock Markdown 手风琴
-5. Zone 1 额外指标行（7日/30日涨跌幅）
+**P1 (建议完成 - 提升体验):**
+4. AnalysisBlock Markdown 手风琴 - 改善长文本可读性
+5. Zone 1 额外指标行（7日/30日涨跌幅）- 增强数据密度
 
-**P2 (可选):**
-6. 图表 hover tooltip
-7. 快捷问题 chips（已存在，可优化样式）
+**P2 (可选 - 锦上添花):**
+6. 图表 hover tooltip - 交互细节优化
+7. 快捷问题 chips 样式优化（已存在基础功能）
+
+**优先级理由：**
+- **P0**: 直接命中"信息层次重构"和"查询路由可视化"两大核心目标，是 CTO 演示的差异化亮点
+- **P1**: 提升用户体验和专业度，但不影响核心功能演示
+- **P2**: 细节打磨，时间允许的情况下完成
 
 ## 技术约束
 
@@ -183,6 +235,16 @@ AAPL 在过去7天上涨3.7%，突破了前期阻力位...
 - 前端控制布局逻辑
 - 向后兼容现有 `msg.text` 响应
 - 不引入重型依赖（Markdown 解析用轻量方案）
+
+## 文件结构
+
+新增组件位置：
+- `frontend/src/components/Chat/ThreeZoneLayout.jsx` - 三区布局组件
+- `frontend/src/components/Chat/QueryTimeline.jsx` - 查询时间线组件
+- `frontend/src/components/Chat/ChatComponents.jsx` - 增强 AnalysisBlock（已存在）
+
+后端修改：
+- `backend/prompts.yaml` - 添加 Markdown 结构化输出指令
 
 ## 成功标准
 

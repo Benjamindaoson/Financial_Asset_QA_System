@@ -1,133 +1,147 @@
-import React from 'react';
-import { CheckCircle, Circle, Loader } from 'lucide-react';
+import { C, F } from "../../theme";
 
-const QueryTimeline = ({ events = [], loading = false }) => {
-  // Filter events to show only key steps
-  const keyEvents = events.filter(event =>
-    ['model_selected', 'tool_start', 'analysis_chunk'].includes(event.type)
+const toolDisplayMap = {
+  // Market data tools
+  'get_price': '📊 获取实时价格',
+  'get_history': '📊 获取历史数据',
+  'get_change': '📊 计算涨跌幅',
+  'get_info': '📊 获取公司信息',
+  'get_metrics': '📊 计算风险指标',
+  'compare_assets': '📊 对比资产表现',
+
+  // Search tools
+  'search_knowledge': '📚 搜索知识库',
+  'search_web': '🔍 网络搜索',
+  'search_sec': '📄 查询SEC公告',
+
+  // Special events
+  'model_selected': '🧠 选择分析模型',
+  'analysis_chunk': '✍️ 生成分析报告'
+};
+
+export function QueryTimeline({ events = [], loading = false }) {
+  // Filter key events
+  const keyEvents = events.filter(e =>
+    e.type === 'model_selected' ||
+    e.type === 'tool_start' ||
+    e.type === 'analysis_chunk'
   );
 
-  // Map tool names to display text
-  const toolDisplayMap = {
-    'search_knowledge': '📚 知识库检索',
-    'get_price': '📊 获取实时价格',
-    'get_financial_data': '💰 财务数据获取',
-    'calculate_ratio': '🧮 财务比率计算',
-    'analyze_trend': '📈 趋势分析',
-    'compare_stocks': '⚖️ 股票对比',
-    'default': '🔧 工具调用'
-  };
+  if (keyEvents.length === 0) return null;
 
-  const getDisplayText = (event) => {
-    if (event.type === 'tool_start') {
-      const toolName = event.data?.tool_name || 'default';
-      return toolDisplayMap[toolName] || toolDisplayMap['default'];
-    }
-    if (event.type === 'analysis_chunk') {
-      return '分析中...';
-    }
-    return event.type;
-  };
+  // Determine current step (last event index)
+  const currentStep = loading ? keyEvents.length - 1 : keyEvents.length;
 
-  const getStatusIcon = (index, isLast) => {
-    if (index < keyEvents.length - 1) {
-      // Completed step
-      return <CheckCircle className="w-5 h-5 text-green-500" />;
-    }
-    if (isLast && loading) {
-      // Current step (in progress)
-      return <Loader className="w-5 h-5 text-blue-500 animate-spin" />;
-    }
-    if (isLast && !loading) {
-      // Last step completed
-      return <CheckCircle className="w-5 h-5 text-green-500" />;
-    }
-    // Pending step
-    return <Circle className="w-5 h-5 text-gray-300" />;
-  };
+  // Responsive: max 5 steps on desktop, 3 on mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const maxSteps = isMobile ? 3 : 5;
 
-  // Limit display to avoid clutter - show first 2 + ... + last 1
-  const maxSteps = 3;
   let displayEvents = keyEvents;
-  let showEllipsis = false;
-
   if (keyEvents.length > maxSteps) {
+    // Show first 2, "...", last 1
     displayEvents = [
       ...keyEvents.slice(0, 2),
+      { type: 'ellipsis' },
       keyEvents[keyEvents.length - 1]
     ];
-    showEllipsis = true;
-  }
-
-  if (keyEvents.length === 0 && !loading) {
-    return null;
   }
 
   return (
-    <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-      {/* Desktop: Horizontal timeline */}
-      <div className="hidden md:flex items-center justify-start space-x-2">
-        {displayEvents.map((event, index) => {
-          const isLast = index === displayEvents.length - 1;
-          const isActuallyLast = index === keyEvents.length - 1;
+    <div style={{
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
+      alignItems: isMobile ? 'flex-start' : 'center',
+      gap: isMobile ? 8 : 12,
+      padding: '12px 16px',
+      background: C.white,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      marginBottom: 10
+    }}>
+      {displayEvents.map((event, index) => {
+        if (event.type === 'ellipsis') {
           return (
-            <React.Fragment key={index}>
-              {showEllipsis && index === 2 && (
-                <>
-                  <div className="flex items-center space-x-2 text-gray-400">
-                    <span className="text-sm">...</span>
-                  </div>
-                  <div className="flex-shrink-0 w-8 h-0.5 bg-gray-300" />
-                </>
-              )}
-              <div className="flex items-center space-x-2">
-                {getStatusIcon(isActuallyLast ? keyEvents.length - 1 : index, isActuallyLast)}
-                <span className={`text-sm ${
-                  isActuallyLast && loading ? 'text-blue-600 font-medium' : 'text-gray-700'
-                }`}>
-                  {getDisplayText(event)}
-                </span>
-              </div>
-              {!isLast && (
-                <div className="flex-shrink-0 w-8 h-0.5 bg-gray-300" />
-              )}
-            </React.Fragment>
+            <div key="ellipsis" style={{
+              color: C.td,
+              fontSize: 12,
+              padding: isMobile ? '4px 0' : '0 4px'
+            }}>
+              ...
+            </div>
           );
-        })}
-      </div>
+        }
 
-      {/* Mobile: Vertical timeline */}
-      <div className="md:hidden space-y-3">
-        {displayEvents.map((event, index) => {
-          const isLast = index === displayEvents.length - 1;
-          const isActuallyLast = index === keyEvents.length - 1;
-          return (
-            <React.Fragment key={index}>
-              {showEllipsis && index === 2 && (
-                <div className="flex items-start space-x-3 text-gray-400">
-                  <Circle className="w-5 h-5" />
-                  <span className="text-sm pt-0.5">...</span>
-                </div>
-              )}
-              <div className="flex items-start space-x-3">
-                <div className="flex flex-col items-center">
-                  {getStatusIcon(isActuallyLast ? keyEvents.length - 1 : index, isActuallyLast)}
-                  {!isLast && (
-                    <div className="w-0.5 h-8 bg-gray-300 mt-1" />
-                  )}
-                </div>
-                <div className={`text-sm pt-0.5 ${
-                  isActuallyLast && loading ? 'text-blue-600 font-medium' : 'text-gray-700'
-                }`}>
-                  {getDisplayText(event)}
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
+        const isCompleted = index < currentStep;
+        const isCurrent = index === currentStep;
+
+        // Get display text
+        let displayText = '';
+        if (event.type === 'model_selected') {
+          displayText = toolDisplayMap['model_selected'];
+        } else if (event.type === 'tool_start') {
+          displayText = toolDisplayMap[event.name] || event.display || event.name;
+        } else if (event.type === 'analysis_chunk') {
+          displayText = toolDisplayMap['analysis_chunk'];
+        }
+
+        return (
+          <div key={index} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: isMobile ? 11 : 12,
+            color: isCompleted ? C.text : (isCurrent ? C.accent : C.td),
+            fontFamily: F.s,
+            opacity: isCompleted || isCurrent ? 1 : 0.5
+          }}>
+            {/* Status icon */}
+            {isCompleted ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : isCurrent ? (
+              <span style={{
+                width: 14,
+                height: 14,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: C.accent,
+                  animation: 'pulse 1s infinite'
+                }} />
+              </span>
+            ) : (
+              <span style={{
+                width: 14,
+                height: 14,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <span style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: C.td
+                }} />
+              </span>
+            )}
+
+            {/* Display text */}
+            <span>{displayText}</span>
+
+            {/* Connector (not for last item, not for mobile) */}
+            {!isMobile && index < displayEvents.length - 1 && event.type !== 'ellipsis' && (
+              <span style={{ color: C.border, marginLeft: 4 }}>→</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
-};
-
-export default QueryTimeline;
+}

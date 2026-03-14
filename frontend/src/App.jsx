@@ -76,6 +76,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [streamingText, setStreamingText] = useState("");
+  const [currentTrace, setCurrentTrace] = useState([]);
   const [marketData, setMarketData] = useState(null);
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [marketError, setMarketError] = useState("");
@@ -115,6 +116,7 @@ export default function App() {
       setLoading(true);
       setCurrentStep(0);
       setStreamingText("");
+      setCurrentTrace([]);
 
       try {
         let fullText = "";
@@ -128,10 +130,14 @@ export default function App() {
         for await (const event of fetchChatStream(q, sessionId.current)) {
           if (event.type === "model_selected") {
             setCurrentStep(0);
-            trace.push({ type: 'model_selected', model: event.model });
+            const traceEvent = { type: 'model_selected', model: event.model, timestamp: Date.now() };
+            trace.push(traceEvent);
+            setCurrentTrace([...trace]);
           } else if (event.type === "tool_start") {
             setCurrentStep(1);
-            trace.push({ type: 'tool_start', name: event.name, display: event.display });
+            const traceEvent = { type: 'tool_start', name: event.name, display: event.display, timestamp: Date.now() };
+            trace.push(traceEvent);
+            setCurrentTrace([...trace]);
           } else if (event.type === "tool_data") {
             setCurrentStep(2);
             if (event.data?.symbol) {
@@ -145,7 +151,9 @@ export default function App() {
             setStreamingText(fullText);
           } else if (event.type === "analysis_chunk") {
             analysisText += event.text || "";
-            trace.push({ type: 'analysis_chunk' });
+            const traceEvent = { type: 'analysis_chunk', timestamp: Date.now() };
+            trace.push(traceEvent);
+            setCurrentTrace([...trace]);
             setStreamingText(fullText + "\n\n" + analysisText);
           } else if (event.type === "done") {
             sources = event.sources || [];
@@ -171,11 +179,13 @@ export default function App() {
           },
         ]);
         setStreamingText("");
+        setCurrentTrace([]);
       } catch (error) {
         setMsgs((prev) => [
           ...prev,
           { role: "ai", text: "请求失败，请检查前后端服务是否已经启动。", error: true },
         ]);
+        setCurrentTrace([]);
       } finally {
         setLoading(false);
         setCurrentStep(0);
@@ -346,12 +356,12 @@ export default function App() {
           {loading && (
             <div style={{ animation: "fadeUp .3s ease-out" }}>
               {/* Add QueryTimeline during loading */}
-              {streamingText || currentStep > 0 ? (
+              {currentTrace.length > 0 && (
                 <QueryTimeline
-                  events={msgs[msgs.length - 1]?.trace || []}
+                  events={currentTrace}
                   loading={true}
                 />
-              ) : null}
+              )}
 
               <LoadSteps currentStep={currentStep} />
               {streamingText ? <StreamingText text={streamingText} /> : <Skel />}

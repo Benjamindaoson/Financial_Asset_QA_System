@@ -15,63 +15,30 @@ import { MarketOverview } from "./components/Market/MarketOverview";
 import { SignalFeed } from "./components/Market/SignalFeed";
 import { MarketSummary } from "./components/Market/MarketSummary";
 import { SectorHeatmap } from "./components/Market/SectorHeatmap";
+import { QueryTimeline } from "./components/Chat/QueryTimeline";
+import { ThreeZoneLayout } from "./components/Chat/ThreeZoneLayout";
 
 function AiMessage({ msg }) {
   const [traceOpen, setTraceOpen] = useState(false);
-  const hasAnalysis = msg.blocks?.some((b) => b.type === "analysis");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Template text card — only shown when no LLM analysis block */}
-      {!hasAnalysis && msg.text && (
-        <div
-          style={{
-            background: "#FAFCFF",
-            borderRadius: 12,
-            padding: "18px 18px 14px",
-            border: "1px solid #D6E4F7",
-            position: "relative",
-            fontSize: 13,
-            lineHeight: 1.85,
-            color: C.text,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: -9,
-              left: 12,
-              background: C.accentL,
-              color: C.accent,
-              fontSize: 9.5,
-              fontWeight: 700,
-              padding: "2px 8px",
-              borderRadius: 8,
-              border: "1px solid #BFD5F0",
-            }}
-          >
-            AI 分析
-          </div>
-          <div style={{ position: "absolute", top: -10, right: 12 }}>
-            <ConfidenceBadge confidence={msg.confidence} />
-          </div>
-          {msg.text}
-        </div>
+      {/* Query Timeline - always visible */}
+      {msg.trace?.length > 0 && (
+        <QueryTimeline events={msg.trace} loading={false} />
       )}
 
-      {/* Structured blocks (sorted internally by ResponseBlocks) */}
-      <ResponseBlocks blocks={msg.blocks} />
+      {/* Three-Zone Layout */}
+      <ThreeZoneLayout
+        blocks={msg.blocks || []}
+        sources={msg.sources}
+        confidence={msg.confidence}
+        disclaimer={msg.disclaimer}
+        fallbackText={msg.text}
+        trace={msg.trace}
+      />
 
-      {/* Fallback standalone chart if no chart block */}
-      {msg.symbol && !msg.blocks?.some((b) => b.type === "chart") && (
-        <Chart symbol={msg.symbol} rangeKey={msg.rangeKey} />
-      )}
-
-      {/* Sources panel */}
-      {msg.sources?.length > 0 && <SourcesPanel items={msg.sources} />}
-
-      {/* Collapsible trace */}
+      {/* Collapsible trace details */}
       {msg.trace?.length > 0 && (
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 12px" }}>
           <div
@@ -84,14 +51,14 @@ function AiMessage({ msg }) {
           {traceOpen && (
             <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, color: C.text }}>
               {msg.trace.map((item, i) => (
-                <div key={i} style={{ padding: "2px 0", borderBottom: `1px solid ${C.borderL}` }}>{item}</div>
+                <div key={i} style={{ padding: "2px 0", borderBottom: `1px solid ${C.borderL}` }}>
+                  {typeof item === 'string' ? item : JSON.stringify(item)}
+                </div>
               ))}
             </div>
           )}
         </div>
       )}
-
-      <Disc text={msg.disclaimer} />
     </div>
   );
 }
@@ -161,10 +128,24 @@ export default function App() {
         for await (const event of fetchChatStream(q, sessionId.current)) {
           if (event.type === "model_selected") {
             setCurrentStep(0);
-            trace.push(`Model: ${event.model}`);
+            trace.push({ type: 'model_selected', model: event.model });
+            setMsgs((prev) => {
+              const updated = [...prev];
+              if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
+                updated[updated.length - 1] = { ...updated[updated.length - 1], trace: [...trace] };
+              }
+              return updated;
+            });
           } else if (event.type === "tool_start") {
             setCurrentStep(1);
-            trace.push(event.display || event.name);
+            trace.push({ type: 'tool_start', name: event.name, display: event.display });
+            setMsgs((prev) => {
+              const updated = [...prev];
+              if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
+                updated[updated.length - 1] = { ...updated[updated.length - 1], trace: [...trace] };
+              }
+              return updated;
+            });
           } else if (event.type === "tool_data") {
             setCurrentStep(2);
             if (event.data?.symbol) {
@@ -178,6 +159,14 @@ export default function App() {
             setStreamingText(fullText);
           } else if (event.type === "analysis_chunk") {
             analysisText += event.text || "";
+            trace.push({ type: 'analysis_chunk' });
+            setMsgs((prev) => {
+              const updated = [...prev];
+              if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
+                updated[updated.length - 1] = { ...updated[updated.length - 1], trace: [...trace] };
+              }
+              return updated;
+            });
             setStreamingText(fullText + "\n\n" + analysisText);
           } else if (event.type === "done") {
             sources = event.sources || [];
@@ -239,6 +228,7 @@ export default function App() {
       <style>{`
         @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
@@ -376,6 +366,14 @@ export default function App() {
 
           {loading && (
             <div style={{ animation: "fadeUp .3s ease-out" }}>
+              {/* Add QueryTimeline during loading */}
+              {streamingText || currentStep > 0 ? (
+                <QueryTimeline
+                  events={msgs[msgs.length - 1]?.trace || []}
+                  loading={true}
+                />
+              ) : null}
+
               <LoadSteps currentStep={currentStep} />
               {streamingText ? <StreamingText text={streamingText} /> : <Skel />}
             </div>

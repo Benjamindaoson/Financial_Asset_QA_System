@@ -129,23 +129,9 @@ export default function App() {
           if (event.type === "model_selected") {
             setCurrentStep(0);
             trace.push({ type: 'model_selected', model: event.model });
-            setMsgs((prev) => {
-              const updated = [...prev];
-              if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
-                updated[updated.length - 1] = { ...updated[updated.length - 1], trace: [...trace] };
-              }
-              return updated;
-            });
           } else if (event.type === "tool_start") {
             setCurrentStep(1);
             trace.push({ type: 'tool_start', name: event.name, display: event.display });
-            setMsgs((prev) => {
-              const updated = [...prev];
-              if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
-                updated[updated.length - 1] = { ...updated[updated.length - 1], trace: [...trace] };
-              }
-              return updated;
-            });
           } else if (event.type === "tool_data") {
             setCurrentStep(2);
             if (event.data?.symbol) {
@@ -160,13 +146,6 @@ export default function App() {
           } else if (event.type === "analysis_chunk") {
             analysisText += event.text || "";
             trace.push({ type: 'analysis_chunk' });
-            setMsgs((prev) => {
-              const updated = [...prev];
-              if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
-                updated[updated.length - 1] = { ...updated[updated.length - 1], trace: [...trace] };
-              }
-              return updated;
-            });
             setStreamingText(fullText + "\n\n" + analysisText);
           } else if (event.type === "done") {
             sources = event.sources || [];

@@ -28,9 +28,10 @@ const BLOCK_ORDER = {
   table: 4,
   quote: 5,
   bullets: 6,
-  warning: 7,
-  source: 8,
-  trace: 9,
+  news: 6,
+  source: 7,
+  trace: 8,
+  warning: 9,
 };
 
 export function ResponseBlocks({ blocks = [] }) {
@@ -51,6 +52,56 @@ export function ResponseBlocks({ blocks = [] }) {
   );
 }
 
+function parseMarkdownSections(text) {
+  // Try to parse ## headings
+  const headingRegex = /^##\s+(.+)$/gm;
+  const matches = [...text.matchAll(headingRegex)];
+
+  if (matches.length === 0) {
+    return null; // No sections found, use fallback
+  }
+
+  const sections = [];
+  matches.forEach((match, index) => {
+    const title = match[1].trim();
+    const startPos = match.index + match[0].length;
+    const endPos = index < matches.length - 1 ? matches[index + 1].index : text.length;
+    const content = text.substring(startPos, endPos).trim();
+
+    sections.push({ title, content });
+  });
+
+  return sections;
+}
+
+function getSectionIcon(title) {
+  const iconMap = {
+    '近期走势': '📈',
+    '技术面观察': '🔍',
+    '风险提示': '⚠️',
+    '基本面分析': '📊',
+    '市场情绪': '💭',
+    '走势概述': '📈',
+    '事件归因': '📰',
+    '当前状态': '💡',
+    '定义': '📖',
+    '计算公式': '🔢',
+    '核心区别': '🔢',
+    '实际应用举例': '💼',
+    '注意事项': '⚠️'
+  };
+
+  // Exact match
+  if (iconMap[title]) return iconMap[title];
+
+  // Partial match
+  for (const [key, icon] of Object.entries(iconMap)) {
+    if (title.includes(key)) return icon;
+  }
+
+  return '📌'; // Default icon
+}
+
 function Block({ block }) {
   if (block.type === "key_metrics") {
     const d = block.data || {};
@@ -58,52 +109,32 @@ function Block({ block }) {
     const changeColor = isUp ? "#16a34a" : "#dc2626";
     const arrow = isUp ? "▲" : "▼";
     const hasPeriodChange = d.change_pct != null;
-    const hasOHLCV = d.open != null || d.high != null || d.low != null;
+    const hasOHLCV = d.open != null || d.high != null || d.low != null || d.volume != null;
 
     return (
-      <div style={{ ...panelStyle, padding: "14px 16px" }}>
+      <div style={{ padding: "12px 16px" }}>
         {/* Price row */}
         <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: "1.75rem", fontWeight: 800, color: C.text, fontFamily: F.m, letterSpacing: "-0.5px" }}>
+          <span style={{ fontSize: "1.8rem", fontWeight: 700, color: C.text, fontFamily: F.m, letterSpacing: "-0.5px" }}>
             {d.currency && d.currency !== "USD" ? d.currency + " " : "$"}
             {d.price != null ? d.price.toFixed(2) : (d.end_price != null ? d.end_price.toFixed(2) : "—")}
           </span>
           {hasPeriodChange && (
-            <span style={{ fontSize: "0.95rem", color: changeColor, fontWeight: 700 }}>
+            <span style={{ fontSize: "1rem", color: changeColor, fontWeight: 600 }}>
               {arrow}{" "}
               {d.change != null ? `${d.change > 0 ? "+" : ""}${d.change.toFixed(2)} ` : ""}
-              ({d.change_pct > 0 ? "+" : ""}{d.change_pct.toFixed(2)}%
-              {d.period_days && d.period_days > 1 ? `, ${d.period_days}日` : ""})
-            </span>
-          )}
-          {d.trend && (
-            <span style={{
-              fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "3px 8px",
-              background: d.trend === "上涨" ? "#DCFCE7" : d.trend === "下跌" ? "#FEE2E2" : "#F1F5F9",
-              color: d.trend === "上涨" ? "#166534" : d.trend === "下跌" ? "#991B1B" : "#475569",
-              fontFamily: F.m,
-            }}>
-              {d.trend}
+              ({parseInt(d.change_pct) > 0 ? "+" : ""}{d.change_pct.toFixed(2)}%)
             </span>
           )}
         </div>
 
         {/* OHLCV row */}
         {hasOHLCV && (
-          <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: "0.82rem", color: C.ts, flexWrap: "wrap" }}>
-            {d.open != null && <span>开 <b style={{ color: C.text }}>{d.open.toFixed(2)}</b></span>}
-            {d.high != null && <span>高 <b style={{ color: "#16a34a" }}>{d.high.toFixed(2)}</b></span>}
-            {d.low != null && <span>低 <b style={{ color: "#dc2626" }}>{d.low.toFixed(2)}</b></span>}
-            {d.volume != null && (
-              <span>量 <b style={{ color: C.text }}>{d.volume >= 1e6 ? `${(d.volume / 1e6).toFixed(1)}M` : d.volume.toLocaleString()}</b></span>
-            )}
-          </div>
-        )}
-
-        {/* Period summary row */}
-        {d.start_price != null && d.end_price != null && d.period_days && (
-          <div style={{ marginTop: 6, fontSize: "0.8rem", color: C.ts }}>
-            {d.period_days}日区间：{d.start_price.toFixed(2)} → {d.end_price.toFixed(2)}
+          <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: "0.85rem", color: "#6b7280", flexWrap: "wrap" }}>
+            {d.open != null && <span>开 {d.open.toFixed(2)}</span>}
+            {d.high != null && <span>高 {d.high.toFixed(2)}</span>}
+            {d.low != null && <span>低 {d.low.toFixed(2)}</span>}
+            {d.volume != null && <span>量 {(d.volume / 1e6).toFixed(1)}M</span>}
           </div>
         )}
       </div>
@@ -199,20 +230,127 @@ function Block({ block }) {
   }
 
   if (block.type === "analysis") {
-    return (
-      <div style={analysisBlockStyle}>
-        <div style={analysisBadgeStyle}>{block.title || "AI 分析"}</div>
-        <div style={analysisContentStyle}>
-          <MarkdownText text={block.data?.text || ""} />
+    const sections = parseMarkdownSections(block.data?.text || "");
+
+    // If no sections found, use fallback with optimized typography
+    if (!sections) {
+      return (
+        <div style={analysisBlockStyle}>
+          <div style={analysisBadgeStyle}>{block.title || "AI 分析"}</div>
+          <div style={{
+            ...analysisContentStyle,
+            lineHeight: 1.85,
+            fontSize: 13,
+            color: '#1A2332'
+          }}>
+            <MarkdownText text={block.data?.text || ""} />
+          </div>
+          <div style={analysisDisclaimerStyle}>
+            以上分析由 AI 基于公开数据生成，不构成投资建议
+          </div>
         </div>
-        <div style={analysisDisclaimerStyle}>
-          以上分析由 AI 基于公开数据生成，不构成投资建议
-        </div>
-      </div>
-    );
+      );
+    }
+
+    // Render accordion
+    return <AnalysisAccordion sections={sections} title={block.title} />;
+  }
+
+  if (block.type === "trace") {
+    return <TraceBlock block={block} />;
   }
 
   return null;
+}
+
+function AnalysisAccordion({ sections, title }) {
+  const [openIndex, setOpenIndex] = useState(0); // First section open by default
+
+  return (
+    <div style={analysisBlockStyle}>
+      <div style={analysisBadgeStyle}>{title || "AI 分析"}</div>
+      <div style={{ marginTop: 8 }}>
+        {sections.map((section, index) => {
+          const isOpen = openIndex === index;
+          const icon = getSectionIcon(section.title);
+
+          return (
+            <div key={index} style={{
+              borderBottom: index < sections.length - 1 ? `1px solid ${C.borderL}` : 'none',
+              paddingBottom: 12,
+              marginBottom: 12
+            }}>
+              {/* Section header */}
+              <div
+                onClick={() => setOpenIndex(isOpen ? -1 : index)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  padding: '8px 0',
+                  userSelect: 'none'
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{icon}</span>
+                <span style={{
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: C.text,
+                  flex: 1
+                }}>
+                  {section.title}
+                </span>
+                <span style={{
+                  fontSize: 11,
+                  color: C.td,
+                  transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s'
+                }}>
+                  ▼
+                </span>
+              </div>
+
+              {/* Section content */}
+              {isOpen && (
+                <div style={{
+                  fontSize: 13,
+                  lineHeight: 1.85,
+                  color: C.text,
+                  paddingLeft: 24,
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {section.content}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={analysisDisclaimerStyle}>
+        以上分析由 AI 基于公开数据生成，不构成投资建议
+      </div>
+    </div>
+  );
+}
+
+function TraceBlock({ block }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div 
+        onClick={() => setOpen(!open)}
+        style={{ cursor: "pointer", color: "#9ca3af", fontSize: "0.8rem" }}
+      >
+        {open ? "▼ 隐藏调用详情" : "▶ 查看调用详情"}
+      </div>
+      {open && (
+        <div style={{ marginTop: 4, fontSize: "0.8rem", color: "#6b7280" }}>
+          {block.data?.text || block.content}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MarkdownText({ text }) {

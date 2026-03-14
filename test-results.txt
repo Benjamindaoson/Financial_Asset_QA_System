@@ -1,0 +1,39 @@
+# UI Optimization Test Results
+Date: Fri Mar 14 08:47:52 UTC 2026
+
+## Automated Verification (Completed)
+✓ Backend server running on port 8001
+✓ Frontend dev server running on port 5178
+✓ API endpoint responding to queries
+✓ SSE streaming working correctly
+✓ Market data tools (get_price, get_change) executing
+✓ LLM generating analysis with streaming chunks
+
+## Manual Browser Testing (Required)
+The following tests require manual browser interaction and cannot be automated:
+
+[ ] Market query - QueryTimeline + 3 zones working
+    Test: Navigate to http://localhost:5178 and enter "AAPL 近7日走势"
+    Verify: QueryTimeline shows steps, ThreeZoneLayout displays correctly
+
+[ ] Knowledge query - Zone 1 hidden correctly
+    Test: Enter "什么是市盈率"
+    Verify: Only analysis and sources zones appear
+
+[ ] Comparison query - Chart rendering
+    Test: Enter "比较 AAPL 和 TSLA 的 1 年表现"
+    Verify: Chart block renders in Zone 2
+
+[ ] Mobile responsive - Vertical timeline
+    Test: Resize browser to 375px width
+    Verify: QueryTimeline switches to vertical layout
+
+[ ] Error handling - Graceful fallback
+    Test: Stop backend and send query
+    Verify: Error message "分析生成失败，请重试" appears
+
+## Notes
+- API testing confirms backend is generating structured responses
+- Frontend components are in place (verified in previous tasks)
+- Manual UI testing required to verify visual layout and interactions
+- Servers are running and ready for manual testing

@@ -19,7 +19,7 @@ class WebSearchService:
             return WebSearchResult(results=[], search_query=query)
 
         try:
-            async with httpx.AsyncClient(timeout=settings.API_TIMEOUT) as client:
+            async with httpx.AsyncClient(timeout=getattr(settings, "WEB_SEARCH_TIMEOUT", 10)) as client:
                 response = await client.post(
                     self.base_url,
                     json={

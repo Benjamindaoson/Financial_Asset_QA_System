@@ -19,7 +19,17 @@ const toolDisplayMap = {
   'analysis_chunk': '✍️ 生成分析报告'
 };
 
-export function QueryTimeline({ events = [], loading = false }) {
+function formatLatency(ms) {
+  if (ms == null || ms < 0) return '';
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms}ms`;
+}
+
+export function QueryTimeline({ events = [], tool_latencies = [], loading = false }) {
+  const latencyMap = Object.fromEntries(
+    (tool_latencies || []).map(t => [t.tool, t.latency_ms])
+  );
+
   // Filter key events
   const keyEvents = events.filter(e =>
     e.type === 'model_selected' ||
@@ -32,112 +42,73 @@ export function QueryTimeline({ events = [], loading = false }) {
   // Determine current step (last event index)
   const currentStep = loading ? keyEvents.length - 1 : keyEvents.length;
 
-  // Responsive: max 5 steps on desktop, 3 on mobile
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-  const maxSteps = isMobile ? 3 : 5;
 
-  let displayEvents = keyEvents;
-  if (keyEvents.length > maxSteps) {
-    // Show first 2, "...", last 1
-    displayEvents = [
-      ...keyEvents.slice(0, 2),
-      { type: 'ellipsis' },
-      keyEvents[keyEvents.length - 1]
-    ];
-  }
+  // Show all events, no truncation
+  const displayEvents = keyEvents;
 
   return (
     <div style={{
       display: 'flex',
-      flexDirection: isMobile ? 'column' : 'row',
-      alignItems: isMobile ? 'flex-start' : 'center',
-      gap: isMobile ? 8 : 12,
-      padding: '12px 16px',
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: isMobile ? 6 : 10,
+      padding: '10px 16px',
       background: C.white,
       border: `1px solid ${C.border}`,
       borderRadius: 10,
       marginBottom: 10
     }}>
       {displayEvents.map((event, index) => {
-        if (event.type === 'ellipsis') {
-          return (
-            <div key="ellipsis" style={{
-              color: C.td,
-              fontSize: 12,
-              padding: isMobile ? '4px 0' : '0 4px'
-            }}>
-              ...
-            </div>
-          );
-        }
-
         const isCompleted = index < currentStep;
         const isCurrent = index === currentStep;
 
         // Get display text
         let displayText = '';
+        let latencyMs = null;
         if (event.type === 'model_selected') {
           displayText = toolDisplayMap['model_selected'];
         } else if (event.type === 'tool_start') {
           displayText = toolDisplayMap[event.name] || event.display || event.name;
+          latencyMs = latencyMap[event.name];
         } else if (event.type === 'analysis_chunk') {
           displayText = toolDisplayMap['analysis_chunk'];
+          latencyMs = latencyMap['analysis_chunk'] ?? latencyMap['llm'];
         }
+
+        const latencyStr = formatLatency(latencyMs);
 
         return (
           <div key={index} style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            fontSize: isMobile ? 11 : 12,
+            gap: 5,
+            fontSize: isMobile ? 11 : 11.5,
             color: isCompleted ? C.text : (isCurrent ? C.accent : C.td),
             fontFamily: F.s,
             opacity: isCompleted || isCurrent ? 1 : 0.5
           }}>
             {/* Status icon */}
             {isCompleted ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             ) : isCurrent ? (
-              <span style={{
-                width: 14,
-                height: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: C.accent,
-                  animation: 'pulse 1s infinite'
-                }} />
+              <span style={{ width: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, animation: 'pulse 1s infinite' }} />
               </span>
             ) : (
-              <span style={{
-                width: 14,
-                height: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <span style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  background: C.td
-                }} />
+              <span style={{ width: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.td }} />
               </span>
             )}
 
-            {/* Display text */}
-            <span>{displayText}</span>
+            <span>{displayText}{latencyStr && <span style={{ color: C.td, marginLeft: 4, fontSize: '0.9em' }}>{latencyStr}</span>}</span>
 
-            {/* Connector (not for last item, not for mobile) */}
-            {!isMobile && index < displayEvents.length - 1 && event.type !== 'ellipsis' && (
-              <span style={{ color: C.border, marginLeft: 4 }}>→</span>
+            {/* Connector arrow - not for last item */}
+            {index < displayEvents.length - 1 && (
+              <span style={{ color: C.border, marginLeft: 2, fontSize: 10 }}>→</span>
             )}
           </div>
         );

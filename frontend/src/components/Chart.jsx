@@ -149,7 +149,9 @@ export function Chart({ symbol, rangeKey = "1y", defaultRange = null, embeddedSe
             <YAxis tick={{ fill: C.td, fontSize: 10, fontFamily: F.m }} axisLine={false} tickLine={false} />
             <Tooltip
               contentStyle={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, fontFamily: F.m }}
-              formatter={(value) => [`${value.toFixed(2)}`, "归一化"]}
+              formatter={(value) => [`${Number(value).toFixed(2)}`, "归一化"]}
+              labelFormatter={(label) => `日期: ${label}`}
+              cursor={{ stroke: C.border, strokeWidth: 1, strokeDasharray: "4 2" }}
             />
             <Legend />
             {comparisonKeys.map((key, index) => (
@@ -169,7 +171,9 @@ export function Chart({ symbol, rangeKey = "1y", defaultRange = null, embeddedSe
             <YAxis tick={{ fill: C.td, fontSize: 10, fontFamily: F.m }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
             <Tooltip
               contentStyle={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, fontFamily: F.m }}
-              formatter={(value) => [`$${value.toFixed(2)}`, "价格"]}
+              formatter={(value) => [`$${Number(value).toFixed(2)}`, "收盘价"]}
+              labelFormatter={(label) => `日期: ${label}`}
+              cursor={{ stroke: C.border, strokeWidth: 1, strokeDasharray: "4 2" }}
             />
             <Area type="monotone" dataKey="price" stroke={C.accent} strokeWidth={2} fill={`url(#g-${symbol})`} dot={false} />
           </AreaChart>

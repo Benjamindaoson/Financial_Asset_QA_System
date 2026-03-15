@@ -66,10 +66,16 @@ async def health() -> HealthResponse:
         components["redis"] = "disconnected"
 
     try:
-        agent.rag_pipeline.get_collection_count()
-        components["chromadb"] = "ready"
-    except Exception:
-        components["chromadb"] = "unavailable"
+        if hasattr(agent, "rag_pipeline") and agent.rag_pipeline:
+            count = agent.rag_pipeline.get_collection_count()
+            components["chromadb"] = f"ready ({count} docs)" if count > 0 else "empty"
+            components["rag_token_match"] = "ready"
+        else:
+            components["chromadb"] = "unavailable"
+            components["rag_token_match"] = "unavailable"
+    except Exception as e:
+        components["chromadb"] = f"error: {str(e)[:50]}"
+        components["rag_token_match"] = "ready"  # token-match 仍可用
 
     components["deepseek_api"] = "configured" if settings.DEEPSEEK_API_KEY else "not_configured"
     components["alpha_vantage"] = "configured" if settings.ALPHA_VANTAGE_API_KEY else "not_configured"

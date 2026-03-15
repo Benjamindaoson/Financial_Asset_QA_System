@@ -1,6 +1,53 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { Chart } from "../Chart";
+import PriceCard from "../Stock/PriceCard";
+import AnalysisSection from "./AnalysisSection";
+import NewsCards from "./NewsCards";
+import ReferenceSource from "./ReferenceSource";
 import { C, F } from "../../theme";
+
+/** 预处理 Markdown：移除加粗星号（LLM 输出格式不稳定，星号裸露影响阅读） */
+function normalizeMarkdown(text) {
+  if (!text || typeof text !== "string") return "";
+  let out = text.replace(/\uFF0A/g, "*");
+  out = out.replace(/\*\*/g, "");
+  return out;
+}
+
+const markdownStyles = {
+  p: { margin: "0 0 10px 0", lineHeight: 1.85, fontSize: 14 },
+  strong: { fontWeight: 700, color: C.text, fontSize: 14 },
+  em: { fontStyle: "italic" },
+  ul: { margin: "0 0 10px 0", paddingLeft: 20, fontSize: 14 },
+  ol: { margin: "0 0 10px 0", paddingLeft: 20, fontSize: 14 },
+  li: { marginBottom: 4 },
+  code: { background: "#F1F5F9", padding: "2px 6px", borderRadius: 4, fontSize: 13 },
+};
+
+// Map internal source names to user-friendly labels
+const SOURCE_LABEL_MAP = {
+  stooq: 'Stooq 行情',
+  stoog: 'Stooq 行情', // 兼容拼写变体
+  yfinance: 'YFinance 行情',
+  finnhub: 'Finnhub 行情',
+  tavily: 'Tavily 新闻',
+  alpha_vantage: 'Alpha Vantage',
+  sec: 'SEC 公告',
+  web: '网络搜索',
+};
+
+const HIDDEN_SOURCE_VALUES = ['unavailable', 'not_configured', 'disconnected', 'error', ''];
+
+function mapSourceName(name) {
+  if (!name) return null;
+  const lower = (String(name) || '').toLowerCase().trim();
+  if (HIDDEN_SOURCE_VALUES.includes(lower)) return null;
+  if (SOURCE_LABEL_MAP[lower]) return SOURCE_LABEL_MAP[lower];
+  // Hide internal .md file names — group them as knowledge base
+  if (lower.endsWith('.md')) return '__knowledge__';
+  return name;
+}
 
 export function StreamingText({ text }) {
   return (
@@ -25,13 +72,13 @@ const BLOCK_ORDER = {
   chart: 1,
   key_metrics: 2,
   analysis: 3,
-  table: 4,
-  quote: 5,
-  bullets: 6,
-  news: 6,
-  source: 7,
-  trace: 8,
-  warning: 9,
+  news: 4,
+  table: 5,
+  quote: 6,
+  bullets: 7,
+  source: 8,
+  trace: 9,
+  warning: 10,
 };
 
 export function ResponseBlocks({ blocks = [] }) {
@@ -42,11 +89,12 @@ export function ResponseBlocks({ blocks = [] }) {
   const sorted = [...blocks].sort(
     (a, b) => (BLOCK_ORDER[a.type] || 99) - (BLOCK_ORDER[b.type] || 99)
   );
+  const keyMetrics = blocks.find((b) => b.type === "key_metrics")?.data;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {sorted.map((block, index) => (
-        <Block key={`${block.type}-${index}`} block={block} />
+        <Block key={`${block.type}-${index}`} block={block} keyMetrics={keyMetrics} />
       ))}
     </div>
   );
@@ -74,70 +122,17 @@ function parseMarkdownSections(text) {
   return sections;
 }
 
-function getSectionIcon(title) {
-  const iconMap = {
-    '近期走势': '📈',
-    '技术面观察': '🔍',
-    '风险提示': '⚠️',
-    '基本面分析': '📊',
-    '市场情绪': '💭',
-    '走势概述': '📈',
-    '事件归因': '📰',
-    '当前状态': '💡',
-    '定义': '📖',
-    '计算公式': '🔢',
-    '核心区别': '🔢',
-    '实际应用举例': '💼',
-    '注意事项': '⚠️'
-  };
-
-  // Exact match
-  if (iconMap[title]) return iconMap[title];
-
-  // Partial match
-  for (const [key, icon] of Object.entries(iconMap)) {
-    if (title.includes(key)) return icon;
+function Block({ block, keyMetrics }) {
+  if (block.type === "key_metrics") {
+    return <PriceCard block={block} />;
   }
 
-  return '📌'; // Default icon
-}
-
-function Block({ block }) {
-  if (block.type === "key_metrics") {
-    const d = block.data || {};
-    const isUp = (d.change_pct ?? d.change ?? 0) >= 0;
-    const changeColor = isUp ? "#16a34a" : "#dc2626";
-    const arrow = isUp ? "▲" : "▼";
-    const hasPeriodChange = d.change_pct != null;
-    const hasOHLCV = d.open != null || d.high != null || d.low != null || d.volume != null;
-
+  if (block.type === "news") {
     return (
-      <div style={{ padding: "12px 16px" }}>
-        {/* Price row */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: "1.8rem", fontWeight: 700, color: C.text, fontFamily: F.m, letterSpacing: "-0.5px" }}>
-            {d.currency && d.currency !== "USD" ? d.currency + " " : "$"}
-            {d.price != null ? d.price.toFixed(2) : (d.end_price != null ? d.end_price.toFixed(2) : "—")}
-          </span>
-          {hasPeriodChange && (
-            <span style={{ fontSize: "1rem", color: changeColor, fontWeight: 600 }}>
-              {arrow}{" "}
-              {d.change != null ? `${d.change > 0 ? "+" : ""}${d.change.toFixed(2)} ` : ""}
-              ({parseInt(d.change_pct) > 0 ? "+" : ""}{d.change_pct.toFixed(2)}%)
-            </span>
-          )}
-        </div>
-
-        {/* OHLCV row */}
-        {hasOHLCV && (
-          <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: "0.85rem", color: "#6b7280", flexWrap: "wrap" }}>
-            {d.open != null && <span>开 {d.open.toFixed(2)}</span>}
-            {d.high != null && <span>高 {d.high.toFixed(2)}</span>}
-            {d.low != null && <span>低 {d.low.toFixed(2)}</span>}
-            {d.volume != null && <span>量 {(d.volume / 1e6).toFixed(1)}M</span>}
-          </div>
-        )}
-      </div>
+      <NewsCards
+        items={block.data?.items || []}
+        title={block.title || "相关新闻"}
+      />
     );
   }
 
@@ -203,17 +198,7 @@ function Block({ block }) {
   }
 
   if (block.type === "quote") {
-    // Strip YAML frontmatter from quote content
-    const cleanContent = (block.data?.text || '')
-      .replace(/^-?\s*---\s*\n[\s\S]*?\n---\s*\n/gm, '')
-      .trim();
-
-    return (
-      <div style={{ ...panelStyle, background: "#FAFCFF", borderColor: "#D6E4F7" }}>
-        <div style={panelTitleStyle}>{block.title}</div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.8, whiteSpace: "pre-wrap", color: C.text }}>{cleanContent}</div>
-      </div>
-    );
+    return <ReferenceSource block={block} />;
   }
 
   if (block.type === "warning") {
@@ -243,7 +228,19 @@ function Block({ block }) {
             fontSize: 13,
             color: '#1A2332'
           }}>
-            <MarkdownText text={block.data?.text || ""} />
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <p style={markdownStyles.p}>{children}</p>,
+                strong: ({ children }) => <strong style={markdownStyles.strong}>{children}</strong>,
+                em: ({ children }) => <em style={markdownStyles.em}>{children}</em>,
+                ul: ({ children }) => <ul style={markdownStyles.ul}>{children}</ul>,
+                ol: ({ children }) => <ol style={markdownStyles.ol}>{children}</ol>,
+                li: ({ children }) => <li style={markdownStyles.li}>{children}</li>,
+                code: ({ children }) => <code style={markdownStyles.code}>{children}</code>,
+              }}
+            >
+              {normalizeMarkdown(block.data?.text || "")}
+            </ReactMarkdown>
           </div>
           <div style={analysisDisclaimerStyle}>
             以上分析由 AI 基于公开数据生成，不构成投资建议
@@ -252,8 +249,7 @@ function Block({ block }) {
       );
     }
 
-    // Render accordion
-    return <AnalysisAccordion sections={sections} title={block.title} />;
+    return <AnalysisSection sections={sections} title={block.title} keyMetrics={keyMetrics} />;
   }
 
   if (block.type === "trace") {
@@ -261,77 +257,6 @@ function Block({ block }) {
   }
 
   return null;
-}
-
-function AnalysisAccordion({ sections, title }) {
-  const [openIndex, setOpenIndex] = useState(0); // First section open by default
-
-  return (
-    <div style={analysisBlockStyle}>
-      <div style={analysisBadgeStyle}>{title || "AI 分析"}</div>
-      <div style={{ marginTop: 8 }}>
-        {sections.map((section, index) => {
-          const isOpen = openIndex === index;
-          const icon = getSectionIcon(section.title);
-
-          return (
-            <div key={index} style={{
-              borderBottom: index < sections.length - 1 ? `1px solid ${C.borderL}` : 'none',
-              paddingBottom: 12,
-              marginBottom: 12
-            }}>
-              {/* Section header */}
-              <div
-                onClick={() => setOpenIndex(isOpen ? -1 : index)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  padding: '8px 0',
-                  userSelect: 'none'
-                }}
-              >
-                <span style={{ fontSize: 16 }}>{icon}</span>
-                <span style={{
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  color: C.text,
-                  flex: 1
-                }}>
-                  {section.title}
-                </span>
-                <span style={{
-                  fontSize: 11,
-                  color: C.td,
-                  transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s'
-                }}>
-                  ▼
-                </span>
-              </div>
-
-              {/* Section content */}
-              {isOpen && (
-                <div style={{
-                  fontSize: 13,
-                  lineHeight: 1.85,
-                  color: C.text,
-                  paddingLeft: 24,
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {section.content}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div style={analysisDisclaimerStyle}>
-        以上分析由 AI 基于公开数据生成，不构成投资建议
-      </div>
-    </div>
-  );
 }
 
 function TraceBlock({ block }) {
@@ -470,20 +395,34 @@ export function ConfidenceBadge({ confidence }) {
   );
 }
 
-export function SourcesPanel({ items = [] }) {
-  if (!items.length) {
-    return null;
-  }
+export function SourcesPanel({ items = [], rag_citations = [] }) {
+  const rawNames = [...new Set(items.map(s => s.name))];
+  const mappedLabels = new Set();
+  let hasKnowledge = false;
 
-  // Get unique source names
-  const sourceNames = [...new Set(items.map(s => s.name))];
+  rawNames.forEach(name => {
+    const label = mapSourceName(name);
+    if (label === '__knowledge__') {
+      hasKnowledge = true;
+    } else if (label) {
+      mappedLabels.add(label);
+    }
+  });
 
-  // Get the most recent timestamp
-  const latestTimestamp = items.reduce((latest, source) => {
-    const sourceTime = new Date(source.timestamp).getTime();
-    const latestTime = new Date(latest).getTime();
-    return sourceTime > latestTime ? source.timestamp : latest;
-  }, items[0].timestamp);
+  if (hasKnowledge || rag_citations.length > 0) mappedLabels.add('知识库');
+  const displayNames = [...mappedLabels];
+
+  const citationSuffix = rag_citations.length > 0 ? ` · ${rag_citations.length} 条引用` : '';
+
+  if (displayNames.length === 0 && rag_citations.length === 0) return null;
+
+  const latestTimestamp = items.length > 0
+    ? items.reduce((latest, source) => {
+        const sourceTime = new Date(source.timestamp).getTime();
+        const latestTime = new Date(latest).getTime();
+        return sourceTime > latestTime ? source.timestamp : latest;
+      }, items[0].timestamp)
+    : null;
 
   const formatTimestamp = (ts) => {
     try {
@@ -506,7 +445,8 @@ export function SourcesPanel({ items = [] }) {
         fontFamily: F.m,
       }}
     >
-      数据来源：{sourceNames.join(' · ')} | 更新时间：{formatTimestamp(latestTimestamp)}
+      数据来源：{displayNames.join(' · ')}{citationSuffix}
+      {latestTimestamp && ` | 更新时间：${formatTimestamp(latestTimestamp)}`}
     </div>
   );
 }

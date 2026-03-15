@@ -28,8 +28,15 @@ class RAGPipeline:
     }
 
     def __init__(self):
-        # Initialize ChromaDB
-        persist_dir = Path(settings.CHROMA_PERSIST_DIR)
+        # Initialize ChromaDB（解析为绝对路径，确保 RAG 向量库稳定接入）
+        raw_dir = Path(settings.CHROMA_PERSIST_DIR)
+        if not raw_dir.is_absolute():
+            # 项目根 = backend 的父目录
+            project_root = Path(__file__).resolve().parents[3]
+            # ../vectorstore/chroma -> 项目根/vectorstore/chroma
+            persist_dir = project_root / "vectorstore" / "chroma"
+        else:
+            persist_dir = raw_dir
         persist_dir.mkdir(parents=True, exist_ok=True)
 
         self.chroma_client = chromadb.PersistentClient(
@@ -59,26 +66,106 @@ class RAGPipeline:
             self.reranker = FlagReranker(settings.RERANKER_MODEL, use_fp16=True)
 
     def _load_local_documents(self) -> List[dict]:
-        knowledge_dir = (Path(__file__).resolve().parents[3] / "data" / "knowledge")
+        """Load from data/knowledge, raw_data/knowledge, raw_data/finance_report, dealed_data (md/json/html)."""
+        base = Path(__file__).resolve().parents[3] / "data"
         documents = []
-        for file_path in sorted(knowledge_dir.glob("*.md")):
-            content = None
-            for encoding in ("utf-8", "utf-8-sig", "gbk", "gb18030"):
-                try:
-                    content = file_path.read_text(encoding=encoding)
-                    break
-                except Exception:
-                    continue
-            if content is None:
+        seen_sources: set[str] = set()
+
+        def add_doc(content: str, source: str, key: str) -> None:
+            if not content or len(content.strip()) < 20:
+                return
+            if key in seen_sources:
+                return
+            seen_sources.add(key)
+            documents.append({
+                "source": source,
+                "content": content,
+                "tokens": self._tokenize_text(content),
+            })
+
+        # 1. knowledge, raw_data: 仅 md
+        for rel_dir in ("knowledge", "raw_data/knowledge", "raw_data/finance_report"):
+            dir_path = base / rel_dir
+            if not dir_path.exists():
                 continue
-            documents.append(
-                {
-                    "source": file_path.name,
-                    "content": content,
-                    "tokens": self._tokenize_text(content),
-                }
-            )
+            for file_path in sorted(dir_path.rglob("*.md")):
+                key = f"{rel_dir}/{file_path.name}"
+                content = None
+                for encoding in ("utf-8", "utf-8-sig", "gbk", "gb18030"):
+                    try:
+                        content = file_path.read_text(encoding=encoding)
+                        break
+                    except Exception:
+                        continue
+                if content:
+                    add_doc(content, file_path.name, key)
+
+        # 2. dealed_data: md, json, html
+        dealed_dir = base / "dealed_data"
+        if dealed_dir.exists():
+            for file_path in sorted(dealed_dir.iterdir()):
+                if not file_path.is_file():
+                    continue
+                suffix = file_path.suffix.lower()
+                key = f"dealed_data/{file_path.name}"
+                content = None
+
+                if suffix == ".md":
+                    for encoding in ("utf-8", "utf-8-sig", "gbk", "gb18030"):
+                        try:
+                            content = file_path.read_text(encoding=encoding)
+                            break
+                        except Exception:
+                            continue
+                elif suffix == ".json":
+                    content = self._extract_text_from_mineru_json(file_path)
+                elif suffix == ".html":
+                    content = self._extract_text_from_html(file_path)
+
+                if content:
+                    add_doc(content, file_path.name, key)
+
         return documents
+
+    @staticmethod
+    def _extract_text_from_mineru_json(file_path: Path) -> str:
+        """Extract text from MinerU JSON (pdf_info[].para_blocks[].lines[].spans[].content)."""
+        try:
+            import json
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+            parts = []
+            for page in data.get("pdf_info", []):
+                for block in page.get("para_blocks", []):
+                    for line in block.get("lines", []):
+                        for span in line.get("spans", []):
+                            c = span.get("content", "").strip()
+                            if c:
+                                parts.append(c)
+            return "\n".join(parts) if parts else ""
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _extract_text_from_html(file_path: Path) -> str:
+        """Extract text from HTML body."""
+        try:
+            import re
+            raw = file_path.read_text(encoding="utf-8")
+            # 移除 script/style
+            raw = re.sub(r"<script[^>]*>[\s\S]*?</script>", "", raw, flags=re.I)
+            raw = re.sub(r"<style[^>]*>[\s\S]*?</style>", "", raw, flags=re.I)
+            # 提取 body 文本
+            body = re.search(r"<body[^>]*>([\s\S]*?)</body>", raw, re.I)
+            if body:
+                body = body.group(1)
+            else:
+                body = raw
+            text = re.sub(r"<[^>]+>", " ", body)
+            text = re.sub(r"\s+", " ", text)
+            return text.strip()
+
+        except Exception:
+            return ""
 
     @staticmethod
     def _tokenize_text(text: str) -> set[str]:

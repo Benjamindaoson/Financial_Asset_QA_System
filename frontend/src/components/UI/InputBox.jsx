@@ -17,7 +17,7 @@ export function InputBox({ value, onChange, onSend, onClear, loading }) {
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !loading && onSend()}
-            placeholder="输入股票、ETF、债券代码，或直接提问金融问题，例如：AAPL 近1年最大回撤"
+            placeholder="输入代码或提问，如：AAPL 最大回撤"
             style={{
               flex: 1,
               background: "transparent",

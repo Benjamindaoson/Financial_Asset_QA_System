@@ -17,6 +17,7 @@ import { MarketSummary } from "./components/Market/MarketSummary";
 import { SectorHeatmap } from "./components/Market/SectorHeatmap";
 import { QueryTimeline } from "./components/Chat/QueryTimeline";
 import { ThreeZoneLayout } from "./components/Chat/ThreeZoneLayout";
+import { RAGDebugPanel } from "./components/Chat/RAGDebugPanel";
 
 function AiMessage({ msg }) {
   const [traceOpen, setTraceOpen] = useState(false);
@@ -25,39 +26,49 @@ function AiMessage({ msg }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* Query Timeline - always visible */}
       {msg.trace?.length > 0 && (
-        <QueryTimeline events={msg.trace} loading={false} />
+        <QueryTimeline events={msg.trace} tool_latencies={msg.tool_latencies} loading={false} />
       )}
 
       {/* Three-Zone Layout */}
       <ThreeZoneLayout
         blocks={msg.blocks || []}
         sources={msg.sources}
+        rag_citations={msg.rag_citations}
+        llm_used={msg.llm_used}
         confidence={msg.confidence}
         disclaimer={msg.disclaimer}
         fallbackText={msg.text}
         trace={msg.trace}
+        symbol={msg.symbol}
+        rangeKey={msg.rangeKey}
       />
 
-      {/* Collapsible trace details */}
-      {msg.trace?.length > 0 && (
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 12px" }}>
-          <div
-            onClick={() => setTraceOpen((v) => !v)}
-            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: C.ts, fontSize: 11, fontFamily: F.m, userSelect: "none" }}
-          >
-            <span style={{ fontSize: 9 }}>{traceOpen ? "▼" : "▶"}</span>
-            {traceOpen ? "隐藏调用详情" : "查看调用详情"}
-          </div>
-          {traceOpen && (
-            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, color: C.text }}>
-              {msg.trace.map((item, i) => (
-                <div key={i} style={{ padding: "2px 0", borderBottom: `1px solid ${C.borderL}` }}>
-                  {typeof item === 'string' ? item : JSON.stringify(item)}
+      {/* Collapsible trace details + RAG Debug — 仅 URL 含 ?debug=true 时显示 */}
+      {typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("debug") === "true" && (
+        <>
+          <RAGDebugPanel query={msg.query} rag_citations={msg.rag_citations} trace={msg.trace} />
+          {msg.trace?.length > 0 && (
+            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", marginTop: 8 }}>
+              <div
+                onClick={() => setTraceOpen((v) => !v)}
+                style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: C.ts, fontSize: 11, fontFamily: F.m, userSelect: "none" }}
+              >
+                <span style={{ fontSize: 9 }}>{traceOpen ? "▼" : "▶"}</span>
+                {traceOpen ? "隐藏调用详情" : "查看调用详情"}
+              </div>
+              {traceOpen && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, color: C.text }}>
+                  {msg.trace.map((item, i) => (
+                    <div key={i} style={{ padding: "2px 0", borderBottom: `1px solid ${C.borderL}` }}>
+                      {typeof item === 'string' ? item : JSON.stringify(item)}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
@@ -76,6 +87,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [streamingText, setStreamingText] = useState("");
+  const [streamingBlocks, setStreamingBlocks] = useState([]);
+  const [streamingMeta, setStreamingMeta] = useState({ symbol: null, rangeKey: "1y", sources: [], llm_used: false });
   const [currentTrace, setCurrentTrace] = useState([]);
   const [marketData, setMarketData] = useState(null);
   const [loadingMarket, setLoadingMarket] = useState(true);
@@ -89,7 +102,7 @@ export default function App() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, streamingText]);
+  }, [msgs, streamingText, streamingBlocks]);
 
   const loadMarketOverview = useCallback(async () => {
     try {
@@ -116,6 +129,8 @@ export default function App() {
       setLoading(true);
       setCurrentStep(0);
       setStreamingText("");
+      setStreamingBlocks([]);
+      setStreamingMeta({ symbol: null, rangeKey: "1y", sources: [], llm_used: false });
       setCurrentTrace([]);
 
       try {
@@ -151,16 +166,31 @@ export default function App() {
             setStreamingText(fullText);
           } else if (event.type === "analysis_chunk") {
             analysisText += event.text || "";
-            const traceEvent = { type: 'analysis_chunk', timestamp: Date.now() };
-            trace.push(traceEvent);
-            setCurrentTrace([...trace]);
+            setStreamingMeta((m) => ({ ...m, llm_used: true }));
+            // 只添加一条「生成分析报告」步骤，避免每个 token 都新增导致 Pipeline 铺满屏幕
+            if (!trace.some((e) => e.type === "analysis_chunk")) {
+              const traceEvent = { type: "analysis_chunk", timestamp: Date.now() };
+              trace.push(traceEvent);
+              setCurrentTrace([...trace]);
+            }
             setStreamingText(fullText + "\n\n" + analysisText);
+          } else if (event.type === "blocks") {
+            const d = event.data || {};
+            setStreamingBlocks(d.blocks || []);
+            if (d.route) {
+              setStreamingMeta((m) => ({
+                ...m,
+                symbol: d.route?.symbols?.[0] || symbol,
+                rangeKey: d.route?.range_key || rangeKey,
+              }));
+            }
           } else if (event.type === "done") {
             sources = event.sources || [];
             meta = event.data || {};
             if (meta?.route?.range_key) {
               rangeKey = meta.route.range_key;
             }
+            setStreamingMeta((m) => ({ ...m, sources }));
           }
         }
 
@@ -176,9 +206,16 @@ export default function App() {
             confidence: meta.confidence,
             blocks: meta.blocks || [],
             disclaimer: meta.disclaimer,
+            rag_citations: meta.rag_citations || [],
+            tool_latencies: meta.tool_latencies || [],
+            route: meta.route,
+            query: q,
+            llm_used: meta.llm_used === true,
           },
         ]);
         setStreamingText("");
+        setStreamingBlocks([]);
+        setStreamingMeta({ symbol: null, rangeKey: "1y", sources: [], llm_used: false });
         setCurrentTrace([]);
       } catch (error) {
         setMsgs((prev) => [
@@ -218,6 +255,7 @@ export default function App() {
         @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+        @keyframes skeleton-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
@@ -263,19 +301,29 @@ export default function App() {
             <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>FinSight AI</span>
           </div>
         </div>
-        <span
-          style={{
-            fontSize: 10,
-            padding: "4px 8px",
-            borderRadius: 999,
-            background: "#DCFCE7",
-            color: "#166534",
-            fontWeight: 700,
-            fontFamily: F.m,
-          }}
-        >
-          LIVE DATA
-        </span>
+        {(() => {
+          const lastAi = [...msgs].reverse().find((m) => m.role === "ai");
+          const routeType = lastAi?.route?.type;
+          const toolNames = (lastAi?.tool_latencies || []).map((t) => t.tool);
+          const marketTools = ["get_price", "get_history", "get_change", "get_info", "get_metrics", "compare_assets"];
+          const hasLiveData = routeType === "market" || routeType === "hybrid" || toolNames.some((t) => marketTools.includes(t));
+          if (!hasLiveData) return null;
+          return (
+            <span
+              style={{
+                fontSize: 10,
+                padding: "4px 8px",
+                borderRadius: 999,
+                background: "#DCFCE7",
+                color: "#166534",
+                fontWeight: 700,
+                fontFamily: F.m,
+              }}
+            >
+              LIVE DATA
+            </span>
+          );
+        })()}
       </header>
 
       <div style={{ flex: 1, overflowY: "auto", padding: inChat ? "16px 0 116px" : "22px 0" }}>
@@ -355,16 +403,26 @@ export default function App() {
 
           {loading && (
             <div style={{ animation: "fadeUp .3s ease-out" }}>
-              {/* Add QueryTimeline during loading */}
               {currentTrace.length > 0 && (
-                <QueryTimeline
-                  events={currentTrace}
-                  loading={true}
-                />
+                <QueryTimeline events={currentTrace} loading={true} />
               )}
-
-              <LoadSteps currentStep={currentStep} />
-              {streamingText ? <StreamingText text={streamingText} /> : <Skel />}
+              {streamingBlocks.length > 0 ? (
+                <ThreeZoneLayout
+                  blocks={streamingBlocks}
+                  sources={streamingMeta.sources}
+                  rag_citations={streamingMeta.rag_citations}
+                  llm_used={streamingMeta.llm_used}
+                  fallbackText={streamingText}
+                  trace={currentTrace}
+                  symbol={streamingMeta.symbol}
+                  rangeKey={streamingMeta.rangeKey}
+                />
+              ) : (
+                <>
+                  <LoadSteps currentStep={currentStep} />
+                  {streamingText ? <StreamingText text={streamingText} /> : <Skel />}
+                </>
+              )}
             </div>
           )}
 

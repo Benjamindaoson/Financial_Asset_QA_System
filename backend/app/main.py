@@ -1,6 +1,7 @@
 """
 FastAPI Main Application
 """
+import asyncio
 import os
 import logging
 
@@ -24,6 +25,21 @@ from app.market import MarketDataService
 
 # Global cache warmer instance
 cache_warmer: CacheWarmer = None
+_logger = logging.getLogger(__name__)
+
+
+def _warmup_rag_models() -> None:
+    """Preload RAG embedding + reranker models in background to avoid first-request latency."""
+    try:
+        from app.rag.hybrid_pipeline import HybridRAGPipeline
+        pipeline = HybridRAGPipeline()
+        if pipeline.collection.count() > 0:
+            pipeline._ensure_models()
+            _logger.info("[RAG] Embedding + reranker models warmed up")
+        else:
+            _logger.info("[RAG] ChromaDB empty, skipping model warmup")
+    except Exception as e:
+        _logger.warning(f"[RAG] Warmup skipped: {e}")
 
 
 @asynccontextmanager
@@ -40,6 +56,9 @@ async def lifespan(app: FastAPI):
             concurrency=settings.CACHE_WARM_CONCURRENCY,
         )
         await cache_warmer.start_background_warming()
+
+    # Warm up RAG models in background (embedding + reranker) to avoid 5–15s first-request delay
+    asyncio.create_task(asyncio.to_thread(_warmup_rag_models))
 
     yield
 

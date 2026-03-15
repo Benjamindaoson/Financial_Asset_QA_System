@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
 import uuid
@@ -112,19 +113,28 @@ class AgentCore:
         ]
 
     async def _search_knowledge_async(self, query: str) -> Dict[str, Any]:
-        """Hybrid vector+reranker retrieval with graceful token-match fallback.
+        """Hybrid retrieval with token-match fast path for low latency.
 
         Flow:
-          1. If ChromaDB has docs and models are available → search_grounded() (vector+reranker)
-          2. On any model/ChromaDB error → _search_local_documents() (token-match)
-          3. If results are empty after threshold filtering → set no_relevant_content=True
+          1. Try token-match first (instant, no model load) — if returns docs, use immediately
+          2. If token-match empty and ChromaDB available → search_grounded() (vector+reranker)
+          3. On vector error → fall back to token-match
           4. When no results + Tavily key present → trigger supplemental web search
         """
         RAG_MIN_SCORE = 0.3
         result = None
         method_used = "token_match"
 
-        if self._vector_rag_available:
+        # Fast path: token-match first (synchronous, no embedding/reranker load)
+        local_result = self.rag_pipeline._search_local_documents(query)
+        if local_result.documents:
+            result = local_result
+            logger.info(
+                f"[RAG] token-match fast path for {query!r}: "
+                f"{len(result.documents)} docs (skipping vector+rerank)"
+            )
+
+        if result is None and self._vector_rag_available:
             try:
                 result = await self.rag_pipeline.search_grounded(query, score_threshold=RAG_MIN_SCORE)
                 method_used = "vector+rerank"
@@ -132,18 +142,23 @@ class AgentCore:
                     f"[RAG] vector+rerank for {query!r}: "
                     f"{len(result.documents)} docs returned (threshold={RAG_MIN_SCORE})"
                 )
+                if not result.documents:
+                    result = local_result
+                    logger.info(
+                        f"[RAG] vector returned 0 docs, using token-match fallback: "
+                        f"{len(local_result.documents)} docs"
+                    )
             except Exception as _vec_err:
                 logger.warning(
-                    f"[RAG] Vector search failed ({_vec_err}), using token-match for this request"
+                    f"[RAG] Vector search failed ({_vec_err}), using token-match"
                 )
-                # Only permanently disable if it's an infra failure (not a transient model error)
+                result = local_result
                 if "chromadb" in str(_vec_err).lower() or "collection" in str(_vec_err).lower():
                     self._vector_rag_available = False
                     logger.warning("[RAG] ChromaDB failure — vector search disabled for session")
 
         if result is None:
-            result = self.rag_pipeline._search_local_documents(query)
-            method_used = "token_match"
+            result = local_result
             logger.info(
                 f"[RAG] token-match for {query!r}: {len(result.documents)} docs returned"
             )
@@ -379,6 +394,8 @@ class AgentCore:
                 data = result.data
                 if data.get("price") is not None:
                     api_data_lines.append(f"当前价格：{data['price']:.2f} {data.get('currency', 'USD')}")
+                if data.get("change") is not None and data.get("change_pct") is not None:
+                    api_data_lines.append(f"今日涨跌：{data['change']:+.2f} ({data['change_pct']:+.2f}%)")
             elif result.tool == "get_change":
                 data = result.data
                 if data.get("change_pct") is not None:
@@ -390,11 +407,11 @@ class AgentCore:
                     if start is not None and end is not None:
                         abs_change = end - start
                         api_data_lines.append(
-                            f"{days_n}日区间表现：{start:.2f} → {end:.2f}（{abs_change:+.2f}，{pct:+.2f}%）"
+                            f"{days_n}日表现：{start:.2f} → {end:.2f} ({pct:+.2f}%)"
                         )
                     else:
-                        api_data_lines.append(f"{days_n}日区间涨跌：{pct:+.2f}%")
-                    api_data_lines.append(f"近期趋势：{trend}")
+                        api_data_lines.append(f"{days_n}日涨跌：{pct:+.2f}%")
+                    api_data_lines.append(f"趋势判断：{trend}")
             elif result.tool == "get_history":
                 data = result.data
                 hist_points = data.get("data", [])
@@ -406,14 +423,12 @@ class AgentCore:
                     # Today's OHLCV (last data point)
                     last = hist_points[-1]
                     if last.get("open") is not None:
+                        vol = last.get("volume", 0)
+                        vol_str = f"{vol:,.0f}"
                         api_data_lines.append(
-                            f"最新交易日 OHLCV：开 {last['open']:.2f} / 高 {last.get('high', last['open']):.2f}"
-                            f" / 低 {last.get('low', last['open']):.2f} / 收 {last.get('close', last['open']):.2f}"
+                            f"开盘：{last['open']:.2f} / 最高：{last.get('high', last['open']):.2f}"
+                            f" / 最低：{last.get('low', last['open']):.2f} / 成交量：{vol_str}"
                         )
-                    if last.get("volume"):
-                        vol = last["volume"]
-                        vol_str = f"{vol / 1e6:.1f}M股" if vol >= 1_000_000 else f"{vol:,.0f}股"
-                        api_data_lines.append(f"成交量：{vol_str}")
 
                     if highs and lows:
                         max_high = max(highs)
@@ -430,16 +445,16 @@ class AgentCore:
                 if data.get("rsi") is not None:
                     rsi = data["rsi"]
                     if rsi < 30:
-                        rsi_zone = "超卖区域（低于30，意味着近期跌幅较大，技术面存在超跌反弹需求，但不代表一定反弹）"
+                        rsi_zone = "超卖区域（低于30为超卖区域，意味着近期跌幅较大，可能存在超跌反弹机会）"
                     elif rsi > 70:
-                        rsi_zone = "超买区域（高于70，意味着近期涨幅较大，短期可能面临回调压力）"
+                        rsi_zone = "超买区域（高于70为超买区域，意味着近期涨幅较大，可能面临回调压力）"
                     else:
                         rsi_zone = "中性区域（30-70之间，多空力量相对均衡）"
-                    api_data_lines.append(f"RSI(14)：{rsi:.1f}，{rsi_zone}")
+                    api_data_lines.append(f"RSI(14)：{rsi:.1f}（{rsi_zone}）")
                 if data.get("max_drawdown_pct") is not None:
-                    api_data_lines.append(f"最大回撤：{data['max_drawdown_pct']:+.2f}%（期间最大峰值到谷值的下跌幅度）")
+                    api_data_lines.append(f"最大回撤：{data['max_drawdown_pct']:+.2f}%")
                 if data.get("annualized_volatility") is not None:
-                    api_data_lines.append(f"年化波动率：{data['annualized_volatility']:.2f}%")
+                    api_data_lines.append(f"波动率：{data['annualized_volatility']:.2f}%")
                 if data.get("total_return_pct") is not None:
                     api_data_lines.append(f"区间总收益：{data['total_return_pct']:+.2f}%")
             elif result.tool in ("search_web", "search_sec"):
@@ -515,14 +530,12 @@ class AgentCore:
                 default_range = "7D"
             elif days and days <= 30:
                 default_range = "1M"
-            elif days and days <= 90:
-                default_range = "3M"
-            elif any(kw in query for kw in ["当前", "股价是多少", "现在", "今天", "最新"]):
+            elif "当前" in query or "股价" in query:
                 default_range = "YTD"
-            elif any(kw in query for kw in ["近期", "走势", "最近", "近来"]):
+            elif "近期" in query or "走势" in query:
                 default_range = "3M"
             else:
-                default_range = "1Y"
+                default_range = "YTD"
             blocks.append(StructuredBlock(
                 type="chart", title="价格走势图",
                 data={
@@ -542,13 +555,31 @@ class AgentCore:
                 "symbol": price.get("symbol"),
             }
             if history and history.get("data"):
-                last = history["data"][-1]
+                hist_data = history["data"]
+                last = hist_data[-1]
                 km_data.update({
                     "open": last.get("open"),
                     "high": last.get("high"),
                     "low": last.get("low"),
                     "volume": last.get("volume"),
                 })
+                # 区间最高/最低/振幅（用于走势概述指标卡片）
+                highs = [p.get("high") for p in hist_data if p.get("high") is not None]
+                lows = [p.get("low") for p in hist_data if p.get("low") is not None]
+                if highs and lows:
+                    period_high = max(highs)
+                    period_low = min(lows)
+                    km_data["period_high"] = period_high
+                    km_data["period_low"] = period_low
+                    if period_low and period_low > 0:
+                        km_data["period_amplitude_pct"] = round((period_high - period_low) / period_low * 100, 2)
+            # 兜底：无 history 时用 change 的 start/end 近似
+            if change and km_data.get("period_high") is None and change.get("start_price") is not None and change.get("end_price") is not None:
+                s, e = float(change["start_price"]), float(change["end_price"])
+                km_data["period_high"] = max(s, e)
+                km_data["period_low"] = min(s, e)
+                if min(s, e) > 0:
+                    km_data["period_amplitude_pct"] = round((max(s, e) - min(s, e)) / min(s, e) * 100, 2)
             if change and change.get("change_pct") is not None:
                 km_data.update({
                     "change_pct": change.get("change_pct"),
@@ -572,6 +603,24 @@ class AgentCore:
             }
             if change.get("end_price") is not None and change.get("start_price") is not None:
                 km_data["change"] = round(float(change["end_price"]) - float(change["start_price"]), 2)
+            if history and history.get("data"):
+                hist_data = history["data"]
+                highs = [p.get("high") for p in hist_data if p.get("high") is not None]
+                lows = [p.get("low") for p in hist_data if p.get("low") is not None]
+                if highs and lows:
+                    km_data["period_high"] = max(highs)
+                    km_data["period_low"] = min(lows)
+                    pl = min(lows)
+                    if pl and pl > 0:
+                        km_data["period_amplitude_pct"] = round((max(highs) - pl) / pl * 100, 2)
+            # 兜底：无 history 时用 start/end 近似
+            if km_data.get("period_high") is None and km_data.get("start_price") is not None and km_data.get("end_price") is not None:
+                s, e = float(km_data["start_price"]), float(km_data["end_price"])
+                km_data["period_high"] = max(s, e)
+                km_data["period_low"] = min(s, e)
+                pl = min(s, e)
+                if pl > 0:
+                    km_data["period_amplitude_pct"] = round((max(s, e) - pl) / pl * 100, 2)
             blocks.append(StructuredBlock(type="key_metrics", title="关键数据", data=km_data))
 
         # Block 3: Risk/Return Table
@@ -591,20 +640,36 @@ class AgentCore:
                 },
             ))
 
-        # Block 4: Knowledge Quote (KNOWLEDGE / HYBRID routes only)
+        # Block 4: Knowledge Quote (KNOWLEDGE / HYBRID routes only) — 扩展为 items + text 兼容
         if knowledge and knowledge.get("documents"):
             if route.query_type in (QueryType.KNOWLEDGE, QueryType.HYBRID):
-                docs = knowledge["documents"][:3]
-                preview_lines = [
-                    f"- {self._strip_frontmatter(doc['content'])[:120].strip()}"
-                    for doc in docs
-                ]
+                docs = knowledge["documents"][:5]
+                method_used = knowledge.get("method_used", "unknown")
+                items = []
+                preview_lines = []
+                for i, doc in enumerate(docs):
+                    content = doc.get("content", "")
+                    source = doc.get("source", "未知")
+                    score = doc.get("score", 0.0)
+                    preview = self._strip_frontmatter(content)[:200].strip()
+                    items.append({
+                        "id": i + 1,
+                        "source": source,
+                        "score": round(float(score), 2),
+                        "preview": preview,
+                        "method": method_used,
+                    })
+                    preview_lines.append(f"- {preview[:120]}")
                 blocks.append(StructuredBlock(
                     type="quote", title="知识库摘录",
-                    data={"text": "\n".join(preview_lines)}
+                    data={
+                        "text": "\n".join(preview_lines),
+                        "items": items,
+                        "method_used": method_used,
+                    }
                 ))
 
-        # Block 5: News / SEC fallback bullets (removed when LLM succeeds)
+        # Block 5: SEC fallback bullets (removed when LLM succeeds)
         if sec_results and sec_results.get("results"):
             blocks.append(StructuredBlock(
                 type="bullets", title="SEC/财报来源",
@@ -613,13 +678,30 @@ class AgentCore:
                     for item in sec_results["results"][:3]
                 ]}
             ))
+        # Block 5b: News cards (type="news" — NOT removed when LLM succeeds)
+        def _news_items_from_results(results: list) -> list:
+            return [
+                {
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "source": item.get("source", "未知"),
+                    "published": item.get("published") or "",
+                    "snippet": (item.get("content") or item.get("snippet") or "")[:200],
+                }
+                for item in results[:5]
+                if item.get("title")
+            ]
+        news_items: List[Dict[str, Any]] = []
         if web_results and web_results.get("results"):
+            news_items = _news_items_from_results(web_results["results"])
+        elif knowledge and knowledge.get("no_relevant_content"):
+            supp_web = knowledge.get("supplemental_web")
+            if supp_web and supp_web.get("results"):
+                news_items = _news_items_from_results(supp_web["results"])
+        if news_items:
             blocks.append(StructuredBlock(
-                type="bullets", title="相关新闻",
-                data={"items": [
-                    item.get("title") for item in web_results["results"][:3]
-                    if item.get("title")
-                ]}
+                type="news", title="相关新闻",
+                data={"items": news_items}
             ))
 
         if warnings:
@@ -640,7 +722,21 @@ class AgentCore:
                 fragments = [first_doc[:140].strip()]
         if fragments:
             return "；".join(fragments) + "。", blocks
-        return "已完成数据检索，正在生成分析...", blocks
+        return "", blocks
+
+    def _load_demo_cache(self) -> Optional[Dict[str, Any]]:
+        """Load demo cache if enabled."""
+        if not settings.DEMO_CACHE_ENABLED:
+            return None
+        try:
+            from pathlib import Path
+            path = Path(__file__).resolve().parents[2] / settings.DEMO_CACHE_PATH
+            if path.exists():
+                with open(path, encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return None
 
     async def run(self, query: str, model_name: Optional[str] = None) -> AsyncGenerator[SSEEvent, None]:
         request_id = str(uuid.uuid4())
@@ -652,6 +748,38 @@ class AgentCore:
             return
 
         logger.info(f"[DEBUG] AgentCore.run() called with query: {query}")
+
+        # Demo cache: 若启用且问题匹配，直接返回缓存答案（演示用）
+        cache = self._load_demo_cache()
+        if cache:
+            normalized = query.strip()
+            if normalized in cache:
+                cached = cache[normalized]
+                logger.info(f"[DEMO] Cache hit for {normalized[:40]}...")
+                yield SSEEvent(type="model_selected", model=model_name, provider=getattr(model_config, "provider", "deepseek"), complexity="medium")
+                yield SSEEvent(type="blocks", data={"blocks": cached.get("blocks", []), "route": cached.get("route")})
+                if cached.get("text"):
+                    yield SSEEvent(type="chunk", text=cached["text"])
+                yield SSEEvent(
+                    type="done",
+                    verified=True,
+                    sources=[Source(name=s.get("name", ""), timestamp=s.get("timestamp", "")) for s in cached.get("sources", [])],
+                    request_id=request_id,
+                    model=model_name,
+                    tokens_input=len(query) // 4,
+                    tokens_output=len(cached.get("text", "")) // 4,
+                    data={
+                        "confidence": {"level": "high", "score": 90},
+                        "blocks": cached.get("blocks", []),
+                        "route": cached.get("route"),
+                        "llm_used": cached.get("llm_used", False),
+                        "disclaimer": "以上内容仅供参考，不构成投资建议。",
+                        "rag_citations": cached.get("rag_citations", []),
+                        "tool_latencies": cached.get("tool_latencies", []),
+                    },
+                )
+                return
+
         yield SSEEvent(type="model_selected", model=model_name, provider=getattr(model_config, "provider", "deepseek"), complexity=self.model_manager.classify_query(query))
         route = await self.query_router.classify_async(query)
         logger.info(f"[DEBUG] Route: type={route.query_type}, requires_knowledge={route.requires_knowledge}")
@@ -702,8 +830,15 @@ class AgentCore:
             # _compose_answer generates structured blocks (charts/tables) + a template fallback text
             template_text, blocks = self._compose_answer(query, route, tool_results, technical_analysis, validation)
 
+            # 提前推送 blocks（图表/价格/新闻等），用户无需等待 LLM 即可看到数据
+            if blocks:
+                yield SSEEvent(type="blocks", data={"blocks": [b.model_dump() for b in blocks], "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key}})
+
             # Push the template summary text first (hidden by frontend when analysis block exists)
-            yield SSEEvent(type="chunk", text=template_text)
+            # as per prompt, if we are to use LLM, we shouldn't push template_text
+            if not (self.response_generator and settings.DEEPSEEK_API_KEY):
+                if template_text:
+                    yield SSEEvent(type="chunk", text=template_text)
 
             # Attempt LLM-based analysis generation as a separate structured block
             llm_used = False
@@ -714,6 +849,27 @@ class AgentCore:
                     # Enrich api_data with locally-computed technical indicators
                     if technical_analysis and not technical_analysis.get("error"):
                         tech_lines = []
+                        ma5 = technical_analysis.get("ma5")
+                        ma20 = technical_analysis.get("ma20")
+                        if ma5 is not None:
+                            tech_lines.append(f"MA5：{ma5:.2f}")
+                        if ma20 is not None:
+                            tech_lines.append(f"MA20：{ma20:.2f}")
+                        vol = technical_analysis.get("volume")
+                        if vol and isinstance(vol, dict) and vol.get("ratio") is not None:
+                            r = vol["ratio"]
+                            if r > 1:
+                                tech_lines.append(f"成交量：较20日均量放大{r:.1f}倍")
+                            elif r < 1 and r > 0:
+                                tech_lines.append(f"成交量：较20日均量缩至{r:.1f}倍")
+                            else:
+                                tech_lines.append(f"成交量：与20日均量持平")
+                        sup = technical_analysis.get("support")
+                        res = technical_analysis.get("resistance")
+                        if sup is not None:
+                            tech_lines.append(f"支撑位：{sup:.2f}")
+                        if res is not None:
+                            tech_lines.append(f"阻力位：{res:.2f}")
                         rsi = technical_analysis.get("rsi")
                         if rsi is not None:
                             if rsi < 30:
@@ -725,8 +881,10 @@ class AgentCore:
                             tech_lines.append(f"RSI(14)：{rsi:.1f}，{rsi_zone}")
                         if technical_analysis.get("max_drawdown_pct") is not None:
                             tech_lines.append(f"最大回撤：{technical_analysis['max_drawdown_pct']:+.2f}%（期间最大峰値到谷値的下跌幅度）")
-                        if technical_analysis.get("trend"):
-                            tech_lines.append(f"走势判断：{technical_analysis['trend']}")
+                        trend = technical_analysis.get("trend")
+                        if trend and trend != "insufficient_data":
+                            trend_cn = {"uptrend": "上涨", "downtrend": "下跌", "sideways": "横盘"}.get(trend, trend)
+                            tech_lines.append(f"走势判断：{trend_cn}")
                         if tech_lines:
                             api_data = api_data + "\n\n技术指标：\n" + "\n".join(tech_lines)
 
@@ -759,11 +917,72 @@ class AgentCore:
                         logger.info(f"[LLM] Analysis generated successfully ({len(llm_text)} chars)")
                 except asyncio.TimeoutError:
                     logger.warning("[LLM] Generator timed out, skipping AI analysis")
+                    if template_text:
+                        yield SSEEvent(type="chunk", text=template_text)
                 except Exception as llm_exc:
                     logger.warning(f"[LLM] Generator failed ({llm_exc}), skipping AI analysis")
+                    if template_text:
+                        yield SSEEvent(type="chunk", text=template_text)
 
             self.model_manager.record_usage(model_name=model_name, tokens_input=len(query) // 4, tokens_output=len(template_text) // 4, success=True)
-            yield SSEEvent(type="done", verified=self.guard.validate(template_text, tool_results), sources=sources, request_id=request_id, model=model_name, tokens_input=len(query) // 4, tokens_output=len(template_text) // 4, data={"confidence": {"level": validation["level"], "score": validation["confidence"]}, "blocks": [block.model_dump() for block in blocks], "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key}, "llm_used": llm_used, "disclaimer": "以上内容仅供参考，不构成投资建议。"})
+            
+            # Reorder blocks as per user instructions
+            ordered_blocks = []
+            chart_blocks = [b for b in blocks if b.type == "chart"]
+            ordered_blocks.extend(chart_blocks)
+            
+            key_metrics_blocks = [b for b in blocks if b.type == "key_metrics"]
+            ordered_blocks.extend(key_metrics_blocks)
+            
+            table_blocks = [b for b in blocks if b.type == "table"]
+            ordered_blocks.extend(table_blocks)
+            
+            analysis_blocks = [b for b in blocks if b.type == "analysis"]
+            ordered_blocks.extend(analysis_blocks)
+            
+            if route.query_type in (QueryType.KNOWLEDGE, QueryType.HYBRID):
+                quote_blocks = [b for b in blocks if b.type == "quote"]
+                ordered_blocks.extend(quote_blocks)
+                
+            news_blocks = [b for b in blocks if b.type in ("bullets", "news")]
+            ordered_blocks.extend(news_blocks)
+            
+            source_blocks = [b for b in blocks if b.type == "source"]
+            ordered_blocks.extend(source_blocks)
+            
+            trace_blocks = [b for b in blocks if b.type == "trace"]
+            ordered_blocks.extend(trace_blocks)
+            
+            warning_blocks = [b for b in blocks if b.type == "warning"]
+            ordered_blocks.extend(warning_blocks)
+
+            # 构建 rag_citations 与 tool_latencies 供前端可观测性展示
+            rag_citations: List[Dict[str, Any]] = []
+            knowledge_result = next((r.data for r in tool_results if r.tool == "search_knowledge" and r.status == "success"), None)
+            if knowledge_result and knowledge_result.get("documents"):
+                method_used = knowledge_result.get("method_used", "unknown")
+                for i, doc in enumerate(knowledge_result["documents"][:5]):
+                    rag_citations.append({
+                        "id": i + 1,
+                        "source": doc.get("source", "未知"),
+                        "score": round(float(doc.get("score", 0)), 2),
+                        "preview": self._strip_frontmatter(doc.get("content", ""))[:200].strip(),
+                        "method": method_used,
+                    })
+            tool_latencies = [
+                {"tool": r.tool, "latency_ms": getattr(r, "latency_ms", 0) or 0}
+                for r in tool_results
+            ]
+            done_data = {
+                "confidence": {"level": validation["level"], "score": validation["confidence"]},
+                "blocks": [block.model_dump() for block in ordered_blocks],
+                "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key},
+                "llm_used": llm_used,
+                "disclaimer": "以上内容仅供参考，不构成投资建议。",
+                "rag_citations": rag_citations,
+                "tool_latencies": tool_latencies,
+            }
+            yield SSEEvent(type="done", verified=self.guard.validate(template_text, tool_results), sources=sources, request_id=request_id, model=model_name, tokens_input=len(query) // 4, tokens_output=len(template_text) // 4, data=done_data)
         except Exception as exc:
             self.model_manager.record_usage(model_name=model_name, tokens_input=len(query) // 4, tokens_output=0, success=False)
             yield SSEEvent(type="error", message=str(exc), code="LLM_ERROR", model=model_name)

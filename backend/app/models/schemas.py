@@ -221,7 +221,7 @@ class Source(BaseModel):
 class StructuredBlock(BaseModel):
     """Rich UI block emitted with the final answer."""
 
-    type: Literal["bullets", "table", "chart", "warning", "quote", "analysis", "key_metrics"]
+    type: Literal["bullets", "table", "chart", "warning", "quote", "analysis", "key_metrics", "news"]
     title: str
     data: Dict[str, Any]
 
@@ -229,7 +229,7 @@ class StructuredBlock(BaseModel):
 class SSEEvent(BaseModel):
     """Server-Sent Event."""
 
-    type: Literal["tool_start", "tool_data", "chunk", "analysis_chunk", "done", "error", "model_selected"]
+    type: Literal["tool_start", "tool_data", "chunk", "analysis_chunk", "blocks", "done", "error", "model_selected"]
     name: Optional[str] = None
     display: Optional[str] = None
     tool: Optional[str] = None

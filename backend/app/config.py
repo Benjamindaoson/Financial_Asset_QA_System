@@ -52,12 +52,17 @@ class Settings(BaseSettings):
 
     # API configuration
     API_TIMEOUT: int = 30
+    WEB_SEARCH_TIMEOUT: int = 10  # Tavily 等外部搜索，降低首屏等待
     MAX_RETRIES: int = 3
 
     # RAG configuration
     RAG_TOP_K: int = 5
     RAG_TOP_N: int = 3
     RAG_SCORE_THRESHOLD: float = 0.75
+
+    # Demo cache (演示前预热答案，匹配时直接返回)
+    DEMO_CACHE_ENABLED: bool = False
+    DEMO_CACHE_PATH: str = "data/demo_cache.json"
 
     # Logging
     LOG_LEVEL: str = "INFO"

@@ -277,7 +277,7 @@ class MarketDataService:
         params.update(extra_params)
 
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=8) as client:
                 response = await client.get("https://www.alphavantage.co/query", params=params)
                 if response.status_code != 200:
                     return None
@@ -318,7 +318,7 @@ class MarketDataService:
         async with self._stooq_semaphore:
             for _ in range(2):
                 try:
-                    async with httpx.AsyncClient(timeout=8) as client:
+                    async with httpx.AsyncClient(timeout=6) as client:
                         response = await client.get(
                             f"https://stooq.com/{endpoint}?s={stooq_symbol}&i=d",
                             follow_redirects=True,

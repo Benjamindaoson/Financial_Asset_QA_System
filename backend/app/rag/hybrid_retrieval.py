@@ -32,6 +32,9 @@ class BM25Retriever:
         self.doc_len = []
         self.avgdl = 0
 
+        # 加载jieba和金融词典
+        self._load_jieba_dict()
+
     def fit(self, documents: List[str], doc_ids: List[str]):
         """
         训练BM25模型
@@ -112,9 +115,23 @@ class BM25Retriever:
         scores.sort(key=lambda x: x[1], reverse=True)
         return scores[:top_k]
 
+    def _load_jieba_dict(self):
+        """加载jieba金融词典"""
+        try:
+            import jieba
+            from pathlib import Path
+            from app.config import settings
+
+            dict_path = Path(settings.FINANCIAL_DICT_PATH)
+            if dict_path.exists():
+                jieba.load_userdict(str(dict_path))
+                logger.info(f"Loaded financial dictionary from {dict_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load jieba dictionary: {e}")
+
     def _tokenize(self, text: str) -> List[str]:
         """
-        简单分词（中英文混合）
+        使用jieba分词（中英文混合）
 
         Args:
             text: 文本
@@ -122,21 +139,24 @@ class BM25Retriever:
         Returns:
             词列表
         """
-        # 简单的字符级分词（中文）+ 空格分词（英文）
-        tokens = []
-
-        # 先按空格分割
-        words = text.lower().split()
-
-        for word in words:
-            # 如果是英文单词，直接添加
-            if word.isascii():
-                tokens.append(word)
-            else:
-                # 中文按字符分割
-                tokens.extend(list(word))
-
-        return tokens
+        try:
+            import jieba
+            # 使用jieba分词
+            tokens = list(jieba.cut(text.lower()))
+            # 过滤空白符
+            tokens = [t.strip() for t in tokens if t.strip()]
+            return tokens
+        except ImportError:
+            # 如果jieba不可用，回退到简单分词
+            logger.warning("jieba not available, using simple tokenization")
+            tokens = []
+            words = text.lower().split()
+            for word in words:
+                if word.isascii():
+                    tokens.append(word)
+                else:
+                    tokens.extend(list(word))
+            return tokens
 
 
 class ReciprocalRankFusion:

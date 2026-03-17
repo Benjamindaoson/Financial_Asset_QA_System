@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     QUERY_SYNONYM_EXPANSION: bool = True
     FINANCIAL_DICT_PATH: str = "data/financial_dictionary.txt"
 
+    # ========== 多查询生成配置 ==========
+    MULTI_QUERY_ENABLED: bool = True
+    MULTI_QUERY_NUM_VARIANTS: int = 3
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

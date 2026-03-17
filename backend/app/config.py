@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     COMPLIANCE_LLM_CHECK_ENABLED: bool = True
     COMPLIANCE_STRICT_MODE: bool = True
 
+    # ========== 查询处理配置 ==========
+    QUERY_REWRITE_ENABLED: bool = True
+    QUERY_SYNONYM_EXPANSION: bool = True
+    FINANCIAL_DICT_PATH: str = "data/financial_dictionary.txt"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

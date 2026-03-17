@@ -207,15 +207,24 @@ class GroundedRAGPipeline(EnhancedRAGPipeline):
 
             answer_text = response.choices[0].message.content.strip()
 
-            # 验证答案是否包含来源引用
-            if require_sources and not self._has_source_citations(answer_text):
-                # 如果没有引用，添加来源信息
-                answer_text = self._add_source_citations(answer_text, sources)
+            # 新增：验证引用
+            from app.rag.citation_validator import CitationValidator
+            validator = CitationValidator()
+            validation = validator.validate(answer_text, len(relevant_docs))
+
+            if not validation["is_valid"]:
+                # 修复无效引用
+                answer_text = validator.fix_citations(answer_text, len(relevant_docs))
+
+            if require_sources and not validation["has_citations"]:
+                # 添加缺失的引用
+                answer_text = validator.add_missing_citations(answer_text, len(relevant_docs))
 
             return {
                 "text": answer_text,
                 "sources": sources,
-                "context_used": context
+                "context_used": context,
+                "citation_validation": validation
             }
 
         except Exception as e:

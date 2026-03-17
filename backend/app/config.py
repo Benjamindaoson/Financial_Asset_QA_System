@@ -111,6 +111,10 @@ class Settings(BaseSettings):
     DYNAMIC_TOPK_BASE: int = 5
     DYNAMIC_TOPK_MAX: int = 15
 
+    # ========== MMR重排序配置 ==========
+    MMR_ENABLED: bool = True
+    MMR_LAMBDA: float = 0.7  # 0.7 = 70% relevance, 30% diversity
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

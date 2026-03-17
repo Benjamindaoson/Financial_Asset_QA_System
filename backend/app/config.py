@@ -106,6 +106,11 @@ class Settings(BaseSettings):
     MULTI_QUERY_ENABLED: bool = True
     MULTI_QUERY_NUM_VARIANTS: int = 3
 
+    # ========== 动态Top-K配置 ==========
+    DYNAMIC_TOPK_ENABLED: bool = True
+    DYNAMIC_TOPK_BASE: int = 5
+    DYNAMIC_TOPK_MAX: int = 15
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

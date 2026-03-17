@@ -115,6 +115,10 @@ class Settings(BaseSettings):
     MMR_ENABLED: bool = True
     MMR_LAMBDA: float = 0.7  # 0.7 = 70% relevance, 30% diversity
 
+    # ========== 置信度评分配置 ==========
+    CONFIDENCE_SCORING_ENABLED: bool = True
+    CONFIDENCE_THRESHOLD: float = 0.5
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

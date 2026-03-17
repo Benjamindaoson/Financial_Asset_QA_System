@@ -84,8 +84,9 @@ class QueryProcessor:
         }
 
         for abbr, full_name in term_map.items():
-            # 匹配独立的缩写词（不在其他单词中）
-            pattern = r'\b' + abbr + r'\b'
+            # 匹配独立的缩写词（支持中英文边界）
+            # 使用正向前瞻和后顾来匹配词边界，支持中文字符
+            pattern = r'(?<![a-zA-Z])' + abbr + r'(?![a-zA-Z])'
             normalized = re.sub(pattern, full_name, normalized, flags=re.IGNORECASE)
 
         return normalized

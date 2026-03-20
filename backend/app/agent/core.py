@@ -1,4 +1,4 @@
-"""Agent core with deterministic routing and grounded response synthesis."""
+﻿"""Agent core with deterministic routing and grounded response synthesis."""
 
 from __future__ import annotations
 
@@ -8,52 +8,35 @@ import re
 import time
 import uuid
 import logging
-from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 from app.analysis.technical import TechnicalAnalyzer
 from app.analysis.validator import DataValidator
+from app.agent.answer_assembler import AnswerAssembler
+from app.agent.route_planner import RoutePlanner
+from app.agent.tool_executor import ToolExecutor
 from app.config import settings
 from app.core.response_generator import ResponseGenerator
 from app.market import MarketDataService
 from app.models import SSEEvent, Source, StructuredBlock, ToolResult
-from app.models.model_adapter import ModelAdapterFactory
 from app.models.multi_model import model_manager
 from app.rag.confidence import ConfidenceScorer
+from app.rag.confidence_scorer import ConfidenceScorer as AnswerConfidenceScorer
+from app.rag.citation_validator import CitationValidator
 from app.rag.hybrid_pipeline import HybridRAGPipeline
+from app.rag.response_guard import ResponseGuard
 from app.routing import QueryRoute, QueryRouter, QueryType
+from app.routing.complexity_analyzer import QueryComplexityAnalyzer
 from app.search import SECFilingsService, WebSearchService
 
-
-class ResponseGuard:
-    """Validate that numeric claims come from tool payloads."""
-
-    @staticmethod
-    def validate(response_text: str, tool_results: List[ToolResult]) -> bool:
-        if not response_text.strip():
-            return False
-        grounded_numbers: set[str] = set()
-        for result in tool_results:
-            ResponseGuard._collect_numbers(result.data, grounded_numbers)
-        if not grounded_numbers:
-            return True
-        mentioned_numbers = set(re.findall(r"\d+(?:\.\d+)?", response_text))
-        return bool(grounded_numbers & mentioned_numbers)
-
-    @staticmethod
-    def _collect_numbers(value: Any, bucket: set[str]) -> None:
-        if isinstance(value, dict):
-            for item in value.values():
-                ResponseGuard._collect_numbers(item, bucket)
-            return
-        if isinstance(value, list):
-            for item in value:
-                ResponseGuard._collect_numbers(item, bucket)
-            return
-        if isinstance(value, (int, float)):
-            bucket.add(str(int(value)) if float(value).is_integer() else f"{value:.2f}")
+try:
+    from app.observability.metrics import metrics
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    logger.warning("[Metrics] Prometheus metrics not available")
 
 
 class AgentCore:
@@ -71,7 +54,7 @@ class AgentCore:
             _chroma_count = self.rag_pipeline.collection.count()
             if _chroma_count > 0:
                 self._vector_rag_available = True
-                logger.info(f"[RAG] Vector search enabled — ChromaDB has {_chroma_count} docs")
+                logger.info(f"[RAG] Vector search enabled 鈥?ChromaDB has {_chroma_count} docs")
             else:
                 logger.warning("[RAG] ChromaDB collection is empty, token-match fallback active")
         except Exception as _rag_init_err:
@@ -90,9 +73,60 @@ class AgentCore:
         self.search_service = WebSearchService()
         self.sec_service = SECFilingsService()
         self.query_router = QueryRouter()
+        self.complexity_analyzer = QueryComplexityAnalyzer()
+        self.route_planner = RoutePlanner(self.query_router, self.complexity_analyzer)
         self.guard = ResponseGuard()
         self.technical_analyzer = TechnicalAnalyzer()
         self.data_validator = DataValidator()
+        self.answer_confidence_scorer = AnswerConfidenceScorer()
+        self.citation_validator = CitationValidator()
+        self.answer_assembler = AnswerAssembler(
+            answer_confidence_scorer=self.answer_confidence_scorer,
+            citation_validator=self.citation_validator,
+        )
+
+        try:
+            from app.reasoning import (
+                DataIntegrator,
+                DecisionEngine,
+                FastAnalyzer,
+                ResponseGenerator as ReasoningResponseGenerator,
+            )
+
+            self.reasoning_integrator = DataIntegrator()
+            self.reasoning_analyzer = FastAnalyzer()
+            self.reasoning_decision_engine = DecisionEngine()
+            self.reasoning_response_builder = ReasoningResponseGenerator()
+        except Exception as exc:
+            logger.warning(f"[Reasoning] Structured reasoning disabled: {exc}")
+            self.reasoning_integrator = None
+            self.reasoning_analyzer = None
+            self.reasoning_decision_engine = None
+            self.reasoning_response_builder = None
+
+        # Initialize plugin registry
+        try:
+            from app.plugins.base import PluginRegistry
+            from app.plugins.crypto_plugin import CryptoPlugin
+            self.plugin_registry = PluginRegistry()
+            # Register built-in plugins
+            self.plugin_registry.register(CryptoPlugin())
+            logger.info(f"[Plugins] Registered {len(self.plugin_registry.plugins)} plugins")
+        except Exception as e:
+            logger.warning(f"[Plugins] Plugin system not available: {e}")
+            self.plugin_registry = None
+
+        self.tool_executor = ToolExecutor(
+            market_service=self.market_service,
+            search_service=self.search_service,
+            sec_service=self.sec_service,
+            rag_pipeline=getattr(self, "rag_pipeline", None),
+            confidence_scorer=self.confidence_scorer,
+            plugin_registry=self.plugin_registry,
+            vector_rag_available=self._vector_rag_available,
+            metrics_client=metrics if METRICS_AVAILABLE else None,
+        )
+
         self.tools = self._build_tools()
         # ResponseGenerator is enabled only when a DeepSeek API key is configured
         self.response_generator: Optional[ResponseGenerator] = (
@@ -100,7 +134,7 @@ class AgentCore:
         )
 
     def _build_tools(self) -> List[Dict[str, Any]]:
-        return [
+        tools = [
             {"name": "get_price", "description": "Get the latest market price.", "input_schema": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
             {"name": "get_history", "description": "Get historical OHLCV data.", "input_schema": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}, "range_key": {"type": "string"}}, "required": ["symbol"]}},
             {"name": "get_change", "description": "Get price change over a time window.", "input_schema": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}, "range_key": {"type": "string"}}, "required": ["symbol"]}},
@@ -112,14 +146,26 @@ class AgentCore:
             {"name": "search_sec", "description": "Search SEC EDGAR filings.", "input_schema": {"type": "object", "properties": {"query": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}}, "required": ["query"]}},
         ]
 
-    async def _search_knowledge_async(self, query: str) -> Dict[str, Any]:
+        # Add plugin tools if available
+        if self.plugin_registry:
+            plugin_tools = self.plugin_registry.get_all_tools()
+            tools.extend(plugin_tools)
+            logger.info(f"[Plugins] Added {len(plugin_tools)} plugin tools to tool list")
+
+        return tools
+
+    async def _search_knowledge_async(self, query: str, top_k: Optional[int] = None) -> Dict[str, Any]:
+        data = await self.tool_executor.search_knowledge(query, top_k=top_k)
+        self._vector_rag_available = self.tool_executor.vector_rag_available
+        return data
+
         """Hybrid retrieval with token-match fast path for low latency.
 
         Flow:
-          1. Try token-match first (instant, no model load) — if returns docs, use immediately
-          2. If token-match empty and ChromaDB available → search_grounded() (vector+reranker)
-          3. On vector error → fall back to token-match
-          4. When no results + Tavily key present → trigger supplemental web search
+          1. Try token-match first (instant, no model load) 鈥?if returns docs, use immediately
+          2. If token-match empty and ChromaDB available 鈫?search_grounded() (vector+reranker)
+          3. On vector error 鈫?fall back to token-match
+          4. When no results + Tavily key present 鈫?trigger supplemental web search
         """
         RAG_MIN_SCORE = 0.3
         result = None
@@ -136,8 +182,12 @@ class AgentCore:
 
         if result is None and self._vector_rag_available:
             try:
-                result = await self.rag_pipeline.search_grounded(query, score_threshold=RAG_MIN_SCORE)
-                method_used = "vector+rerank"
+                result = await self.rag_pipeline.search_grounded(
+                    query,
+                    score_threshold=RAG_MIN_SCORE,
+                    top_k=top_k,
+                )
+                method_used = "hybrid_vector"
                 logger.info(
                     f"[RAG] vector+rerank for {query!r}: "
                     f"{len(result.documents)} docs returned (threshold={RAG_MIN_SCORE})"
@@ -155,7 +205,7 @@ class AgentCore:
                 result = local_result
                 if "chromadb" in str(_vec_err).lower() or "collection" in str(_vec_err).lower():
                     self._vector_rag_available = False
-                    logger.warning("[RAG] ChromaDB failure — vector search disabled for session")
+                    logger.warning("[RAG] ChromaDB failure 鈥?vector search disabled for session")
 
         if result is None:
             result = local_result
@@ -166,6 +216,11 @@ class AgentCore:
         data = result.model_dump()
         data["method_used"] = method_used
         data["no_relevant_content"] = len(result.documents) == 0
+        if hasattr(self.rag_pipeline, "multi_query_generator"):
+            data["query_variants"] = self.rag_pipeline.multi_query_generator.generate_queries(query, num_queries=3)
+        else:
+            data["query_variants"] = [query]
+        data["top_k"] = top_k
 
         if data["no_relevant_content"]:
             logger.info(f"[RAG] No relevant content for {query!r}, checking web supplement")
@@ -191,9 +246,14 @@ class AgentCore:
         return data
 
     async def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+        result = await self.tool_executor.execute_tool(tool_name, tool_input)
+        self._vector_rag_available = self.tool_executor.vector_rag_available
+        return result
+
         start_time = time.time()
         logger.info(f"[DEBUG] Executing tool: {tool_name} with input: {tool_input}")
         try:
+            data: Dict[str, Any] = {}
             if tool_name == "get_price":
                 result = await self.market_service.get_price(tool_input["symbol"])
                 data = result.model_dump()
@@ -213,7 +273,7 @@ class AgentCore:
                 result = await self.market_service.compare_assets(tool_input["symbols"], range_key=tool_input.get("range_key", "1y"))
                 data = result.model_dump()
             elif tool_name == "search_knowledge":
-                data = await self._search_knowledge_async(tool_input["query"])
+                data = await self._search_knowledge_async(tool_input["query"], top_k=tool_input.get("top_k"))
             elif tool_name == "search_web":
                 result = await self.search_service.search(tool_input["query"])
                 data = result.model_dump()
@@ -221,13 +281,25 @@ class AgentCore:
                 result = await self.sec_service.search(tool_input["query"], symbols=tool_input.get("symbols"))
                 data = result.model_dump()
             else:
-                raise ValueError(f"Unknown tool: {tool_name}")
+                # Check if it's a plugin tool
+                if self.plugin_registry and self.plugin_registry.has_plugin(tool_name):
+                    logger.info(f"[Plugins] Executing plugin tool: {tool_name}")
+                    result = await self.plugin_registry.execute_plugin(tool_name, **tool_input)
+                    data = result
+                else:
+                    raise ValueError(f"Unknown tool: {tool_name}")
+
+            execution_time = time.time() - start_time
+
+            # Record tool execution metrics
+            if METRICS_AVAILABLE:
+                metrics.tool_execution_duration.labels(tool=tool_name).observe(execution_time)
 
             return {
                 "success": True,
                 "tool": tool_name,
                 "data": data,
-                "latency_ms": int((time.time() - start_time) * 1000),
+                "latency_ms": int(execution_time * 1000),
                 "status": "success",
                 "data_source": data.get("source", tool_name),
                 "cache_hit": bool(data.get("cache_hit", False)),
@@ -235,6 +307,11 @@ class AgentCore:
             }
         except Exception as exc:
             logger.error(f"[DEBUG] Tool execution failed: tool={tool_name}, error={str(exc)}", exc_info=True)
+
+            # Record tool error metrics
+            if METRICS_AVAILABLE:
+                metrics.tool_errors.labels(tool=tool_name).inc()
+
             return {
                 "success": False,
                 "tool": tool_name,
@@ -247,6 +324,10 @@ class AgentCore:
             }
 
     async def _execute_tools_parallel(self, tool_plan: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        results = await self.tool_executor.execute_tools_parallel(tool_plan)
+        self._vector_rag_available = self.tool_executor.vector_rag_available
+        return results
+
         async def execute(step: Dict[str, Any]) -> Dict[str, Any]:
             result = await self._execute_tool(step["name"], step["params"])
             result["step"] = step
@@ -261,7 +342,9 @@ class AgentCore:
         # Returns None when no models are registered (DEEPSEEK_API_KEY not set)
         return self.model_manager.select_model(complexity)
 
-    async def _build_tool_plan(self, route: QueryRoute) -> List[Dict[str, Any]]:
+    async def _build_tool_plan(self, route: QueryRoute, rag_top_k: Optional[int] = None) -> List[Dict[str, Any]]:
+        return await self.route_planner.build_tool_plan(route, rag_top_k=rag_top_k)
+
         plan: List[Dict[str, Any]] = []
 
         def add_tool(name: str, params: Dict[str, Any], display: str) -> None:
@@ -293,7 +376,11 @@ class AgentCore:
                 add_tool("get_metrics", {"symbol": primary_symbol, "range_key": range_key or "1y"}, f"Computing risk metrics for {primary_symbol}...")
 
         if route.requires_knowledge:
-            add_tool("search_knowledge", {"query": route.cleaned_query}, "Searching the knowledge base...")
+            add_tool(
+                "search_knowledge",
+                {"query": route.cleaned_query, "top_k": rag_top_k},
+                "Searching the knowledge base...",
+            )
         if route.requires_web:
             add_tool("search_web", {"query": route.cleaned_query}, "Searching recent market news...")
         if route.requires_sec:
@@ -313,6 +400,8 @@ class AgentCore:
 
     @staticmethod
     def _strip_frontmatter(text: str) -> str:
+        return AnswerAssembler.strip_frontmatter(text)
+
         """Remove YAML frontmatter block (---...---) from document content."""
         t = text.strip()
         if t.startswith("---"):
@@ -322,6 +411,8 @@ class AgentCore:
         return t
 
     def _build_sources(self, tool_results: List[ToolResult]) -> List[Source]:
+        return self.answer_assembler.build_sources(tool_results)
+
         sources: List[Source] = []
         seen: set[tuple[str, str, Optional[str]]] = set()
         for result in tool_results:
@@ -346,6 +437,140 @@ class AgentCore:
                     sources.append(Source(name=key[0], timestamp=key[1]))
                     seen.add(key)
         return sources
+
+    def _map_reasoning_query_type(
+        self,
+        route: QueryRoute,
+        technical_analysis: Optional[Dict[str, Any]],
+    ) -> str:
+        if technical_analysis and not technical_analysis.get("error"):
+            return "technical"
+        if route.requires_change:
+            return "change"
+        return "price"
+
+    @staticmethod
+    def _convert_technical_analysis_for_reasoning(technical_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        if not technical_analysis or technical_analysis.get("error"):
+            return {}
+
+        rsi = technical_analysis.get("rsi")
+        macd = technical_analysis.get("macd") or {}
+        total_return = technical_analysis.get("total_return_pct") or 0.0
+        trend = technical_analysis.get("trend")
+        trend_map = {
+            "uptrend": "涓婃定",
+            "downtrend": "涓嬭穼",
+            "sideways": "闇囪崱",
+            "insufficient_data": "鏁版嵁涓嶈冻",
+        }
+
+        macd_signal = None
+        if macd:
+            macd_signal = "閲戝弶" if (macd.get("macd", 0) >= macd.get("signal", 0)) else "姝诲弶"
+
+        if rsi is None:
+            rsi_level = "neutral"
+            rsi_signal = "insufficient data"
+        elif rsi > 70:
+            rsi_level = "overbought"
+            rsi_signal = "watch for pullback risk"
+        elif rsi < 30:
+            rsi_level = "oversold"
+            rsi_signal = "watch for rebound setup"
+        else:
+            rsi_level = "neutral"
+            rsi_signal = "trend is balanced"
+
+        return {
+            "rsi": {
+                "value": rsi,
+                "level": rsi_level,
+                "signal": rsi_signal,
+            },
+            "macd": {
+                "macd": macd.get("macd"),
+                "signal": macd.get("signal"),
+                "histogram": macd.get("histogram"),
+                "signal_type": macd_signal,
+                "trend": "bullish" if macd_signal == "閲戝弶" else "bearish" if macd_signal == "姝诲弶" else "neutral",
+            },
+            "trend": {
+                "direction": trend_map.get(trend, trend or "neutral"),
+                "strength": abs(total_return),
+                "change_pct": total_return,
+            },
+        }
+
+    def _build_reasoning_analysis_block(
+        self,
+        route: QueryRoute,
+        tool_results: List[ToolResult],
+        technical_analysis: Optional[Dict[str, Any]],
+    ) -> Optional[StructuredBlock]:
+        if not all(
+            [
+                self.reasoning_integrator,
+                self.reasoning_analyzer,
+                self.reasoning_decision_engine,
+                self.reasoning_response_builder,
+            ]
+        ):
+            return None
+        if route.query_type not in {QueryType.MARKET, QueryType.HYBRID}:
+            return None
+
+        payloads = [
+            {"success": result.status == "success", "tool": result.tool, "data": result.data}
+            for result in tool_results
+            if result.status == "success"
+        ]
+        if not payloads:
+            return None
+
+        query_context = {"query_type": self._map_reasoning_query_type(route, technical_analysis)}
+        integrated = self.reasoning_integrator.integrate(payloads, query_context)
+        primary_symbol = route.symbols[0] if route.symbols else next(iter(integrated.get("symbols", {})), None)
+        if primary_symbol and primary_symbol in integrated.get("symbols", {}):
+            technical_payload = self._convert_technical_analysis_for_reasoning(technical_analysis or {})
+            if technical_payload:
+                integrated["symbols"][primary_symbol]["technical"] = technical_payload
+
+        analysis = self.reasoning_analyzer.analyze(integrated, query_context)
+        if not analysis.get("success"):
+            return None
+        decision = self.reasoning_decision_engine.generate_decision(analysis, integrated)
+        if not decision.get("success"):
+            return None
+        response = self.reasoning_response_builder.generate(analysis, decision, integrated)
+        if not response.get("success"):
+            return None
+
+        reference_section = response.get("sections", {}).get("reference_view", {})
+        reference_items = reference_section.get("items", [])
+        overall = next((item for item in reference_items if item.get("type") == "overall"), {})
+        opportunities = next((item for item in reference_items if item.get("type") == "opportunities"), {})
+        risks = next((item for item in reference_items if item.get("type") == "risks"), {})
+        watch_points: List[str] = []
+        for category in response.get("sections", {}).get("risk_warnings", {}).get("categories", []):
+            watch_points.extend(category.get("risks", []))
+
+        trend_summary = overall.get("description") or analysis.get("summary")
+        block_data = {
+            "trend_summary": trend_summary,
+            "drivers": opportunities.get("points", [])[:4],
+            "risks": risks.get("points", [])[:4],
+            "watch_points": watch_points[:4],
+            "confidence": (
+                f"{overall.get('score', 0):.0%}"
+                if isinstance(overall.get("score"), (float, int))
+                else None
+            ),
+        }
+        if not any(block_data.get(key) for key in ("trend_summary", "drivers", "risks", "watch_points")):
+            return None
+
+        return StructuredBlock(type="analysis", title="Structured Analysis", data=block_data)
 
     def _build_llm_context(
         self, tool_results: List[ToolResult]
@@ -373,7 +598,7 @@ class AgentCore:
                     f"docs={len(docs)}, no_match={no_match}"
                 )
                 if no_match or not docs:
-                    rag_context = "知识库中未找到与该问题直接相关的内容"
+                    rag_context = "鐭ヨ瘑搴撲腑鏈壘鍒颁笌璇ラ棶棰樼洿鎺ョ浉鍏崇殑鍐呭"
                     supp_web = result.data.get("supplemental_web")
                     if supp_web:
                         supp_items = supp_web.get("results", [])[:2]
@@ -382,10 +607,10 @@ class AgentCore:
                                 f"- {item.get('title', '')}: {item.get('snippet', '')[:150]}"
                                 for item in supp_items
                             )
-                            rag_context += f"\n\n【补充网络搜索结果】\n{supp_lines}"
+                            rag_context += f"\n\n銆愯ˉ鍏呯綉缁滄悳绱㈢粨鏋溿€慭n{supp_lines}"
                 else:
                     rag_context = "\n\n".join(
-                        f"[来源: {doc.get('source', '知识库')}]\n"
+                        f"[Source: {doc.get('source', 'knowledge_base')}]\n"
                         f"{self._strip_frontmatter(doc.get('content', ''))[:500]}"
                         for doc in docs[:3]
                     )
@@ -393,9 +618,9 @@ class AgentCore:
             elif result.tool == "get_price":
                 data = result.data
                 if data.get("price") is not None:
-                    api_data_lines.append(f"当前价格：{data['price']:.2f} {data.get('currency', 'USD')}")
+                    api_data_lines.append(f"Current price: {data['price']:.2f} {data.get('currency', 'USD')}")
                 if data.get("change") is not None and data.get("change_pct") is not None:
-                    api_data_lines.append(f"今日涨跌：{data['change']:+.2f} ({data['change_pct']:+.2f}%)")
+                    api_data_lines.append(f"Daily move: {data['change']:+.2f} ({data['change_pct']:+.2f}%)")
             elif result.tool == "get_change":
                 data = result.data
                 if data.get("change_pct") is not None:
@@ -403,15 +628,14 @@ class AgentCore:
                     start = data.get("start_price")
                     end = data.get("end_price")
                     pct = data["change_pct"]
-                    trend = data.get("trend", "未知")
+                    trend = data.get("trend", "鏈煡")
                     if start is not None and end is not None:
-                        abs_change = end - start
                         api_data_lines.append(
-                            f"{days_n}日表现：{start:.2f} → {end:.2f} ({pct:+.2f}%)"
+                            f"{days_n}-day performance: {start:.2f} -> {end:.2f} ({pct:+.2f}%)"
                         )
                     else:
-                        api_data_lines.append(f"{days_n}日涨跌：{pct:+.2f}%")
-                    api_data_lines.append(f"趋势判断：{trend}")
+                        api_data_lines.append(f"{days_n}-day change: {pct:+.2f}%")
+                    api_data_lines.append(f"Trend assessment: {trend}")
             elif result.tool == "get_history":
                 data = result.data
                 hist_points = data.get("data", [])
@@ -426,8 +650,8 @@ class AgentCore:
                         vol = last.get("volume", 0)
                         vol_str = f"{vol:,.0f}"
                         api_data_lines.append(
-                            f"开盘：{last['open']:.2f} / 最高：{last.get('high', last['open']):.2f}"
-                            f" / 最低：{last.get('low', last['open']):.2f} / 成交量：{vol_str}"
+                            f"寮€鐩橈細{last['open']:.2f} / 鏈€楂橈細{last.get('high', last['open']):.2f}"
+                            f" / 鏈€浣庯細{last.get('low', last['open']):.2f} / 鎴愪氦閲忥細{vol_str}"
                         )
 
                     if highs and lows:
@@ -435,42 +659,42 @@ class AgentCore:
                         min_low = min(lows)
                         max_high_idx = highs.index(max_high)
                         min_low_idx = lows.index(min_low)
-                        max_high_date = dates[max_high_idx] if max_high_idx < len(dates) else "未知"
-                        min_low_date = dates[min_low_idx] if min_low_idx < len(dates) else "未知"
+                        max_high_date = dates[max_high_idx] if max_high_idx < len(dates) else "鏈煡"
+                        min_low_date = dates[min_low_idx] if min_low_idx < len(dates) else "鏈煡"
                         days_n = data.get("days", len(hist_points))
-                        api_data_lines.append(f"{days_n}日最高：{max_high:.2f}（{max_high_date}）")
-                        api_data_lines.append(f"{days_n}日最低：{min_low:.2f}（{min_low_date}）")
+                        api_data_lines.append(f"{days_n}-day high: {max_high:.2f} ({max_high_date})")
+                        api_data_lines.append(f"{days_n}-day low: {min_low:.2f} ({min_low_date})")
             elif result.tool == "get_metrics":
                 data = result.data
                 if data.get("rsi") is not None:
                     rsi = data["rsi"]
                     if rsi < 30:
-                        rsi_zone = "超卖区域（低于30为超卖区域，意味着近期跌幅较大，可能存在超跌反弹机会）"
+                        rsi_zone = "瓒呭崠鍖哄煙锛堜綆浜?0涓鸿秴鍗栧尯鍩燂紝鎰忓懗鐫€杩戞湡璺屽箙杈冨ぇ锛屽彲鑳藉瓨鍦ㄨ秴璺屽弽寮规満浼氾級"
                     elif rsi > 70:
-                        rsi_zone = "超买区域（高于70为超买区域，意味着近期涨幅较大，可能面临回调压力）"
+                        rsi_zone = "瓒呬拱鍖哄煙锛堥珮浜?0涓鸿秴涔板尯鍩燂紝鎰忓懗鐫€杩戞湡娑ㄥ箙杈冨ぇ锛屽彲鑳介潰涓村洖璋冨帇鍔涳級"
                     else:
-                        rsi_zone = "中性区域（30-70之间，多空力量相对均衡）"
-                    api_data_lines.append(f"RSI(14)：{rsi:.1f}（{rsi_zone}）")
+                        rsi_zone = "涓€у尯鍩燂紙30-70涔嬮棿锛屽绌哄姏閲忕浉瀵瑰潎琛★級"
+                    api_data_lines.append(f"RSI(14): {rsi:.1f} ({rsi_zone})")
                 if data.get("max_drawdown_pct") is not None:
-                    api_data_lines.append(f"最大回撤：{data['max_drawdown_pct']:+.2f}%")
+                    api_data_lines.append(f"鏈€澶у洖鎾わ細{data['max_drawdown_pct']:+.2f}%")
                 if data.get("annualized_volatility") is not None:
-                    api_data_lines.append(f"波动率：{data['annualized_volatility']:.2f}%")
+                    api_data_lines.append(f"娉㈠姩鐜囷細{data['annualized_volatility']:.2f}%")
                 if data.get("total_return_pct") is not None:
-                    api_data_lines.append(f"区间总收益：{data['total_return_pct']:+.2f}%")
+                    api_data_lines.append(f"鍖洪棿鎬绘敹鐩婏細{data['total_return_pct']:+.2f}%")
             elif result.tool in ("search_web", "search_sec"):
                 items = result.data.get("results", [])[:5]
                 if result.tool == "search_web":
                     news_items = []
                     for i, item in enumerate(items):
-                        title = item.get('title', '未知标题')
-                        source = item.get('source', '未知来源')
+                        title = item.get('title', '鏈煡鏍囬')
+                        source = item.get('source', '鏈煡鏉ユ簮')
                         # Prefer full content over snippet; show up to 300 chars
                         content = (item.get('content') or item.get('snippet') or '').strip()
-                        snippet = content[:300] if content else "（无详细摘要）"
+                        snippet = content[:300] if content else "(no detailed summary)"
                         news_items.append(
-                            f"新闻{i+1}：{title}\n"
-                            f"来源：{source}\n"
-                            f"摘要：{snippet}"
+                            f"News {i + 1}: {title}\n"
+                            f"Source: {source}\n"
+                            f"Summary: {snippet}"
                         )
                     news_context = "\n\n".join(news_items) if news_items else ""
 
@@ -478,8 +702,14 @@ class AgentCore:
             len([r for r in successful if r.tool in market_tools]) / max(len(tool_results), 1)
         )
 
-        api_data_text = "\n".join(api_data_lines) if api_data_lines else "暂无市场数据"
-        return api_data_text, rag_context or "暂无知识库检索结果", news_context or "暂无新闻数据", api_completeness, rag_relevance
+        api_data_text = "\n".join(api_data_lines) if api_data_lines else "No market data available"
+        return (
+            api_data_text,
+            rag_context or "No knowledge base results available",
+            news_context or "No news data available",
+            api_completeness,
+            rag_relevance,
+        )
 
     def _compose_answer(
         self,
@@ -494,24 +724,24 @@ class AgentCore:
         warnings: List[str] = []
 
         if route.refuses_advice:
-            warnings.append("系统不提供买入、卖出、目标价或个股推荐，只能提供事实数据和风险指标。")
+            warnings.append("The system does not provide buy/sell recommendations or target prices.")
         if validation["level"] == "low":
-            warnings.append("以上分析基于公开市场数据，仅供参考，不构成投资建议。")
+            warnings.append("This analysis is based on public market data and is for reference only.")
 
         comparison = by_tool.get("compare_assets")
         if comparison:
             rows = comparison.get("rows", [])
             best_return = max(rows, key=lambda item: item.get("total_return_pct") or float("-inf"), default=None)
             lowest_drawdown = min(rows, key=lambda item: item.get("max_drawdown_pct") or float("inf"), default=None)
-            text = "已完成资产对比。"
+            text = "Asset comparison completed."
             if best_return:
-                text += f" {best_return['symbol']} 的区间总收益最高，为 {best_return.get('total_return_pct', 0):+.2f}%。"
+                text += f" {best_return['symbol']} has the strongest period return at {best_return.get('total_return_pct', 0):+.2f}%."
             if lowest_drawdown and lowest_drawdown.get("max_drawdown_pct") is not None:
-                text += f" 回撤最小的是 {lowest_drawdown['symbol']}，最大回撤 {lowest_drawdown['max_drawdown_pct']:+.2f}%。"
-            blocks.append(StructuredBlock(type="table", title="资产对比", data={"columns": ["symbol", "price", "total_return_pct", "annualized_volatility", "max_drawdown_pct"], "rows": rows}))
-            blocks.append(StructuredBlock(type="chart", title="对比走势图", data={"chart_type": "comparison", "range_key": comparison.get("range_key"), "series": comparison.get("chart", [])}))
+                text += f" {lowest_drawdown['symbol']} has the shallowest drawdown at {lowest_drawdown['max_drawdown_pct']:+.2f}%."
+            blocks.append(StructuredBlock(type="table", title="Asset Comparison", data={"columns": ["symbol", "price", "total_return_pct", "annualized_volatility", "max_drawdown_pct"], "rows": rows}))
+            blocks.append(StructuredBlock(type="chart", title="Comparison Trend", data={"chart_type": "comparison", "range_key": comparison.get("range_key"), "series": comparison.get("chart", [])}))
             if warnings:
-                blocks.append(StructuredBlock(type="warning", title="风险提示", data={"items": warnings}))
+                blocks.append(StructuredBlock(type="warning", title="Risk Notice", data={"items": warnings}))
             return text, blocks
 
         price = by_tool.get("get_price")
@@ -530,14 +760,14 @@ class AgentCore:
                 default_range = "7D"
             elif days and days <= 30:
                 default_range = "1M"
-            elif "当前" in query or "股价" in query:
+            elif "褰撳墠" in query or "鑲′环" in query:
                 default_range = "YTD"
-            elif "近期" in query or "走势" in query:
+            elif "杩戞湡" in query or "璧板娍" in query:
                 default_range = "3M"
             else:
                 default_range = "YTD"
             blocks.append(StructuredBlock(
-                type="chart", title="价格走势图",
+                type="chart", title="Price Trend",
                 data={
                     "chart_type": "history",
                     "symbol": history["symbol"],
@@ -553,6 +783,7 @@ class AgentCore:
                 "price": price.get("price"),
                 "currency": price.get("currency", "USD"),
                 "symbol": price.get("symbol"),
+                "name": price.get("name") or (info or {}).get("name"),
             }
             if history and history.get("data"):
                 hist_data = history["data"]
@@ -563,7 +794,7 @@ class AgentCore:
                     "low": last.get("low"),
                     "volume": last.get("volume"),
                 })
-                # 区间最高/最低/振幅（用于走势概述指标卡片）
+                # 鍖洪棿鏈€楂?鏈€浣?鎸箙锛堢敤浜庤蛋鍔挎杩版寚鏍囧崱鐗囷級
                 highs = [p.get("high") for p in hist_data if p.get("high") is not None]
                 lows = [p.get("low") for p in hist_data if p.get("low") is not None]
                 if highs and lows:
@@ -573,7 +804,7 @@ class AgentCore:
                     km_data["period_low"] = period_low
                     if period_low and period_low > 0:
                         km_data["period_amplitude_pct"] = round((period_high - period_low) / period_low * 100, 2)
-            # 兜底：无 history 时用 change 的 start/end 近似
+            # 鍏滃簳锛氭棤 history 鏃剁敤 change 鐨?start/end 杩戜技
             if change and km_data.get("period_high") is None and change.get("start_price") is not None and change.get("end_price") is not None:
                 s, e = float(change["start_price"]), float(change["end_price"])
                 km_data["period_high"] = max(s, e)
@@ -590,7 +821,7 @@ class AgentCore:
                 })
                 if change.get("end_price") is not None and change.get("start_price") is not None:
                     km_data["change"] = round(float(change["end_price"]) - float(change["start_price"]), 2)
-            blocks.append(StructuredBlock(type="key_metrics", title="关键数据", data=km_data))
+            blocks.append(StructuredBlock(type="key_metrics", title="鍏抽敭鏁版嵁", data=km_data))
         elif change and change.get("change_pct") is not None:
             km_data = {
                 "change_pct": change.get("change_pct"),
@@ -599,6 +830,7 @@ class AgentCore:
                 "period_days": change.get("days"),
                 "trend": change.get("trend"),
                 "symbol": change.get("symbol"),
+                "name": (price or {}).get("name") or (info or {}).get("name"),
                 "currency": "USD",
             }
             if change.get("end_price") is not None and change.get("start_price") is not None:
@@ -613,7 +845,7 @@ class AgentCore:
                     pl = min(lows)
                     if pl and pl > 0:
                         km_data["period_amplitude_pct"] = round((max(highs) - pl) / pl * 100, 2)
-            # 兜底：无 history 时用 start/end 近似
+            # 鍏滃簳锛氭棤 history 鏃剁敤 start/end 杩戜技
             if km_data.get("period_high") is None and km_data.get("start_price") is not None and km_data.get("end_price") is not None:
                 s, e = float(km_data["start_price"]), float(km_data["end_price"])
                 km_data["period_high"] = max(s, e)
@@ -621,26 +853,30 @@ class AgentCore:
                 pl = min(s, e)
                 if pl > 0:
                     km_data["period_amplitude_pct"] = round((max(s, e) - pl) / pl * 100, 2)
-            blocks.append(StructuredBlock(type="key_metrics", title="关键数据", data=km_data))
+            blocks.append(StructuredBlock(type="key_metrics", title="鍏抽敭鏁版嵁", data=km_data))
 
         # Block 3: Risk/Return Table
         if metrics and metrics.get("total_return_pct") is not None:
             blocks.append(StructuredBlock(
-                type="table", title="收益风险指标",
+                type="table", title="Risk and Return Metrics",
                 data={
                     "columns": ["metric", "value"],
                     "rows": [
-                        {"metric": "区间", "value": metrics.get("range_key")},
-                        {"metric": "总收益", "value": f"{metrics['total_return_pct']:+.2f}%"},
-                        {"metric": "年化波动率", "value": f"{metrics['annualized_volatility']:.2f}%"},
-                        {"metric": "最大回撤", "value": f"{metrics['max_drawdown_pct']:+.2f}%"},
-                        {"metric": "年化收益", "value": f"{metrics.get('annualized_return_pct', 0):+.2f}%"},
+                        {"metric": "Range", "value": metrics.get("range_key")},
+                        {"metric": "Total Return", "value": f"{metrics['total_return_pct']:+.2f}%"},
+                        {"metric": "Annualized Volatility", "value": f"{metrics['annualized_volatility']:.2f}%"},
+                        {"metric": "Max Drawdown", "value": f"{metrics['max_drawdown_pct']:+.2f}%"},
+                        {"metric": "Annualized Return", "value": f"{metrics.get('annualized_return_pct', 0):+.2f}%"},
                         {"metric": "Sharpe", "value": f"{metrics.get('sharpe_ratio', 0):.2f}" if metrics.get("sharpe_ratio") is not None else "N/A"},
                     ],
                 },
             ))
 
-        # Block 4: Knowledge Quote (KNOWLEDGE / HYBRID routes only) — 扩展为 items + text 兼容
+        reasoning_block = self._build_reasoning_analysis_block(route, tool_results, technical_analysis)
+        if reasoning_block:
+            blocks.append(reasoning_block)
+
+        # Block 4: Knowledge Quote (KNOWLEDGE / HYBRID routes only) 鈥?鎵╁睍涓?items + text 鍏煎
         if knowledge and knowledge.get("documents"):
             if route.query_type in (QueryType.KNOWLEDGE, QueryType.HYBRID):
                 docs = knowledge["documents"][:5]
@@ -649,7 +885,7 @@ class AgentCore:
                 preview_lines = []
                 for i, doc in enumerate(docs):
                     content = doc.get("content", "")
-                    source = doc.get("source", "未知")
+                    source = doc.get("source", "鏈煡")
                     score = doc.get("score", 0.0)
                     preview = self._strip_frontmatter(content)[:200].strip()
                     items.append({
@@ -661,7 +897,7 @@ class AgentCore:
                     })
                     preview_lines.append(f"- {preview[:120]}")
                 blocks.append(StructuredBlock(
-                    type="quote", title="知识库摘录",
+                    type="quote", title="Knowledge Base Excerpts",
                     data={
                         "text": "\n".join(preview_lines),
                         "items": items,
@@ -672,19 +908,19 @@ class AgentCore:
         # Block 5: SEC fallback bullets (removed when LLM succeeds)
         if sec_results and sec_results.get("results"):
             blocks.append(StructuredBlock(
-                type="bullets", title="SEC/财报来源",
+                type="bullets", title="SEC/璐㈡姤鏉ユ簮",
                 data={"items": [
                     f"{item.get('title')} ({item.get('published') or 'unknown'})"
                     for item in sec_results["results"][:3]
                 ]}
             ))
-        # Block 5b: News cards (type="news" — NOT removed when LLM succeeds)
+        # Block 5b: News cards (type="news" 鈥?NOT removed when LLM succeeds)
         def _news_items_from_results(results: list) -> list:
             return [
                 {
                     "title": item.get("title", ""),
                     "url": item.get("url", ""),
-                    "source": item.get("source", "未知"),
+                    "source": item.get("source", "鏈煡"),
                     "published": item.get("published") or "",
                     "snippet": (item.get("content") or item.get("snippet") or "")[:200],
                 }
@@ -700,28 +936,28 @@ class AgentCore:
                 news_items = _news_items_from_results(supp_web["results"])
         if news_items:
             blocks.append(StructuredBlock(
-                type="news", title="相关新闻",
+                type="news", title="鐩稿叧鏂伴椈",
                 data={"items": news_items}
             ))
 
         if warnings:
-            blocks.append(StructuredBlock(type="warning", title="风险提示", data={"items": warnings}))
+            blocks.append(StructuredBlock(type="warning", title="椋庨櫓鎻愮ず", data={"items": warnings}))
 
         # Template fallback text (replaced by LLM analysis when available)
         fragments: List[str] = []
         if price and price.get("price") is not None:
             fragments.append(
-                f"{price['symbol']} 最新价格 {price['price']:.2f} {price.get('currency') or ''}".strip()
+                f"{price['symbol']} 鏈€鏂颁环鏍?{price['price']:.2f} {price.get('currency') or ''}".strip()
             )
         if change and change.get("change_pct") is not None:
-            fragments.append(f"{change.get('days', 7)}日涨跌 {change['change_pct']:+.2f}%")
+            fragments.append(f"{change.get('days', 7)}鏃ユ定璺?{change['change_pct']:+.2f}%")
         if knowledge and not price and not change and not metrics:
             docs = knowledge.get("documents", [])
             if docs:
                 first_doc = self._strip_frontmatter(docs[0]["content"]).replace("\n", " ")
                 fragments = [first_doc[:140].strip()]
         if fragments:
-            return "；".join(fragments) + "。", blocks
+            return ". ".join(fragments) + ".", blocks
         return "", blocks
 
     def _load_demo_cache(self) -> Optional[Dict[str, Any]]:
@@ -749,7 +985,13 @@ class AgentCore:
 
         logger.info(f"[DEBUG] AgentCore.run() called with query: {query}")
 
-        # Demo cache: 若启用且问题匹配，直接返回缓存答案（演示用）
+        # Record query metrics
+        if METRICS_AVAILABLE:
+            metrics.query_total.inc()
+
+        start_time = time.time()
+
+        # Demo cache: 鑻ュ惎鐢ㄤ笖闂鍖归厤锛岀洿鎺ヨ繑鍥炵紦瀛樼瓟妗堬紙婕旂ず鐢級
         cache = self._load_demo_cache()
         if cache:
             normalized = query.strip()
@@ -781,17 +1023,47 @@ class AgentCore:
                 return
 
         yield SSEEvent(type="model_selected", model=model_name, provider=getattr(model_config, "provider", "deepseek"), complexity=self.model_manager.classify_query(query))
-        route = await self.query_router.classify_async(query)
+        route, complexity_score = await self.route_planner.analyze(query)
         logger.info(f"[DEBUG] Route: type={route.query_type}, requires_knowledge={route.requires_knowledge}")
 
+        logger.info(
+            f"[Complexity] Query complexity: {complexity_score.level}, "
+            f"score={complexity_score.score:.2f}, "
+            f"recommended_top_k={complexity_score.rag_top_k}, "
+            f"timeout_multiplier={complexity_score.timeout_multiplier:.1f}"
+        )
+
         if route.refuses_advice:
-            refusal = "我不能给出买入、卖出、目标价或个股推荐。你可以继续问我该标的的价格、历史走势、波动率、最大回撤或最新公告。"
+            refusal = (
+                "I cannot provide buy, sell, or target-price advice. "
+                "You can continue asking for prices, historical trends, volatility, drawdowns, or public filings."
+            )
             yield SSEEvent(type="chunk", text=refusal)
-            yield SSEEvent(type="done", verified=True, sources=[], request_id=request_id, model=model_name, tokens_input=len(query) // 4, tokens_output=len(refusal) // 4, data={"confidence": {"level": "high", "score": 100}, "blocks": [StructuredBlock(type="warning", title="合规提示", data={"items": ["系统不提供投资建议，仅提供事实数据、知识解释和风险指标。"]}).model_dump()], "route": {"type": route.query_type.value, "symbols": route.symbols}, "disclaimer": "以上内容仅供参考，不构成投资建议。"})
+            yield SSEEvent(
+                type="done",
+                verified=True,
+                sources=[],
+                request_id=request_id,
+                model=model_name,
+                tokens_input=len(query) // 4,
+                tokens_output=len(refusal) // 4,
+                data={
+                    "confidence": {"level": "high", "score": 100},
+                    "blocks": [
+                        StructuredBlock(
+                            type="warning",
+                            title="Compliance Notice",
+                            data={"items": ["This system provides factual data and risk indicators, not investment advice."]},
+                        ).model_dump()
+                    ],
+                    "route": {"type": route.query_type.value, "symbols": route.symbols},
+                    "disclaimer": "以上内容仅供参考，不构成投资建议。",
+                },
+            )
             return
 
         try:
-            tool_plan = await self._build_tool_plan(route)
+            tool_plan = await self._build_tool_plan(route, rag_top_k=complexity_score.rag_top_k)
             logger.info(f"[DEBUG] Tool plan: {[step['name'] for step in tool_plan]}")
             for step in tool_plan:
                 yield SSEEvent(type="tool_start", name=step["name"], display=step["display"])
@@ -814,9 +1086,23 @@ class AgentCore:
             validation = self.data_validator.validate_tool_results(tool_results)
             sources = self._build_sources(tool_results)
             if self.data_validator.should_block_response(validation):
-                fallback = self.data_validator.get_fallback_message(validation, route.symbols[0] if route.symbols else "当前问题")
+                fallback = self.data_validator.get_fallback_message(validation, route.symbols[0] if route.symbols else "褰撳墠闂")
                 yield SSEEvent(type="chunk", text=fallback)
-                yield SSEEvent(type="done", verified=False, sources=sources, request_id=request_id, model=model_name, tokens_input=len(query) // 4, tokens_output=len(fallback) // 4, data={"confidence": {"level": validation["level"], "score": validation["confidence"]}, "blocks": [StructuredBlock(type="warning", title="数据不足", data={"items": validation["missing"]}).model_dump()], "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key}, "disclaimer": "以上内容仅供参考，不构成投资建议。"})
+                yield SSEEvent(
+                    type="done",
+                    verified=False,
+                    sources=sources,
+                    request_id=request_id,
+                    model=model_name,
+                    tokens_input=len(query) // 4,
+                    tokens_output=len(fallback) // 4,
+                    data={
+                        "confidence": {"level": validation["level"], "score": validation["confidence"]},
+                        "blocks": [StructuredBlock(type="warning", title="Data Unavailable", data={"items": validation["missing"]}).model_dump()],
+                        "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key},
+                        "disclaimer": "以上内容仅供参考，不构成投资建议。",
+                    },
+                )
                 return
 
             technical_analysis = None
@@ -830,7 +1116,7 @@ class AgentCore:
             # _compose_answer generates structured blocks (charts/tables) + a template fallback text
             template_text, blocks = self._compose_answer(query, route, tool_results, technical_analysis, validation)
 
-            # 提前推送 blocks（图表/价格/新闻等），用户无需等待 LLM 即可看到数据
+            # 鎻愬墠鎺ㄩ€?blocks锛堝浘琛?浠锋牸/鏂伴椈绛夛級锛岀敤鎴锋棤闇€绛夊緟 LLM 鍗冲彲鐪嬪埌鏁版嵁
             if blocks:
                 yield SSEEvent(type="blocks", data={"blocks": [b.model_dump() for b in blocks], "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key}})
 
@@ -842,9 +1128,10 @@ class AgentCore:
 
             # Attempt LLM-based analysis generation as a separate structured block
             llm_used = False
+            final_answer_text = template_text
             if self.response_generator and settings.DEEPSEEK_API_KEY:
                 try:
-                    yield SSEEvent(type="tool_start", name="llm_generate", display="正在生成 AI 分析...")
+                    yield SSEEvent(type="tool_start", name="llm_generate", display="姝ｅ湪鐢熸垚 AI 鍒嗘瀽...")
                     api_data, rag_context, news_context, api_completeness, rag_relevance = self._build_llm_context(tool_results)
                     # Enrich api_data with locally-computed technical indicators
                     if technical_analysis and not technical_analysis.get("error"):
@@ -852,41 +1139,41 @@ class AgentCore:
                         ma5 = technical_analysis.get("ma5")
                         ma20 = technical_analysis.get("ma20")
                         if ma5 is not None:
-                            tech_lines.append(f"MA5：{ma5:.2f}")
+                            tech_lines.append(f"MA5: {ma5:.2f}")
                         if ma20 is not None:
-                            tech_lines.append(f"MA20：{ma20:.2f}")
+                            tech_lines.append(f"MA20: {ma20:.2f}")
                         vol = technical_analysis.get("volume")
                         if vol and isinstance(vol, dict) and vol.get("ratio") is not None:
                             r = vol["ratio"]
                             if r > 1:
-                                tech_lines.append(f"成交量：较20日均量放大{r:.1f}倍")
+                                tech_lines.append(f"Volume: {r:.1f}x above the 20-day average")
                             elif r < 1 and r > 0:
-                                tech_lines.append(f"成交量：较20日均量缩至{r:.1f}倍")
+                                tech_lines.append(f"Volume: {r:.1f}x of the 20-day average")
                             else:
-                                tech_lines.append(f"成交量：与20日均量持平")
+                                tech_lines.append("Volume: in line with the 20-day average")
                         sup = technical_analysis.get("support")
                         res = technical_analysis.get("resistance")
                         if sup is not None:
-                            tech_lines.append(f"支撑位：{sup:.2f}")
+                            tech_lines.append(f"鏀拺浣嶏細{sup:.2f}")
                         if res is not None:
-                            tech_lines.append(f"阻力位：{res:.2f}")
+                            tech_lines.append(f"闃诲姏浣嶏細{res:.2f}")
                         rsi = technical_analysis.get("rsi")
                         if rsi is not None:
                             if rsi < 30:
-                                rsi_zone = "超卖区域（低于30，近期跌幅较大，存在超跌反弹需求）"
+                                rsi_zone = "瓒呭崠鍖哄煙锛堜綆浜?0锛岃繎鏈熻穼骞呰緝澶э紝瀛樺湪瓒呰穼鍙嶅脊闇€姹傦級"
                             elif rsi > 70:
-                                rsi_zone = "超买区域（高于70，近期涨幅较大，短期可能面临回调压力）"
+                                rsi_zone = "overbought zone"
                             else:
-                                rsi_zone = "中性区域（30-70之间，多空力量相对均衡）"
-                            tech_lines.append(f"RSI(14)：{rsi:.1f}，{rsi_zone}")
+                                rsi_zone = "涓€у尯鍩燂紙30-70涔嬮棿锛屽绌哄姏閲忕浉瀵瑰潎琛★級"
+                            tech_lines.append(f"RSI(14): {rsi:.1f} ({rsi_zone})")
                         if technical_analysis.get("max_drawdown_pct") is not None:
-                            tech_lines.append(f"最大回撤：{technical_analysis['max_drawdown_pct']:+.2f}%（期间最大峰値到谷値的下跌幅度）")
+                            tech_lines.append(f"Max drawdown: {technical_analysis['max_drawdown_pct']:+.2f}%")
                         trend = technical_analysis.get("trend")
                         if trend and trend != "insufficient_data":
-                            trend_cn = {"uptrend": "上涨", "downtrend": "下跌", "sideways": "横盘"}.get(trend, trend)
-                            tech_lines.append(f"走势判断：{trend_cn}")
+                            trend_cn = {"uptrend": "涓婃定", "downtrend": "涓嬭穼", "sideways": "妯洏"}.get(trend, trend)
+                            tech_lines.append(f"Trend: {trend_cn}")
                         if tech_lines:
-                            api_data = api_data + "\n\n技术指标：\n" + "\n".join(tech_lines)
+                            api_data = api_data + "\n\n鎶€鏈寚鏍囷細\n" + "\n".join(tech_lines)
 
                     # Stream LLM response character by character
                     llm_text_buffer = []
@@ -905,15 +1192,16 @@ class AgentCore:
 
                     llm_text = "".join(llm_text_buffer)
                     if llm_text and len(llm_text.strip()) > 10:
+                        final_answer_text = llm_text.strip()
                         # Add LLM analysis as a structured block
                         blocks.append(StructuredBlock(
                             type="analysis",
-                            title="AI 分析",
+                            title="AI 鍒嗘瀽",
                             data={"text": llm_text.strip()}
                         ))
                         llm_used = True
                         # When LLM analysis succeeded, remove redundant fallback blocks
-                        blocks = [b for b in blocks if b.type not in ("bullets", "warning")]
+                        blocks = [b for b in blocks if b.type not in ("bullets", "warning", "analysis")] + [blocks[-1]]
                         logger.info(f"[LLM] Analysis generated successfully ({len(llm_text)} chars)")
                 except asyncio.TimeoutError:
                     logger.warning("[LLM] Generator timed out, skipping AI analysis")
@@ -924,67 +1212,38 @@ class AgentCore:
                     if template_text:
                         yield SSEEvent(type="chunk", text=template_text)
 
-            self.model_manager.record_usage(model_name=model_name, tokens_input=len(query) // 4, tokens_output=len(template_text) // 4, success=True)
-            
-            # Reorder blocks as per user instructions
-            ordered_blocks = []
-            chart_blocks = [b for b in blocks if b.type == "chart"]
-            ordered_blocks.extend(chart_blocks)
-            
-            key_metrics_blocks = [b for b in blocks if b.type == "key_metrics"]
-            ordered_blocks.extend(key_metrics_blocks)
-            
-            table_blocks = [b for b in blocks if b.type == "table"]
-            ordered_blocks.extend(table_blocks)
-            
-            analysis_blocks = [b for b in blocks if b.type == "analysis"]
-            ordered_blocks.extend(analysis_blocks)
-            
-            if route.query_type in (QueryType.KNOWLEDGE, QueryType.HYBRID):
-                quote_blocks = [b for b in blocks if b.type == "quote"]
-                ordered_blocks.extend(quote_blocks)
-                
-            news_blocks = [b for b in blocks if b.type in ("bullets", "news")]
-            ordered_blocks.extend(news_blocks)
-            
-            source_blocks = [b for b in blocks if b.type == "source"]
-            ordered_blocks.extend(source_blocks)
-            
-            trace_blocks = [b for b in blocks if b.type == "trace"]
-            ordered_blocks.extend(trace_blocks)
-            
-            warning_blocks = [b for b in blocks if b.type == "warning"]
-            ordered_blocks.extend(warning_blocks)
+            self.model_manager.record_usage(model_name=model_name, tokens_input=len(query) // 4, tokens_output=len(final_answer_text) // 4, success=True)
+            ordered_blocks = self.answer_assembler.order_blocks(blocks, route)
+            done_data = self.answer_assembler.build_done_data(
+                query=query,
+                route=route,
+                tool_results=tool_results,
+                blocks=ordered_blocks,
+                validation=validation,
+                llm_used=llm_used,
+                final_answer_text=final_answer_text,
+                complexity_score=complexity_score,
+                disclaimer="以上内容仅供参考，不构成投资建议。",
+            )
 
-            # 构建 rag_citations 与 tool_latencies 供前端可观测性展示
-            rag_citations: List[Dict[str, Any]] = []
-            knowledge_result = next((r.data for r in tool_results if r.tool == "search_knowledge" and r.status == "success"), None)
-            if knowledge_result and knowledge_result.get("documents"):
-                method_used = knowledge_result.get("method_used", "unknown")
-                for i, doc in enumerate(knowledge_result["documents"][:5]):
-                    rag_citations.append({
-                        "id": i + 1,
-                        "source": doc.get("source", "未知"),
-                        "score": round(float(doc.get("score", 0)), 2),
-                        "preview": self._strip_frontmatter(doc.get("content", ""))[:200].strip(),
-                        "method": method_used,
-                    })
-            tool_latencies = [
-                {"tool": r.tool, "latency_ms": getattr(r, "latency_ms", 0) or 0}
-                for r in tool_results
-            ]
-            done_data = {
-                "confidence": {"level": validation["level"], "score": validation["confidence"]},
-                "blocks": [block.model_dump() for block in ordered_blocks],
-                "route": {"type": route.query_type.value, "symbols": route.symbols, "range_key": route.range_key},
-                "llm_used": llm_used,
-                "disclaimer": "以上内容仅供参考，不构成投资建议。",
-                "rag_citations": rag_citations,
-                "tool_latencies": tool_latencies,
-            }
-            yield SSEEvent(type="done", verified=self.guard.validate(template_text, tool_results), sources=sources, request_id=request_id, model=model_name, tokens_input=len(query) // 4, tokens_output=len(template_text) // 4, data=done_data)
+            # Record metrics at completion
+            if METRICS_AVAILABLE:
+                duration = time.time() - start_time
+                metrics.query_duration.observe(duration)
+                metrics.confidence_score.set(validation["confidence"])
+                if llm_used:
+                    # Estimate token usage (rough approximation)
+                    estimated_tokens = len(query) // 4 + len(final_answer_text) // 4
+                    metrics.llm_token_usage.inc(estimated_tokens)
+
+            yield SSEEvent(type="done", verified=self.guard.validate(final_answer_text, tool_results), sources=sources, request_id=request_id, model=model_name, tokens_input=len(query) // 4, tokens_output=len(final_answer_text) // 4, data=done_data)
         except Exception as exc:
             self.model_manager.record_usage(model_name=model_name, tokens_input=len(query) // 4, tokens_output=0, success=False)
+
+            # Record error metrics
+            if METRICS_AVAILABLE:
+                metrics.query_errors.inc()
+
             yield SSEEvent(type="error", message=str(exc), code="LLM_ERROR", model=model_name)
 
     def get_available_models(self) -> List[Dict[str, Any]]:
@@ -992,3 +1251,4 @@ class AgentCore:
 
     def get_usage_report(self) -> Dict[str, Any]:
         return self.model_manager.get_usage_report()
+

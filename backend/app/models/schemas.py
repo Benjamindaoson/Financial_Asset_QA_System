@@ -177,6 +177,7 @@ class Document(BaseModel):
     content: str
     source: str
     score: float
+    chunk_id: Optional[str] = None
 
 
 class KnowledgeResult(BaseModel):
@@ -184,6 +185,36 @@ class KnowledgeResult(BaseModel):
 
     documents: List[Document]
     total_found: int
+
+
+class StructuredAnswer(BaseModel):
+    """结构化答案输出"""
+
+    answer: str = Field(..., description="生成的答案文本")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="置信度分数 (0-1)")
+    sources: List[str] = Field(default_factory=list, description="引用的文档来源")
+    metadata: Dict = Field(default_factory=dict, description="额外元数据")
+
+    retrieval_method: Optional[str] = Field(None, description="使用的检索方法")
+    processing_time_ms: Optional[float] = Field(None, description="处理时间（毫秒）")
+    warning: Optional[str] = Field(None, description="警告信息（如低置信度）")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "answer": "市盈率是股价除以每股收益的比率[文档1]。",
+                "confidence": 0.85,
+                "sources": ["financial_terms.md"],
+                "metadata": {
+                    "retrieval_quality": 0.9,
+                    "answer_quality": 0.8,
+                    "citation_quality": 0.85
+                },
+                "retrieval_method": "hybrid",
+                "processing_time_ms": 1250.5,
+                "warning": None
+            }
+        }
 
 
 class SearchResult(BaseModel):

@@ -1,5 +1,7 @@
 """Tests for API routes."""
 
+import asyncio
+import json
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -149,11 +151,15 @@ class TestChartEndpoint:
 
 
 class TestChatEndpoint:
+    @patch("app.api.routes.session_memory")
     @patch("app.api.routes.enricher")
     @patch("app.api.routes.agent")
     @pytest.mark.asyncio
-    async def test_chat_endpoint_structure(self, mock_agent, mock_enricher, client):
+    async def test_chat_endpoint_structure(self, mock_agent, mock_enricher, mock_session_memory, client):
         mock_enricher.enrich.return_value = "enriched query"
+        mock_session_memory.get_context = AsyncMock(return_value=[])
+        mock_session_memory.resolve_references.return_value = "test query"
+        mock_session_memory.save_turn = AsyncMock()
 
         async def mock_run(query, model_name=None):
             yield SSEEvent(type="chunk", text="test")
@@ -165,3 +171,50 @@ class TestChatEndpoint:
 
         assert response.status_code == 200
         assert "text/event-stream" in response.headers.get("content-type", "")
+
+    @patch("app.api.routes.session_memory")
+    @patch("app.api.routes.enricher")
+    @patch("app.api.routes.agent")
+    @pytest.mark.asyncio
+    async def test_chat_endpoint_preserves_done_payload(self, mock_agent, mock_enricher, mock_session_memory, client):
+        mock_enricher.enrich.return_value = "enriched query"
+        mock_session_memory.get_context = AsyncMock(return_value=[])
+        mock_session_memory.resolve_references.return_value = "test query"
+        mock_session_memory.save_turn = AsyncMock()
+
+        async def mock_run(query, model_name=None):
+            yield SSEEvent(
+                type="done",
+                verified=True,
+                request_id="req-1",
+                model="deepseek-chat",
+                tokens_input=2,
+                tokens_output=4,
+                sources=[],
+                data={
+                    "confidence": {"level": "high", "score": 90},
+                    "blocks": [],
+                    "route": {"type": "market", "symbols": ["AAPL"], "range_key": None},
+                    "llm_used": False,
+                    "disclaimer": "test disclaimer",
+                    "rag_citations": [{"id": 1, "source": "kb.md", "score": 0.91, "preview": "test", "method": "hybrid"}],
+                    "tool_latencies": [{"tool": "get_price", "latency_ms": 12}],
+                    "query_complexity": {"level": "simple", "score": 0.2, "rag_top_k": 3, "reasoning": "simple"},
+                },
+            )
+
+        mock_agent.run = mock_run
+
+        with patch("sse_starlette.sse.AppStatus.should_exit_event", new=asyncio.Event()):
+            response = await client.post("/api/chat", json={"query": "test query", "session_id": "s1"})
+
+        assert response.status_code == 200
+        payloads = [
+            json.loads(line.removeprefix("data: "))
+            for line in response.text.splitlines()
+            if line.startswith("data: ")
+        ]
+        done = next(item for item in payloads if item["type"] == "done")
+        assert done["data"]["route"]["symbols"] == ["AAPL"]
+        assert done["data"]["rag_citations"][0]["source"] == "kb.md"
+        assert done["data"]["tool_latencies"][0]["tool"] == "get_price"

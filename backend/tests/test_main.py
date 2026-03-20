@@ -3,7 +3,7 @@
 """
 import pytest
 from unittest.mock import Mock, patch
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 
 class TestMainApplication:
@@ -34,15 +34,16 @@ class TestMainApplication:
         routes = [route.path for route in app.routes]
         assert len(routes) > 0
 
-    def test_root_endpoint(self):
+    @pytest.mark.asyncio
+    async def test_root_endpoint(self):
         """测试根路径端点"""
         from app.main import app
 
-        client = TestClient(app)
-        response = client.get("/")
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            response = await client.get("/")
 
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Financial Asset QA System"
-        assert data["version"] == "1.0.0"
+        assert data["version"] == "2.0.0"
         assert data["status"] == "running"

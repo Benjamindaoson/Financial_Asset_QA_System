@@ -15,6 +15,7 @@ from app.config import settings
 from app.enricher import QueryEnricher
 from app.market import MarketDataService
 from app.models import ChartResponse, ChatRequest, HealthResponse
+from app.session.memory import SessionMemory, ConversationTurn
 
 
 router = APIRouter()
@@ -23,21 +24,74 @@ router.include_router(market_router)
 agent = AgentCore()
 enricher = QueryEnricher()
 market_service = MarketDataService()
+session_memory = SessionMemory()
 
 
 @router.post("/chat")
 async def chat(request: ChatRequest, model: Optional[str] = None):
-    """Chat endpoint with SSE streaming."""
+    """Chat endpoint with SSE streaming and multi-turn conversation support."""
 
-    enriched_query = enricher.enrich(request.query)
+    # Get session_id from request or generate new one
+    session_id = request.session_id or f"session_{int(datetime.utcnow().timestamp())}"
+
+    # Get conversation context for reference resolution
+    context = await session_memory.get_context(session_id, max_turns=5)
+
+    # Resolve references (e.g., "它" -> "AAPL")
+    resolved_query = session_memory.resolve_references(request.query, context)
+
+    # Enrich query
+    enriched_query = enricher.enrich(resolved_query)
 
     async def event_generator():
+        assistant_response = ""
+        symbols_mentioned = []
+        tools_used = []
+
         try:
             async for event in agent.run(enriched_query, model_name=model):
+                # Collect assistant response for session storage
+                if event.type == "chunk" or event.type == "analysis_chunk":
+                    if hasattr(event, 'text') and event.text:
+                        assistant_response += event.text
+
+                # Track tools used
+                if event.type == "tool_start" and hasattr(event, 'name'):
+                    tools_used.append(event.name)
+
+                # Extract symbols from route
+                if event.type == "blocks" and hasattr(event, 'data'):
+                    route_data = event.data.get('route', {})
+                    if route_data.get('symbols'):
+                        symbols_mentioned.extend(route_data['symbols'])
+
                 yield {
                     "event": "message",
                     "data": json.dumps(event.model_dump(exclude_none=True), ensure_ascii=False),
                 }
+
+            # Save conversation turn after completion
+            if assistant_response or symbols_mentioned:
+                # Save user turn
+                user_turn = ConversationTurn(
+                    role="user",
+                    content=request.query,
+                    timestamp=datetime.utcnow().isoformat(),
+                    tools_used=None,
+                    symbols_mentioned=symbols_mentioned if symbols_mentioned else None
+                )
+                await session_memory.save_turn(session_id, None, user_turn)
+
+                # Save assistant turn
+                assistant_turn = ConversationTurn(
+                    role="assistant",
+                    content=assistant_response[:500] if assistant_response else "Response generated",
+                    timestamp=datetime.utcnow().isoformat(),
+                    tools_used=tools_used if tools_used else None,
+                    symbols_mentioned=symbols_mentioned if symbols_mentioned else None
+                )
+                await session_memory.save_turn(session_id, None, assistant_turn)
+
         except Exception as exc:
             yield {
                 "event": "error",

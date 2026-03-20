@@ -1,9 +1,10 @@
 """
 RAG Pipeline - Two-stage retrieval with bge-base-zh and bge-reranker
 """
+import json
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from typing import List
+from typing import List, Optional
 from pathlib import Path
 import re
 from app.config import settings
@@ -27,20 +28,20 @@ class RAGPipeline:
         "宏观": {"macro", "economics", "macro economics"},
     }
 
-    def __init__(self):
+    def __init__(self, collection_name: str = "financial_knowledge"):
         # Initialize ChromaDB（解析为绝对路径，确保 RAG 向量库稳定接入）
         raw_dir = Path(settings.CHROMA_PERSIST_DIR)
         if not raw_dir.is_absolute():
             # 项目根 = backend 的父目录
             project_root = Path(__file__).resolve().parents[3]
             # ../vectorstore/chroma -> 项目根/vectorstore/chroma
-            persist_dir = project_root / "vectorstore" / "chroma"
+            self._persist_dir = project_root / "vectorstore" / "chroma"
         else:
-            persist_dir = raw_dir
-        persist_dir.mkdir(parents=True, exist_ok=True)
+            self._persist_dir = raw_dir
+        self._persist_dir.mkdir(parents=True, exist_ok=True)
 
         self.chroma_client = chromadb.PersistentClient(
-            path=str(persist_dir),
+            path=str(self._persist_dir),
             settings=ChromaSettings(
                 anonymized_telemetry=False
             )
@@ -48,13 +49,14 @@ class RAGPipeline:
 
         # Get or create collection
         self.collection = self.chroma_client.get_or_create_collection(
-            name="financial_knowledge",
+            name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
 
         self.embedding_model = None
         self.reranker = None
         self._local_documents = self._load_local_documents()
+        self._local_chunks: Optional[List[dict]] = self._load_local_chunks()
 
     def _ensure_models(self):
         """Load heavy embedding models only when vector retrieval is needed."""
@@ -79,6 +81,7 @@ class RAGPipeline:
             seen_sources.add(key)
             documents.append({
                 "source": source,
+                "key": key,
                 "content": content,
                 "tokens": self._tokenize_text(content),
             })
@@ -126,6 +129,20 @@ class RAGPipeline:
                     add_doc(content, file_path.name, key)
 
         return documents
+
+    def _load_local_chunks(self) -> Optional[List[dict]]:
+        """Load chunk-level index from chunks.json (built by build_vector_index)."""
+        chunks_path = self._persist_dir / "chunks.json"
+        if not chunks_path.exists():
+            return None
+        try:
+            with open(chunks_path, encoding="utf-8") as f:
+                chunks = json.load(f)
+            for ch in chunks:
+                ch["tokens"] = self._tokenize_text(ch["content"])
+            return chunks
+        except Exception:
+            return None
 
     @staticmethod
     def _extract_text_from_mineru_json(file_path: Path) -> str:
@@ -192,19 +209,25 @@ class RAGPipeline:
         if not query_tokens:
             return KnowledgeResult(documents=[], total_found=0)
 
+        items = self._local_chunks if self._local_chunks else self._local_documents
         ranked = []
-        for item in self._local_documents:
-            overlap = len(query_tokens & item["tokens"])
+        for item in items:
+            tokens = item.get("tokens")
+            if tokens is None:
+                tokens = self._tokenize_text(item["content"])
+            overlap = len(query_tokens & tokens)
             if overlap == 0 and any(term in item["content"].lower() for term in expanded_terms):
                 overlap = 1
             if overlap == 0:
                 continue
             snippet = item["content"][:600].strip()
+            chunk_id = item.get("chunk_id")
             ranked.append(
                 Document(
                     content=snippet,
                     source=item["source"],
                     score=float(overlap),
+                    chunk_id=chunk_id,
                 )
             )
 

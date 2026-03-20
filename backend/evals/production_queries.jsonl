@@ -1,0 +1,12 @@
+{"case_id":"market_price_aapl","query":"AAPL price today","expected_route_type":"market","expected_symbols":["AAPL"],"expected_tools":["get_price","get_change"],"expected_complexity_level":"simple"}
+{"case_id":"market_metrics_msft","query":"MSFT volatility and drawdown over 1y","expected_route_type":"market","expected_symbols":["MSFT"],"expected_tools":["get_metrics","get_history"],"expected_complexity_level":"medium"}
+{"case_id":"market_profile_nvda","query":"NVDA company profile and sector","expected_route_type":"market","expected_symbols":["NVDA"],"expected_tools":["get_info"],"expected_complexity_level":"simple"}
+{"case_id":"knowledge_pe","query":"What is price-to-earnings ratio","expected_route_type":"knowledge","expected_symbols":[],"expected_tools":["search_knowledge"],"expected_complexity_level":"simple"}
+{"case_id":"knowledge_drawdown","query":"Explain maximum drawdown","expected_route_type":"knowledge","expected_symbols":[],"expected_tools":["search_knowledge"],"expected_complexity_level":"simple"}
+{"case_id":"news_tsla","query":"Latest TSLA news","expected_route_type":"hybrid","expected_symbols":["TSLA"],"expected_tools":["get_price","get_change","search_web"],"expected_complexity_level":"complex"}
+{"case_id":"sec_meta_10k","query":"META 10-K filing highlights","expected_route_type":"hybrid","expected_symbols":["META"],"expected_tools":["search_sec","search_knowledge","search_web"],"expected_complexity_level":"complex"}
+{"case_id":"compare_tech","query":"Compare AAPL vs MSFT performance","expected_route_type":"market","expected_symbols":["AAPL","MSFT"],"expected_tools":["compare_assets"],"expected_complexity_level":"complex"}
+{"case_id":"compare_etfs","query":"Compare SPY versus QQQ drawdown","expected_route_type":"market","expected_symbols":["SPY","QQQ"],"expected_tools":["compare_assets"],"expected_complexity_level":"complex"}
+{"case_id":"hybrid_stock_explainer","query":"Why is AMZN down today","expected_route_type":"hybrid","expected_symbols":["AMZN"],"expected_tools":["get_price","get_change","search_web"],"expected_complexity_level":"complex"}
+{"case_id":"knowledge_difference","query":"Difference between PE and PB","expected_route_type":"knowledge","expected_symbols":[],"expected_tools":["search_knowledge"],"expected_complexity_level":"simple"}
+{"case_id":"market_history","query":"NFLX chart over 3m","expected_route_type":"market","expected_symbols":["NFLX"],"expected_tools":["get_history"],"expected_complexity_level":"medium"}

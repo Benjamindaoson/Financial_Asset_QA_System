@@ -1,6 +1,6 @@
 """Tests for the grounded agent core."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -14,6 +14,8 @@ from app.models.schemas import (
     PricePoint,
     RiskMetrics,
 )
+from app.routing import QueryRoute, QueryType
+from app.routing.complexity_analyzer import ComplexityScore
 
 
 def build_test_agent(preferred_model=None):
@@ -190,6 +192,60 @@ class TestAgentRun:
         assert any(event.type == "tool_start" for event in events)
         assert any(event.type == "tool_data" for event in events)
         assert any(event.type == "done" for event in events)
+
+    @pytest.mark.asyncio
+    async def test_run_done_payload_contract(self, agent):
+        route = QueryRoute(
+            query_type=QueryType.MARKET,
+            cleaned_query="AAPL price",
+            symbols=["AAPL"],
+            requires_price=True,
+        )
+        complexity = ComplexityScore(
+            level="simple",
+            score=0.2,
+            recommended_model="deepseek-chat",
+            rag_top_k=3,
+            timeout_multiplier=1.0,
+            reasoning="Simple query with minimal requirements",
+        )
+        agent.route_planner.analyze = AsyncMock(return_value=(route, complexity))
+        agent.market_service.get_price = AsyncMock(
+            return_value=MarketData(
+                symbol="AAPL",
+                price=150.0,
+                currency="USD",
+                name="Apple Inc.",
+                source="yfinance",
+                timestamp="2024-03-05T10:00:00",
+            )
+        )
+        agent.data_validator.validate_tool_results = Mock(
+            return_value={
+                "confidence": 80,
+                "level": "high",
+                "missing": [],
+                "can_analyze": True,
+            }
+        )
+        agent.data_validator.should_block_response = Mock(return_value=False)
+        agent.response_generator = None
+
+        events = [event async for event in agent.run("AAPL price")]
+        done = next(event for event in events if event.type == "done")
+
+        assert {
+            "blocks",
+            "route",
+            "llm_used",
+            "disclaimer",
+            "rag_citations",
+            "tool_latencies",
+            "query_complexity",
+        }.issubset(done.data.keys())
+        assert done.data["route"] == {"type": "market", "symbols": ["AAPL"], "range_key": None}
+        assert isinstance(done.data["tool_latencies"], list)
+        assert done.data["query_complexity"]["rag_top_k"] == 3
 
     @pytest.mark.asyncio
     async def test_run_with_advice_refusal(self, agent):

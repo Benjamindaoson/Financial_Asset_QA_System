@@ -115,9 +115,23 @@ class Settings(BaseSettings):
     MMR_ENABLED: bool = True
     MMR_LAMBDA: float = 0.7  # 0.7 = 70% relevance, 30% diversity
 
+    # ========== HyDE 配置 ==========
+    HYDE_ENABLED: bool = False
+    HYDE_MODEL: str = "deepseek-chat"
+    HYDE_TIMEOUT: int = 5
+
+    # ========== 迭代检索配置 ==========
+    ITERATIVE_RETRIEVAL_ENABLED: bool = False
+    ITERATIVE_RETRIEVAL_SUFFICIENCY_MIN_DOCS: int = 2
+    ITERATIVE_RETRIEVAL_SUFFICIENCY_MIN_SCORE: float = 0.5
+
     # ========== 置信度评分配置 ==========
     CONFIDENCE_SCORING_ENABLED: bool = True
     CONFIDENCE_THRESHOLD: float = 0.5
+
+    # ========== 多域知识隔离配置 ==========
+    MULTI_DOMAIN_ENABLED: bool = True
+    DOMAIN_FALLBACK_ENABLED: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

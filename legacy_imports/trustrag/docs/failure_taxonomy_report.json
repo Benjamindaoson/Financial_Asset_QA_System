@@ -1,0 +1,15 @@
+{
+  "total_queries": 54,
+  "total_failures": 47,
+  "critical_failures": 44,
+  "critical_failure_rate": "81.5%",
+  "breakdown": {
+    "F1": 35,
+    "F2": 0,
+    "F3": 0,
+    "F4": 3,
+    "F5": 2,
+    "F6": 7
+  },
+  "regression_blocked": true
+}

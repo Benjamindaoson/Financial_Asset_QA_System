@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # GraphRAG API Service
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TRUSTRAG_ENV=${TRUSTRAG_ENV:-prod}
+      # Cloud Storage Configuration
+      - CLOUD_STORAGE_CACHE_DIR=/app/artifacts/cloud_cache
+      - CLOUD_STORAGE_MAX_CACHE_AGE_DAYS=7
+      - CLOUD_STORAGE_MAX_CONCURRENT_DOWNLOADS=3
+      - CLOUD_STORAGE_TIMEOUT=30
+      # Cloud Storage API Keys (Optional - for enhanced features)
+      - GOOGLE_DRIVE_API_KEY=${GOOGLE_DRIVE_API_KEY:-}
+      - BAIDU_APP_ID=${BAIDU_APP_ID:-}
+      - BAIDU_API_KEY=${BAIDU_API_KEY:-}
+      - BAIDU_SECRET_KEY=${BAIDU_SECRET_KEY:-}
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./demo_data:/app/demo_data:ro
+    depends_on:
+      - redis
+      - rabbitmq
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database for Vector Storage (with pgvector extension)
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=trust_rag
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=trust_rag
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_pgvector.sql:/docker-entrypoint-initdb.d/01_pgvector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trust_rag -d trust_rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  # Redis for caching and result backend
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # RabbitMQ for message queuing
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker for distributed task processing
+  celery_worker:
+    build: .
+    command: celery -A trust_rag.runtime.dispatcher.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TRUSTRAG_ENV=${TRUSTRAG_ENV:-prod}
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./demo_data:/app/demo_data:ro
+    depends_on:
+      - redis
+      - rabbitmq
+      - postgres
+
+  # Flower for Celery monitoring
+  flower:
+    image: mher/flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - FLOWER_BASIC_AUTH=admin:graphrag2026
+    depends_on:
+      - rabbitmq
+      - celery_worker
+
+  # UI Service
+  ui:
+    build: ./trust_rag/ui
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
+
+volumes:
+  redis_data:
+  rabbitmq_data:
+  postgres_data:

@@ -1,0 +1,134 @@
+{
+  "test_summary": {
+    "total_tests": 3,
+    "passed_tests": 0,
+    "failed_tests": 3,
+    "success_rate": 0.0,
+    "total_processing_time": 0.428,
+    "average_processing_time": 0.143,
+    "total_estimated_cost": 0
+  },
+  "tier_routing_stats": {
+    "tier_1": {
+      "count": 3,
+      "correct": 0,
+      "avg_time": 0.14266666666666666,
+      "accuracy": 0.0
+    }
+  },
+  "detailed_results": [
+    {
+      "test_name": "NVIDIA财报测试",
+      "file_path": "D:\\trust_rag\\demo_data\\raw_docs\\nvidia_fy2023.pdf",
+      "expected_tier": "tier_3",
+      "actual_tier": "tier_1",
+      "routing_correct": false,
+      "processing_time": 0.035,
+      "confidence": 0.0,
+      "content_length": 0,
+      "complexity_analysis": {},
+      "cost_estimation": {},
+      "error": "文档布局分析失败: Failed to open file 'D:\\\\trust_rag\\\\demo_data\\\\raw_docs\\\\nvidia_fy2023.pdf'."
+    },
+    {
+      "test_name": "Apple 10-K测试",
+      "file_path": "D:\\trust_rag\\artifacts\\raw_docs\\apple\\2023\\10-K_FY2023.pdf",
+      "expected_tier": "tier_3",
+      "actual_tier": "tier_1",
+      "routing_correct": false,
+      "processing_time": 0.313,
+      "confidence": 0.0,
+      "content_length": 0,
+      "complexity_analysis": {},
+      "cost_estimation": {},
+      "error": "TieredDocumentParser failed: 所有解析层级都失败，最后一次错误: VisionSemanticParser failed: Qwen2-VL模型初始化失败: name 'Qwen2VLForConditionalGeneration' is not defined"
+    },
+    {
+      "test_name": "Apple 10-Q测试",
+      "file_path": "D:\\trust_rag\\artifacts\\raw_docs\\apple\\2024\\10-Q_Q2_2024.pdf",
+      "expected_tier": "tier_2",
+      "actual_tier": "tier_1",
+      "routing_correct": false,
+      "processing_time": 0.08,
+      "confidence": 0.0,
+      "content_length": 0,
+      "complexity_analysis": {},
+      "cost_estimation": {},
+      "error": "TieredDocumentParser failed: 所有解析层级都失败，最后一次错误: VisionSemanticParser failed: Qwen2-VL模型初始化失败: name 'Qwen2VLForConditionalGeneration' is not defined"
+    }
+  ],
+  "system_info": {
+    "available_tiers": [
+      "tier_1"
+    ],
+    "parser_capabilities": {
+      "tier_1": {
+        "tier": "tier_1",
+        "name": "native_text_parser",
+        "version": "2.0.0",
+        "supported_formats": [
+          "pdf",
+          "txt",
+          "md"
+        ],
+        "performance_profile": {
+          "average_latency_ms": 500,
+          "throughput_docs_per_minute": 30,
+          "memory_usage_mb": 128,
+          "cpu_cores_required": 1
+        },
+        "quality_profile": {
+          "expected_accuracy": 0.9,
+          "handles_complex_layouts": false,
+          "handles_multilingual": true,
+          "handles_tables": false,
+          "handles_images": false
+        }
+      },
+      "tier_2": {
+        "tier": "tier_2",
+        "name": "standard_ocr_parser",
+        "version": "2.0.0",
+        "supported_formats": [
+          "pdf"
+        ],
+        "performance_profile": {
+          "average_latency_ms": 3000,
+          "throughput_docs_per_minute": 5,
+          "memory_usage_mb": 1024,
+          "cpu_cores_required": 2
+        },
+        "quality_profile": {
+          "expected_accuracy": 0.85,
+          "handles_complex_layouts": true,
+          "handles_multilingual": true,
+          "handles_tables": true,
+          "handles_images": true
+        }
+      },
+      "tier_3": {
+        "tier": "tier_3",
+        "name": "vision_semantic_parser",
+        "version": "2.0.0",
+        "supported_formats": [
+          "pdf"
+        ],
+        "performance_profile": {
+          "average_latency_ms": 15000,
+          "throughput_docs_per_minute": 1,
+          "memory_usage_mb": 4096,
+          "cpu_cores_required": 1
+        },
+        "quality_profile": {
+          "expected_accuracy": 0.95,
+          "handles_complex_layouts": true,
+          "handles_multilingual": true,
+          "handles_tables": true,
+          "handles_images": true
+        }
+      }
+    }
+  },
+  "test_timestamp": 1767521166.2423565,
+  "test_version": "2.0.0"
+}

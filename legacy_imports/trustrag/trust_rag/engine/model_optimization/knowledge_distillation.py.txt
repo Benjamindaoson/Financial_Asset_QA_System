@@ -1,0 +1,451 @@
+"""
+Knowledge Distillation for GraphRAG.
+
+This module implements knowledge distillation techniques to compress
+large teacher models into smaller, efficient student models.
+"""
+
+import logging
+from typing import Dict, List, Any, Optional, Tuple, Union
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+class DistillationLoss(nn.Module):
+    """
+    Knowledge distillation loss combining soft targets and hard targets.
+    """
+
+    def __init__(self, temperature: float = 2.0, alpha: float = 0.5):
+        """
+        Initialize distillation loss.
+
+        Args:
+            temperature: Temperature for softening probability distributions
+            alpha: Weight for distillation loss vs. hard target loss
+        """
+        super().__init__()
+        self.temperature = temperature
+        self.alpha = alpha
+        self.ce_loss = nn.CrossEntropyLoss()
+        self.kl_div = nn.KLDivLoss(reduction='batchmean')
+
+    def forward(self, student_logits: torch.Tensor, teacher_logits: torch.Tensor,
+                hard_targets: torch.Tensor) -> torch.Tensor:
+        """
+        Compute distillation loss.
+
+        Args:
+            student_logits: Student model outputs
+            teacher_logits: Teacher model outputs
+            hard_targets: Ground truth labels
+
+        Returns:
+            Combined distillation loss
+        """
+        # Soft targets from teacher
+        teacher_soft = F.softmax(teacher_logits / self.temperature, dim=-1)
+        student_soft = F.log_softmax(student_logits / self.temperature, dim=-1)
+
+        # Distillation loss (KL divergence)
+        distillation_loss = self.kl_div(student_soft, teacher_soft) * (self.temperature ** 2)
+
+        # Hard target loss
+        hard_loss = self.ce_loss(student_logits, hard_targets)
+
+        # Combined loss
+        loss = self.alpha * distillation_loss + (1 - self.alpha) * hard_loss
+
+        return loss
+
+
+class StudentModel(nn.Module):
+    """
+    Generic student model for knowledge distillation.
+    """
+
+    def __init__(self, input_dim: int, hidden_dims: List[int], output_dim: int,
+                 dropout: float = 0.1):
+        """
+        Initialize student model.
+
+        Args:
+            input_dim: Input dimension
+            hidden_dims: Hidden layer dimensions
+            output_dim: Output dimension
+            dropout: Dropout rate
+        """
+        super().__init__()
+
+        layers = []
+        prev_dim = input_dim
+
+        for hidden_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout)
+            ])
+            prev_dim = hidden_dim
+
+        layers.append(nn.Linear(prev_dim, output_dim))
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass."""
+        return self.model(x)
+
+
+class KnowledgeDistiller:
+    """
+    Knowledge distillation trainer for compressing models.
+    """
+
+    def __init__(
+        self,
+        teacher_model: nn.Module,
+        student_config: Dict[str, Any],
+        distillation_config: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Initialize knowledge distiller.
+
+        Args:
+            teacher_model: Pre-trained teacher model
+            student_config: Student model configuration
+            distillation_config: Distillation training configuration
+        """
+        self.teacher_model = teacher_model
+        self.teacher_model.eval()  # Teacher should be in eval mode
+
+        # Create student model
+        self.student_model = StudentModel(**student_config)
+
+        # Distillation configuration
+        self.distillation_config = distillation_config or {
+            'temperature': 2.0,
+            'alpha': 0.5,
+            'learning_rate': 1e-3,
+            'weight_decay': 1e-4,
+            'num_epochs': 10,
+            'batch_size': 32,
+            'patience': 5
+        }
+
+        # Loss function
+        self.criterion = DistillationLoss(
+            temperature=self.distillation_config['temperature'],
+            alpha=self.distillation_config['alpha']
+        )
+
+        # Optimizer
+        self.optimizer = torch.optim.AdamW(
+            self.student_model.parameters(),
+            lr=self.distillation_config['learning_rate'],
+            weight_decay=self.distillation_config['weight_decay']
+        )
+
+        # Learning rate scheduler
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=self.distillation_config['num_epochs']
+        )
+
+        logger.info("Knowledge distiller initialized")
+        logger.info(f"Teacher model parameters: {sum(p.numel() for p in teacher_model.parameters())}")
+        logger.info(f"Student model parameters: {sum(p.numel() for p in self.student_model.parameters())}")
+
+    def distill(
+        self,
+        train_loader: DataLoader,
+        val_loader: Optional[DataLoader] = None,
+        device: str = 'auto'
+    ) -> Dict[str, Any]:
+        """
+        Perform knowledge distillation.
+
+        Args:
+            train_loader: Training data loader
+            val_loader: Validation data loader
+            device: Device to train on
+
+        Returns:
+            Training history and metrics
+        """
+        device = self._setup_device(device)
+
+        self.teacher_model.to(device)
+        self.student_model.to(device)
+
+        logger.info("Starting knowledge distillation")
+
+        best_val_loss = float('inf')
+        patience_counter = 0
+        history = {
+            'train_loss': [],
+            'val_loss': [],
+            'train_accuracy': [],
+            'val_accuracy': []
+        }
+
+        for epoch in range(self.distillation_config['num_epochs']):
+            # Training phase
+            train_metrics = self._train_epoch(train_loader, device)
+            history['train_loss'].append(train_metrics['loss'])
+            history['train_accuracy'].append(train_metrics['accuracy'])
+
+            # Validation phase
+            if val_loader:
+                val_metrics = self._validate_epoch(val_loader, device)
+                history['val_loss'].append(val_metrics['loss'])
+                history['val_accuracy'].append(val_metrics['accuracy'])
+
+                # Early stopping
+                if val_metrics['loss'] < best_val_loss:
+                    best_val_loss = val_metrics['loss']
+                    patience_counter = 0
+                    # Save best model
+                    self._save_checkpoint('best_student_model.pth')
+                else:
+                    patience_counter += 1
+
+                if patience_counter >= self.distillation_config['patience']:
+                    logger.info(f"Early stopping at epoch {epoch + 1}")
+                    break
+
+            # Update learning rate
+            self.scheduler.step()
+
+            logger.info(f"Epoch {epoch + 1}/{self.distillation_config['num_epochs']} - "
+                       f"Train Loss: {train_metrics['loss']:.4f}, "
+                       f"Train Acc: {train_metrics['accuracy']:.4f}"
+                       f"{f', Val Loss: {val_metrics[\"loss\"]:.4f}, Val Acc: {val_metrics[\"accuracy\"]:.4f}' if val_loader else ''}")
+
+        # Load best model
+        if val_loader:
+            self._load_checkpoint('best_student_model.pth')
+
+        logger.info("Knowledge distillation completed")
+
+        return {
+            'history': history,
+            'best_val_loss': best_val_loss,
+            'final_train_loss': history['train_loss'][-1],
+            'final_train_accuracy': history['train_accuracy'][-1],
+            'compression_ratio': self._calculate_compression_ratio()
+        }
+
+    def _train_epoch(self, train_loader: DataLoader, device: str) -> Dict[str, float]:
+        """Train for one epoch."""
+        self.student_model.train()
+        total_loss = 0.0
+        correct = 0
+        total = 0
+
+        for batch_inputs, batch_labels in train_loader:
+            batch_inputs = batch_inputs.to(device)
+            batch_labels = batch_labels.to(device)
+
+            # Get teacher predictions
+            with torch.no_grad():
+                teacher_outputs = self.teacher_model(batch_inputs)
+
+            # Get student predictions
+            student_outputs = self.student_model(batch_inputs)
+
+            # Compute distillation loss
+            loss = self.criterion(student_outputs, teacher_outputs, batch_labels)
+
+            # Backward pass
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            # Statistics
+            total_loss += loss.item()
+            _, predicted = student_outputs.max(1)
+            total += batch_labels.size(0)
+            correct += predicted.eq(batch_labels).sum().item()
+
+        return {
+            'loss': total_loss / len(train_loader),
+            'accuracy': 100. * correct / total
+        }
+
+    def _validate_epoch(self, val_loader: DataLoader, device: str) -> Dict[str, float]:
+        """Validate for one epoch."""
+        self.student_model.eval()
+        total_loss = 0.0
+        correct = 0
+        total = 0
+
+        with torch.no_grad():
+            for batch_inputs, batch_labels in val_loader:
+                batch_inputs = batch_inputs.to(device)
+                batch_labels = batch_labels.to(device)
+
+                teacher_outputs = self.teacher_model(batch_inputs)
+                student_outputs = self.student_model(batch_inputs)
+
+                loss = self.criterion(student_outputs, teacher_outputs, batch_labels)
+
+                total_loss += loss.item()
+                _, predicted = student_outputs.max(1)
+                total += batch_labels.size(0)
+                correct += predicted.eq(batch_labels).sum().item()
+
+        return {
+            'loss': total_loss / len(val_loader),
+            'accuracy': 100. * correct / total
+        }
+
+    def _setup_device(self, device: str) -> str:
+        """Setup compute device."""
+        if device == "auto":
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        return device
+
+    def _calculate_compression_ratio(self) -> float:
+        """Calculate model compression ratio."""
+        teacher_params = sum(p.numel() for p in self.teacher_model.parameters())
+        student_params = sum(p.numel() for p in self.student_model.parameters())
+
+        return student_params / teacher_params if teacher_params > 0 else 0
+
+    def _save_checkpoint(self, path: str):
+        """Save model checkpoint."""
+        torch.save({
+            'student_model_state_dict': self.student_model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+            'config': self.distillation_config
+        }, path)
+
+    def _load_checkpoint(self, path: str):
+        """Load model checkpoint."""
+        checkpoint = torch.load(path)
+        self.student_model.load_state_dict(checkpoint['student_model_state_dict'])
+
+    def get_student_model(self) -> nn.Module:
+        """Get the trained student model."""
+        return self.student_model
+
+    def evaluate_compression(self) -> Dict[str, Any]:
+        """
+        Evaluate the compression performance.
+
+        Returns:
+            Compression evaluation metrics
+        """
+        teacher_params = sum(p.numel() for p in self.teacher_model.parameters())
+        student_params = sum(p.numel() for p in self.student_model.parameters())
+
+        # Estimate memory usage (rough)
+        teacher_memory = teacher_params * 4 / (1024 * 1024)  # MB, assuming FP32
+        student_memory = student_params * 4 / (1024 * 1024)  # MB, assuming FP32
+
+        return {
+            'teacher_parameters': teacher_params,
+            'student_parameters': student_params,
+            'compression_ratio': self._calculate_compression_ratio(),
+            'teacher_memory_mb': teacher_memory,
+            'student_memory_mb': student_memory,
+            'memory_savings_mb': teacher_memory - student_memory,
+            'memory_savings_percent': ((teacher_memory - student_memory) / teacher_memory) * 100
+        }
+
+
+class AdaptiveDistiller:
+    """
+    Adaptive knowledge distillation with dynamic loss weighting.
+    """
+
+    def __init__(self, teacher_model: nn.Module, student_model: nn.Module):
+        """
+        Initialize adaptive distiller.
+
+        Args:
+            teacher_model: Teacher model
+            student_model: Student model
+        """
+        self.teacher_model = teacher_model
+        self.student_model = student_model
+
+        # Adaptive parameters
+        self.alpha = nn.Parameter(torch.tensor(0.5))  # Learnable weighting
+        self.temperature = nn.Parameter(torch.tensor(2.0))  # Learnable temperature
+
+        # Optimizer for meta-parameters
+        self.meta_optimizer = torch.optim.Adam([self.alpha, self.temperature], lr=1e-3)
+
+        logger.info("Adaptive distiller initialized")
+
+    def adaptive_distillation_step(
+        self,
+        batch_inputs: torch.Tensor,
+        batch_labels: torch.Tensor,
+        device: str
+    ) -> torch.Tensor:
+        """
+        Perform one step of adaptive distillation.
+
+        Args:
+            batch_inputs: Batch inputs
+            batch_labels: Batch labels
+            device: Device
+
+        Returns:
+            Loss value
+        """
+        self.teacher_model.eval()
+        self.student_model.train()
+
+        # Clamp parameters to valid ranges
+        self.alpha.data.clamp_(0.1, 0.9)
+        self.temperature.data.clamp_(1.0, 5.0)
+
+        # Get predictions
+        with torch.no_grad():
+            teacher_outputs = self.teacher_model(batch_inputs)
+
+        student_outputs = self.student_model(batch_inputs)
+
+        # Compute losses with current parameters
+        ce_loss = F.cross_entropy(student_outputs, batch_labels)
+
+        # Soft targets
+        teacher_soft = F.softmax(teacher_outputs / self.temperature, dim=-1)
+        student_log_soft = F.log_softmax(student_outputs / self.temperature, dim=-1)
+        kl_loss = F.kl_div(student_log_soft, teacher_soft, reduction='batchmean') * (self.temperature ** 2)
+
+        # Combined loss
+        loss = self.alpha * kl_loss + (1 - self.alpha) * ce_loss
+
+        # Meta-learning step (simplified)
+        # In practice, this would involve computing higher-order gradients
+        loss.backward()
+
+        # Update student parameters
+        student_optimizer = torch.optim.Adam(self.student_model.parameters(), lr=1e-3)
+        student_optimizer.step()
+        student_optimizer.zero_grad()
+
+        # Update meta-parameters (simplified)
+        self.meta_optimizer.zero_grad()
+        meta_loss = loss.detach()  # Use loss as meta-objective
+        meta_loss.backward()
+        self.meta_optimizer.step()
+
+        return loss.item()
+
+
+
+
+
+
+

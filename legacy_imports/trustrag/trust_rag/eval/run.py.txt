@@ -1,0 +1,395 @@
+"""
+Evaluation Runner.
+
+Main entry point for running evaluations and generating reports.
+"""
+import os
+import sys
+import json
+import argparse
+import subprocess
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from trust_rag.system import TrustRAG
+from trust_rag.eval.schema import (
+    EvalReport, RunMeta, OnlineQueryMetrics, OfflineIngestMetrics,
+    TrustMetrics, CostMetrics, RobustnessMetrics, Scorecard,
+    AccuracyMetrics, StageLatency
+)
+from trust_rag.eval.instrumentation import get_instrumentation, instrument_system
+from trust_rag.eval.judges import (
+    ExactMatchJudge, NumericErrorJudge, EvidenceSupportJudge,
+    RefusalJudge, VerificationJudge, CompositeJudge
+)
+from trust_rag.eval.retrieval_eval import evaluate_retrieval
+from trust_rag.eval.cost import get_cost_tracker
+from trust_rag.config import get_paths
+
+
+def load_golden_dataset(dataset_path: str) -> List[Dict[str, Any]]:
+    """Load golden dataset from JSONL file."""
+    dataset = []
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                dataset.append(json.loads(line))
+    return dataset
+
+
+def get_commit_hash() -> str:
+    """Get current git commit hash."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent.parent
+        )
+        return result.stdout.strip()[:8]
+    except Exception:
+        return "unknown"
+
+
+def get_branch() -> str:
+    """Get current git branch."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent.parent
+        )
+        return result.stdout.strip()
+    except Exception:
+        return "unknown"
+
+
+def run_evaluation(
+    suite: str = "core",
+    dataset: str = "golden_v1",
+    output_dir: Optional[str] = None
+) -> EvalReport:
+    """
+    Run complete evaluation.
+    
+    Args:
+        suite: Evaluation suite ("core" or "full")
+        dataset: Dataset name
+        output_dir: Output directory for reports
+        
+    Returns:
+        EvalReport instance
+    """
+    print(f"Starting evaluation: suite={suite}, dataset={dataset}")
+    
+    # Setup
+    output_dir = output_dir or os.path.join(get_paths().artifacts_dir, "eval_reports")
+    date_str = datetime.now().strftime("%Y%m%d")
+    commit_hash = get_commit_hash()
+    run_dir = os.path.join(output_dir, date_str, commit_hash)
+    os.makedirs(run_dir, exist_ok=True)
+    
+    # Initialize system
+    rag = TrustRAG(artifact_dir=get_paths().artifacts_dir)
+    instrument_system(rag)
+    instrumentation = get_instrumentation()
+    cost_tracker = get_cost_tracker()
+    
+    # Load dataset
+    dataset_path = os.path.join(
+        Path(__file__).parent.parent,
+        "eval", "datasets", f"{dataset}.jsonl"
+    )
+    
+    if not os.path.exists(dataset_path):
+        raise FileNotFoundError(f"Dataset not found: {dataset_path}")
+    
+    golden_data = load_golden_dataset(dataset_path)
+    print(f"Loaded {len(golden_data)} test cases")
+    
+    # Initialize judges
+    composite_judge = CompositeJudge([
+        ExactMatchJudge(),
+        NumericErrorJudge(),
+        EvidenceSupportJudge(),
+        RefusalJudge(),
+        VerificationJudge()
+    ])
+    
+    # Run queries
+    query_results = []
+    judge_results = []
+    stage_latencies: Dict[str, List[float]] = {}
+    
+    for i, test_case in enumerate(golden_data, 1):
+        query = test_case["query"]
+        print(f"\n[{i}/{len(golden_data)}] Processing: {query[:60]}...")
+        
+        # Process query
+        result = rag.process_query(query, risk_level=test_case.get("risk_level", "medium"))
+        query_results.append({
+            "query": query,
+            "result": result,
+            "expected": test_case
+        })
+        
+        # Judge result
+        judge_result = composite_judge.judge(result, test_case)
+        judge_results.append({
+            "query": query,
+            "judge_result": judge_result,
+            "trace_id": result.trace_id
+        })
+        
+        # Collect latencies
+        context = instrumentation.get_context(result.trace_id)
+        if context:
+            for span in context.spans:
+                if span.duration_ms is not None:
+                    stage = span.stage_name
+                    if stage not in stage_latencies:
+                        stage_latencies[stage] = []
+                    stage_latencies[stage].append(span.duration_ms)
+    
+    # Calculate metrics
+    print("\nCalculating metrics...")
+    
+    # Online query metrics
+    total_queries = len(golden_data)
+    successful_queries = sum(1 for r in query_results if r["result"].verdict != "REFUSED")
+    
+    stage_latency_objs = []
+    for stage_name, latencies in stage_latencies.items():
+        stage_latency = StageLatency(stage_name=stage_name)
+        stage_latency.calculate_percentiles(latencies)
+        stage_latency_objs.append(stage_latency)
+    
+    # Accuracy metrics
+    exact_matches = sum(1 for jr in judge_results if jr["judge_result"].pass)
+    accuracy = AccuracyMetrics(
+        total_queries=total_queries,
+        exact_match_count=exact_matches,
+        exact_match_rate=exact_matches / total_queries if total_queries > 0 else 0.0,
+        correct_answers=exact_matches,
+        accuracy=exact_matches / total_queries if total_queries > 0 else 0.0
+    )
+    
+    # Retrieval metrics
+    expected_evidence = {
+        item["query"]: item.get("expected_evidence_ids", [])
+        for item in golden_data
+    }
+    retrieval_metrics_dict = evaluate_retrieval(
+        [{"query": r["query"], "evidence": r["result"].evidence} for r in query_results],
+        expected_evidence
+    )
+    
+    from trust_rag.eval.schema import RetrievalMetrics
+    retrieval_metrics = RetrievalMetrics(**retrieval_metrics_dict)
+    
+    # Trust metrics
+    total_refusals = sum(1 for r in query_results if r["result"].verdict == "REFUSED")
+    expected_refusals = sum(1 for tc in golden_data if tc.get("expected_verdict") == "REFUSED")
+    correct_refusals = sum(
+        1 for r, tc in zip(query_results, golden_data)
+        if r["result"].verdict == "REFUSED" and tc.get("expected_verdict") == "REFUSED"
+    )
+    
+    trust_metrics = TrustMetrics(
+        total_queries=total_queries,
+        total_refusals=total_refusals,
+        correct_refusals=correct_refusals,
+        incorrect_refusals=total_refusals - correct_refusals,
+        missed_refusals=expected_refusals - correct_refusals,
+        refusal_precision=correct_refusals / total_refusals if total_refusals > 0 else 0.0,
+        refusal_recall=correct_refusals / expected_refusals if expected_refusals > 0 else 0.0,
+        queries_with_evidence=sum(1 for r in query_results if r["result"].evidence),
+        evidence_support_rate=sum(1 for r in query_results if r["result"].evidence) / total_queries if total_queries > 0 else 0.0,
+        avg_evidence_per_query=sum(len(r["result"].evidence) for r in query_results) / total_queries if total_queries > 0 else 0.0
+    )
+    
+    # Cost metrics
+    cost_metrics = cost_tracker.to_cost_metrics(num_queries=total_queries)
+    
+    # Robustness metrics (from perf tests if available)
+    robustness_metrics = RobustnessMetrics()
+    try:
+        from tests.perf.test_extreme_cases import PerformanceTestRunner
+        perf_runner = PerformanceTestRunner()
+        # Run perf tests if suite is "full"
+        if suite == "full":
+            print("\nRunning robustness tests...")
+            # This would run the actual tests
+            # For now, we'll use empty metrics
+        robustness_data = perf_runner.get_standardized_output() if hasattr(perf_runner, 'get_standardized_output') else {}
+        if robustness_data:
+            robustness_metrics = RobustnessMetrics(**robustness_data)
+    except Exception as e:
+        print(f"Warning: Could not load robustness metrics: {e}")
+    
+    # Calculate overall latency (end-to-end)
+    all_latencies = []
+    for context in instrumentation.get_all_contexts():
+        total_latency = context.get_total_latency_ms()
+        if total_latency > 0:
+            all_latencies.append(total_latency)
+    
+    overall_latency = StageLatency(stage_name="overall")
+    if all_latencies:
+        overall_latency.calculate_percentiles(all_latencies)
+        stage_latency_objs.append(overall_latency)
+    
+    # Online query metrics
+    online_metrics = OnlineQueryMetrics(
+        total_queries=total_queries,
+        successful_queries=successful_queries,
+        failed_queries=total_queries - successful_queries,
+        stage_latencies=stage_latency_objs,
+        accuracy=accuracy,
+        retrieval=retrieval_metrics,
+        trust=trust_metrics
+    )
+    
+    # Calculate high-risk misanswers and unsupported claims
+    high_risk_misanswers = 0
+    unsupported_claims = 0
+    
+    for jr, tc in zip(judge_results, golden_data):
+        if not jr["judge_result"].pass:
+            if tc.get("risk_level") == "high":
+                high_risk_misanswers += 1
+            # Check for unsupported claims (would need more sophisticated detection)
+            if "unsupported" in jr["judge_result"].reason.lower():
+                unsupported_claims += 1
+    
+    # Scorecard
+    scorecard = Scorecard(
+        p95_latency_ms=overall_latency.p95_ms if all_latencies else 0.0,
+        high_risk_misanswers=high_risk_misanswers,
+        unsupported_claims=unsupported_claims
+    )
+    scorecard.check_red_lines()
+    
+    # Calculate component scores
+    scorecard.latency_score = 100.0 - min(100.0, (overall_latency.p95_ms / 5000.0) * 100.0) if all_latencies else 100.0
+    scorecard.accuracy_score = accuracy.accuracy * 100.0
+    scorecard.retrieval_score = (retrieval_metrics.recall_at_10 + retrieval_metrics.ndcg_at_10) / 2.0 * 100.0
+    scorecard.trust_score = (trust_metrics.refusal_precision + trust_metrics.refusal_recall) / 2.0 * 100.0
+    scorecard.robustness_score = robustness_metrics.robustness_score * 100.0
+    scorecard.cost_score = 100.0 - min(100.0, cost_metrics.cost_per_query_usd * 1000.0)  # Penalize high cost
+    
+    # Overall score (weighted average)
+    scorecard.overall_score = (
+        scorecard.latency_score * 0.2 +
+        scorecard.accuracy_score * 0.3 +
+        scorecard.retrieval_score * 0.2 +
+        scorecard.trust_score * 0.2 +
+        scorecard.robustness_score * 0.1
+    )
+    
+    # Top failures
+    top_failures = []
+    for jr in judge_results:
+        if not jr["judge_result"].pass:
+            top_failures.append({
+                "query": jr["query"],
+                "trace_id": jr["trace_id"],
+                "reason": jr["judge_result"].reason,
+                "score": jr["judge_result"].score
+            })
+    top_failures.sort(key=lambda x: x["score"])
+    top_failures = top_failures[:20]
+    
+    # Create report
+    run_meta = RunMeta(
+        run_id=f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        commit_hash=commit_hash,
+        branch=get_branch(),
+        suite=suite,
+        dataset=dataset
+    )
+    
+    report = EvalReport(
+        run_meta=run_meta,
+        offline_ingest_metrics=OfflineIngestMetrics(),
+        online_query_metrics=online_metrics,
+        trust_metrics=trust_metrics,
+        cost_metrics=cost_metrics,
+        robustness_metrics=robustness_metrics,
+        scorecard=scorecard,
+        top_failures=top_failures,
+        artifacts_links={
+            "json_report": os.path.join(run_dir, "report.json"),
+            "html_report": os.path.join(run_dir, "report.html")
+        }
+    )
+    
+    # Save JSON report
+    json_path = os.path.join(run_dir, "report.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report.to_dict(), f, indent=2, ensure_ascii=False)
+    print(f"\n✓ JSON report saved: {json_path}")
+    
+    # Generate HTML report
+    from trust_rag.eval.report_html import generate_html_report
+    html_path = generate_html_report(report, os.path.join(run_dir, "report.html"))
+    print(f"✓ HTML report saved: {html_path}")
+    
+    return report
+
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="TrustRAG Evaluation Runner")
+    parser.add_argument(
+        "--suite",
+        choices=["core", "full"],
+        default="core",
+        help="Evaluation suite"
+    )
+    parser.add_argument(
+        "--dataset",
+        default="golden_v1",
+        help="Dataset name"
+    )
+    parser.add_argument(
+        "--output-dir",
+        help="Output directory for reports"
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        report = run_evaluation(
+            suite=args.suite,
+            dataset=args.dataset,
+            output_dir=args.output_dir
+        )
+        
+        # Exit code based on scorecard
+        if report.scorecard.status == "FAIL":
+            print("\n❌ Evaluation FAILED - Red line rules violated")
+            sys.exit(1)
+        elif report.scorecard.status == "WARNING":
+            print("\n⚠️  Evaluation completed with WARNINGS")
+            sys.exit(0)
+        else:
+            print("\n✅ Evaluation PASSED")
+            sys.exit(0)
+            
+    except Exception as e:
+        print(f"\n❌ Evaluation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+

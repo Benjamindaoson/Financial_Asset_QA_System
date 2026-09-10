@@ -1,0 +1,558 @@
+"""
+Audio Transcriber for GraphRAG.
+
+This module provides optimized audio transcription capabilities with support for
+large files, real-time processing, and high accuracy speech-to-text conversion.
+"""
+
+import logging
+from typing import Dict, List, Any, Optional, Callable, Union
+import time
+import threading
+import os
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+class AudioTranscriber:
+    """
+    Optimized audio transcriber with support for large files and high accuracy.
+    """
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """
+        Initialize audio transcriber.
+
+        Args:
+            config: Transcription configuration
+        """
+        self.config = config or {}
+
+        # Performance targets
+        self.target_accuracy = self.config.get('target_accuracy', 0.9)  # 90% accuracy
+        self.max_transcription_time = self.config.get('max_transcription_time', 300)  # 5 minutes
+        self.chunk_size_mb = self.config.get('chunk_size_mb', 500)  # 500MB chunks for large files
+
+        # ASR backends configuration
+        self.primary_backend = self.config.get('primary_backend', 'whisper')
+        self.fallback_backend = self.config.get('fallback_backend', 'google')
+        self.backends = {
+            'whisper': self._init_whisper,
+            'google': self._init_google,
+            'azure': self._init_azure
+        }
+
+        # Chunking and parallel processing
+        self.max_workers = self.config.get('max_workers', 4)
+        self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
+
+        # Initialize ASR models
+        self.asr_models = {}
+        self._init_backends()
+
+        # Transcription cache
+        self.transcription_cache = {}
+        self.cache_ttl = self.config.get('cache_ttl', 3600)  # 1 hour
+
+        logger.info("Audio transcriber initialized")
+
+    def _init_backends(self):
+        """Initialize ASR backends."""
+        for backend_name, init_func in self.backends.items():
+            try:
+                self.asr_models[backend_name] = init_func()
+                logger.info(f"Initialized {backend_name} backend")
+            except Exception as e:
+                logger.warning(f"Failed to initialize {backend_name}: {e}")
+
+    def _init_whisper(self):
+        """Initialize Whisper model."""
+        try:
+            import whisper
+            model_size = self.config.get('whisper_model', 'large-v2')
+            return whisper.load_model(model_size)
+        except ImportError:
+            logger.warning("Whisper not available")
+            return None
+
+    def _init_google(self):
+        """Initialize Google Speech-to-Text."""
+        try:
+            from google.cloud import speech
+            return speech.SpeechClient()
+        except Exception:
+            logger.warning("Google Speech-to-Text not available")
+            return None
+
+    def _init_azure(self):
+        """Initialize Azure Speech Services."""
+        try:
+            import azure.cognitiveservices.speech as speechsdk
+            speech_config = speechsdk.SpeechConfig(
+                subscription=self.config.get('azure_subscription'),
+                region=self.config.get('azure_region')
+            )
+            return speech_config
+        except Exception:
+            logger.warning("Azure Speech Services not available")
+            return None
+
+    def transcribe_audio(self, audio_path: Union[str, Path], options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Transcribe audio file with optimization for large files.
+
+        Args:
+            audio_path: Path to audio file
+            options: Transcription options
+
+        Returns:
+            Transcription result
+        """
+        audio_path = Path(audio_path)
+        if not audio_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        options = options or {}
+        start_time = time.time()
+
+        # Check cache first
+        cache_key = self._get_cache_key(audio_path, options)
+        if cache_key in self.transcription_cache:
+            cached_result = self.transcription_cache[cache_key]
+            if time.time() - cached_result['timestamp'] < self.cache_ttl:
+                logger.info(f"Using cached transcription for {audio_path.name}")
+                return cached_result['result']
+
+        # Check file size for chunking strategy
+        file_size_mb = audio_path.stat().st_size / (1024 * 1024)
+
+        try:
+            if file_size_mb > self.chunk_size_mb:
+                # Use chunked transcription for large files
+                result = self._transcribe_large_file(audio_path, options)
+            else:
+                # Use direct transcription for smaller files
+                result = self._transcribe_file(audio_path, options)
+
+            # Validate transcription quality
+            result = self._validate_and_improve_transcription(result, audio_path)
+
+            # Cache result
+            self.transcription_cache[cache_key] = {
+                'result': result,
+                'timestamp': time.time()
+            }
+
+            transcription_time = time.time() - start_time
+            result['transcription_time'] = transcription_time
+            result['performance'] = self._evaluate_performance(result, transcription_time)
+
+            logger.info(f"Transcribed {audio_path.name} in {transcription_time:.2f}s")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Transcription failed for {audio_path}: {e}")
+            return {
+                'text': '',
+                'confidence': 0.0,
+                'error': str(e),
+                'transcription_time': time.time() - start_time
+            }
+
+    def _transcribe_file(self, audio_path: Path, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Transcribe a single audio file."""
+        backend = options.get('backend', self.primary_backend)
+
+        if backend == 'whisper' and self.asr_models.get('whisper'):
+            return self._transcribe_whisper(audio_path, options)
+        elif backend == 'google' and self.asr_models.get('google'):
+            return self._transcribe_google(audio_path, options)
+        elif backend == 'azure' and self.asr_models.get('azure'):
+            return self._transcribe_azure(audio_path, options)
+        else:
+            # Fallback to available backend
+            for backend_name, model in self.asr_models.items():
+                if model is not None:
+                    options['backend'] = backend_name
+                    return self._transcribe_file(audio_path, options)
+
+        raise ValueError("No ASR backend available")
+
+    def _transcribe_whisper(self, audio_path: Path, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Transcribe using Whisper."""
+        model = self.asr_models['whisper']
+        if not model:
+            raise ValueError("Whisper model not available")
+
+        # Load audio
+        audio = model.load_audio(str(audio_path))
+
+        # Transcribe
+        language = options.get('language', 'en')
+        result = model.transcribe(audio, language=language, **options.get('whisper_options', {}))
+
+        return {
+            'text': result['text'].strip(),
+            'confidence': result.get('confidence', 0.8),
+            'language': result.get('language', language),
+            'segments': result.get('segments', []),
+            'backend': 'whisper',
+            'duration': len(audio) / model.sample_rate if hasattr(model, 'sample_rate') else 0.0
+        }
+
+    def _transcribe_google(self, audio_path: Path, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Transcribe using Google Speech-to-Text."""
+        client = self.asr_models['google']
+        if not client:
+            raise ValueError("Google Speech client not available")
+
+        # Read audio file
+        with open(audio_path, 'rb') as audio_file:
+            content = audio_file.read()
+
+        # Configure recognition
+        audio = type('Audio', (), {'content': content})()
+        config = type('Config', (), {
+            'encoding': 1,  # LINEAR16
+            'sample_rate_hertz': 16000,
+            'language_code': options.get('language', 'en-US'),
+            'enable_word_time_offsets': True
+        })()
+
+        # Recognize
+        response = client.recognize(config=config, audio=audio)
+
+        if response.results:
+            result = response.results[0]
+            alternatives = result.alternatives[0]
+
+            return {
+                'text': alternatives.transcript,
+                'confidence': alternatives.confidence,
+                'language': options.get('language', 'en'),
+                'backend': 'google',
+                'words': [{'word': w.word, 'start_time': w.start_time.seconds + w.start_time.nanos / 1e9,
+                          'end_time': w.end_time.seconds + w.end_time.nanos / 1e9}
+                         for w in alternatives.words] if hasattr(alternatives, 'words') else []
+            }
+
+        return {'text': '', 'confidence': 0.0, 'backend': 'google'}
+
+    def _transcribe_azure(self, audio_path: Path, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Transcribe using Azure Speech Services."""
+        speech_config = self.asr_models['azure']
+        if not speech_config:
+            raise ValueError("Azure Speech config not available")
+
+        import azure.cognitiveservices.speech as speechsdk
+
+        # Configure audio
+        audio_config = speechsdk.AudioConfig(filename=str(audio_path))
+        speech_config.speech_recognition_language = options.get('language', 'en-US')
+
+        # Create recognizer
+        speech_recognizer = speechsdk.SpeechRecognizer(
+            speech_config=speech_config,
+            audio_config=audio_config
+        )
+
+        # Recognize
+        result = speech_recognizer.recognize_once()
+
+        if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            return {
+                'text': result.text,
+                'confidence': 0.85,  # Azure doesn't provide confidence in simple mode
+                'language': options.get('language', 'en'),
+                'backend': 'azure'
+            }
+
+        return {'text': '', 'confidence': 0.0, 'backend': 'azure'}
+
+    def _transcribe_large_file(self, audio_path: Path, options: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Transcribe large audio files using chunking strategy.
+
+        Args:
+            audio_path: Path to large audio file
+            options: Transcription options
+
+        Returns:
+            Combined transcription result
+        """
+        logger.info(f"Processing large file: {audio_path.name}")
+
+        # Split audio into chunks
+        chunks = self._split_audio_file(audio_path, self.chunk_size_mb)
+
+        if not chunks:
+            # Fallback to direct transcription
+            return self._transcribe_file(audio_path, options)
+
+        # Transcribe chunks in parallel
+        chunk_results = []
+        futures = []
+
+        for chunk_path in chunks:
+            future = self.executor.submit(self._transcribe_file, chunk_path, options)
+            futures.append(future)
+
+        # Collect results
+        for future in as_completed(futures):
+            try:
+                result = future.result(timeout=600)  # 10 minute timeout per chunk
+                chunk_results.append(result)
+            except Exception as e:
+                logger.error(f"Chunk transcription failed: {e}")
+                chunk_results.append({'text': '', 'confidence': 0.0, 'error': str(e)})
+
+        # Combine results
+        combined_result = self._combine_chunk_results(chunk_results)
+
+        # Clean up temporary chunks
+        self._cleanup_chunks(chunks)
+
+        return combined_result
+
+    def _split_audio_file(self, audio_path: Path, max_size_mb: float) -> List[Path]:
+        """
+        Split audio file into smaller chunks.
+
+        Args:
+            audio_path: Original audio file
+            max_size_mb: Maximum size per chunk in MB
+
+        Returns:
+            List of chunk file paths
+        """
+        try:
+            from pydub import AudioSegment
+            import tempfile
+
+            # Load audio
+            audio = AudioSegment.from_file(audio_path)
+
+            # Calculate chunk duration based on file size
+            file_size_mb = audio_path.stat().st_size / (1024 * 1024)
+            duration_ms = len(audio)
+
+            # Estimate chunks needed
+            avg_chunk_duration = (max_size_mb / file_size_mb) * duration_ms
+            chunk_duration_ms = min(avg_chunk_duration, 10 * 60 * 1000)  # Max 10 minutes per chunk
+            overlap_ms = 1000  # 1 second overlap
+
+            chunks = []
+            start_time = 0
+
+            while start_time < duration_ms:
+                end_time = min(start_time + chunk_duration_ms, duration_ms)
+
+                # Extract chunk with overlap
+                chunk = audio[start_time:end_time + overlap_ms]
+
+                # Save chunk to temporary file
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    chunk.export(temp_file.name, format='wav')
+                    chunks.append(Path(temp_file.name))
+
+                start_time += chunk_duration_ms
+
+            logger.info(f"Split audio into {len(chunks)} chunks")
+            return chunks
+
+        except ImportError:
+            logger.warning("pydub not available, cannot split audio files")
+            return []
+        except Exception as e:
+            logger.error(f"Audio splitting failed: {e}")
+            return []
+
+    def _combine_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Combine transcription results from multiple chunks."""
+        if not chunk_results:
+            return {'text': '', 'confidence': 0.0}
+
+        # Combine text
+        texts = [result.get('text', '').strip() for result in chunk_results if result.get('text')]
+        combined_text = ' '.join(texts)
+
+        # Average confidence
+        confidences = [result.get('confidence', 0.0) for result in chunk_results if result.get('confidence', 0.0) > 0]
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+
+        # Combine segments if available
+        all_segments = []
+        for result in chunk_results:
+            segments = result.get('segments', [])
+            all_segments.extend(segments)
+
+        return {
+            'text': combined_text,
+            'confidence': avg_confidence,
+            'segments': all_segments,
+            'chunks_processed': len(chunk_results),
+            'backend': chunk_results[0].get('backend', 'unknown') if chunk_results else 'unknown'
+        }
+
+    def _cleanup_chunks(self, chunk_paths: List[Path]):
+        """Clean up temporary chunk files."""
+        for chunk_path in chunk_paths:
+            try:
+                if chunk_path.exists():
+                    chunk_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to cleanup chunk {chunk_path}: {e}")
+
+    def _validate_and_improve_transcription(self, result: Dict[str, Any], audio_path: Path) -> Dict[str, Any]:
+        """Validate transcription and apply post-processing improvements."""
+        text = result.get('text', '')
+        confidence = result.get('confidence', 0.0)
+
+        # Basic validation
+        if not text or len(text.strip()) < 10:
+            logger.warning(f"Low-quality transcription for {audio_path.name}")
+            result['quality_warning'] = 'very_short_text'
+
+        # Check for common transcription errors and apply corrections
+        improved_text = self._post_process_text(text)
+        result['text'] = improved_text
+
+        # Recalculate confidence based on text quality
+        if confidence > 0:
+            quality_score = self._assess_text_quality(improved_text)
+            result['adjusted_confidence'] = min(confidence * quality_score, 1.0)
+
+        return result
+
+    def _post_process_text(self, text: str) -> str:
+        """Apply post-processing improvements to transcribed text."""
+        if not text:
+            return text
+
+        # Fix common transcription errors
+        corrections = {
+            ' i ': ' I ',
+            ' im ': ' I'm ',
+            ' dont ': ' don\'t ',
+            ' cant ': ' can\'t ',
+            ' wont ': ' won\'t ',
+            ' isnt ': ' isn\'t ',
+            ' arent ': ' aren\'t ',
+            ' doesnt ': ' doesn\'t ',
+            ' didnt ': ' didn\'t ',
+            ' ive ': ' I've ',
+            ' youve ': ' you've ',
+            ' weve ': ' we've ',
+            ' theyve ': ' they've '
+        }
+
+        processed_text = text.lower()
+        for wrong, correct in corrections.items():
+            processed_text = processed_text.replace(wrong, correct)
+
+        # Capitalize first letter of sentences
+        sentences = processed_text.split('. ')
+        processed_sentences = []
+        for sentence in sentences:
+            if sentence:
+                processed_sentences.append(sentence[0].upper() + sentence[1:] if len(sentence) > 1 else sentence.upper())
+
+        return '. '.join(processed_sentences)
+
+    def _assess_text_quality(self, text: str) -> float:
+        """Assess the quality of transcribed text."""
+        if not text:
+            return 0.0
+
+        # Basic quality metrics
+        words = text.split()
+        avg_word_length = sum(len(word) for word in words) / len(words) if words else 0
+
+        # Penalize very short or very long words (likely transcription errors)
+        if avg_word_length < 3 or avg_word_length > 10:
+            quality = 0.7
+        else:
+            quality = 1.0
+
+        # Check for repeated phrases (transcription loops)
+        if len(set(words)) / len(words) < 0.5:
+            quality *= 0.8
+
+        return quality
+
+    def _get_cache_key(self, audio_path: Path, options: Dict[str, Any]) -> str:
+        """Generate cache key for transcription."""
+        import hashlib
+        key_components = [
+            str(audio_path),
+            str(audio_path.stat().st_mtime),  # Modification time
+            str(options)
+        ]
+        key_string = '|'.join(key_components)
+        return hashlib.md5(key_string.encode()).hexdigest()
+
+    def _evaluate_performance(self, result: Dict[str, Any], transcription_time: float) -> Dict[str, Any]:
+        """Evaluate transcription performance against targets."""
+        confidence = result.get('confidence', 0.0)
+
+        return {
+            'accuracy_target_met': confidence >= self.target_accuracy,
+            'time_target_met': transcription_time <= self.max_transcription_time,
+            'confidence_score': confidence,
+            'transcription_time': transcription_time,
+            'efficiency_score': min(1.0, self.target_accuracy / max(confidence, 0.1))
+        }
+
+    def batch_transcribe(self, audio_paths: List[Union[str, Path]], options: Optional[Dict[str, Any]] = None) -> Dict[str, Dict[str, Any]]:
+        """
+        Transcribe multiple audio files in batch.
+
+        Args:
+            audio_paths: List of audio file paths
+            options: Transcription options
+
+        Returns:
+            Dictionary mapping file paths to transcription results
+        """
+        options = options or {}
+        results = {}
+
+        # Submit all transcription tasks
+        futures = {}
+        for audio_path in audio_paths:
+            future = self.executor.submit(self.transcribe_audio, audio_path, options)
+            futures[future] = audio_path
+
+        # Collect results
+        for future in as_completed(futures):
+            audio_path = futures[future]
+            try:
+                result = future.result(timeout=600)  # 10 minute timeout
+                results[str(audio_path)] = result
+            except Exception as e:
+                logger.error(f"Batch transcription failed for {audio_path}: {e}")
+                results[str(audio_path)] = {
+                    'text': '',
+                    'confidence': 0.0,
+                    'error': str(e)
+                }
+
+        return results
+
+    def get_transcription_stats(self) -> Dict[str, Any]:
+        """Get transcription performance statistics."""
+        cache_size = len(self.transcription_cache)
+        backends_available = sum(1 for model in self.asr_models.values() if model is not None)
+
+        return {
+            'backends_available': backends_available,
+            'cache_size': cache_size,
+            'max_workers': self.max_workers,
+            'target_accuracy': self.target_accuracy,
+            'max_transcription_time': self.max_transcription_time,
+            'chunk_size_mb': self.chunk_size_mb
+        }

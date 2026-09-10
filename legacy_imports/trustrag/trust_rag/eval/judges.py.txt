@@ -1,0 +1,423 @@
+"""
+Evaluation Judges.
+
+Implement different evaluation criteria for judging query results.
+"""
+import re
+from typing import Dict, Any, Optional, List
+from dataclasses import dataclass
+
+from trust_rag.system import SystemResult
+
+
+@dataclass
+class JudgeResult:
+    """Result of a judge evaluation."""
+    pass: bool
+    reason: str
+    score: float = 0.0
+    metrics: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.metrics is None:
+            self.metrics = {}
+
+
+class ExactMatchJudge:
+    """Judge that checks for exact match with expected answer."""
+    
+    def judge(
+        self,
+        result: SystemResult,
+        expected: Dict[str, Any]
+    ) -> JudgeResult:
+        """
+        Judge if result matches expected answer exactly.
+        
+        Args:
+            result: System result
+            expected: Expected answer dictionary
+            
+        Returns:
+            JudgeResult
+        """
+        if not result.answer:
+            return JudgeResult(
+                pass=False,
+                reason="No answer provided",
+                score=0.0
+            )
+        
+        answer_text = result.answer.text.lower()
+        expected_text = expected.get("text", "").lower()
+        
+        if expected_text and expected_text in answer_text:
+            return JudgeResult(
+                pass=True,
+                reason="Exact match found",
+                score=1.0,
+                metrics={"match_type": "exact"}
+            )
+        
+        # Check structured fields
+        if "entity" in expected:
+            entity = expected["entity"].lower()
+            if entity not in answer_text:
+                return JudgeResult(
+                    pass=False,
+                    reason=f"Entity '{expected['entity']}' not found in answer",
+                    score=0.0
+                )
+        
+        if "metric" in expected:
+            metric = expected["metric"].lower().replace("_", " ")
+            if metric not in answer_text:
+                return JudgeResult(
+                    pass=False,
+                    reason=f"Metric '{expected['metric']}' not found in answer",
+                    score=0.0
+                )
+        
+        if "value" in expected:
+            expected_value = str(expected["value"])
+            # Try to find numeric value in answer
+            numbers = re.findall(r'\d+\.?\d*', answer_text)
+            if expected_value not in numbers:
+                return JudgeResult(
+                    pass=False,
+                    reason=f"Value '{expected['value']}' not found in answer",
+                    score=0.0,
+                    metrics={"found_values": numbers}
+                )
+        
+        return JudgeResult(
+            pass=True,
+            reason="Partial match (structured fields present)",
+            score=0.8,
+            metrics={"match_type": "partial"}
+        )
+
+
+class NumericErrorJudge:
+    """Judge that calculates numeric error for numeric queries."""
+    
+    def judge(
+        self,
+        result: SystemResult,
+        expected: Dict[str, Any]
+    ) -> JudgeResult:
+        """
+        Judge numeric accuracy.
+        
+        Args:
+            result: System result
+            expected: Expected answer with value
+            
+        Returns:
+            JudgeResult with error metrics
+        """
+        if "value" not in expected:
+            return JudgeResult(
+                pass=True,
+                reason="No numeric value expected",
+                score=1.0
+            )
+        
+        if not result.answer:
+            return JudgeResult(
+                pass=False,
+                reason="No answer provided",
+                score=0.0,
+                metrics={"error": float('inf')}
+            )
+        
+        # Extract numeric value from answer
+        answer_text = result.answer.text
+        numbers = re.findall(r'\d+\.?\d*', answer_text)
+        
+        if not numbers:
+            return JudgeResult(
+                pass=False,
+                reason="No numeric value found in answer",
+                score=0.0,
+                metrics={"error": float('inf')}
+            )
+        
+        # Use first number found (could be improved)
+        try:
+            actual_value = float(numbers[0])
+            expected_value = float(expected["value"])
+            
+            # Calculate relative error
+            if expected_value == 0:
+                error = abs(actual_value)
+            else:
+                error = abs(actual_value - expected_value) / abs(expected_value)
+            
+            # Pass if error < 5%
+            passed = error < 0.05
+            
+            return JudgeResult(
+                pass=passed,
+                reason=f"Numeric error: {error*100:.2f}%",
+                score=1.0 - min(error, 1.0),
+                metrics={
+                    "expected_value": expected_value,
+                    "actual_value": actual_value,
+                    "error": error,
+                    "relative_error": error * 100
+                }
+            )
+        except (ValueError, TypeError):
+            return JudgeResult(
+                pass=False,
+                reason="Could not parse numeric values",
+                score=0.0,
+                metrics={"error": float('inf')}
+            )
+
+
+class EvidenceSupportJudge:
+    """Judge that checks if answer is supported by evidence."""
+    
+    def judge(
+        self,
+        result: SystemResult,
+        expected: Dict[str, Any]
+    ) -> JudgeResult:
+        """
+        Judge evidence support.
+        
+        Args:
+            result: System result
+            expected: Expected evidence IDs
+            
+        Returns:
+            JudgeResult
+        """
+        expected_evidence_ids = expected.get("expected_evidence_ids", [])
+        
+        if not expected_evidence_ids:
+            # No evidence expected
+            return JudgeResult(
+                pass=True,
+                reason="No evidence expected",
+                score=1.0
+            )
+        
+        if not result.evidence:
+            return JudgeResult(
+                pass=False,
+                reason="No evidence provided",
+                score=0.0,
+                metrics={"expected_count": len(expected_evidence_ids), "actual_count": 0}
+            )
+        
+        # Extract evidence IDs from result
+        actual_evidence_ids = []
+        for ev in result.evidence:
+            # Try to extract evidence ID from source or metadata
+            if hasattr(ev, 'evidence_id'):
+                actual_evidence_ids.append(ev.evidence_id)
+            elif hasattr(ev, 'source'):
+                # Use source as proxy
+                actual_evidence_ids.append(ev.source)
+        
+        # Check overlap
+        if isinstance(expected_evidence_ids[0], str):
+            expected_set = set(expected_evidence_ids)
+        else:
+            expected_set = set(str(eid) for eid in expected_evidence_ids)
+        
+        actual_set = set(str(eid) for eid in actual_evidence_ids)
+        
+        overlap = expected_set & actual_set
+        recall = len(overlap) / len(expected_set) if expected_set else 0.0
+        precision = len(overlap) / len(actual_set) if actual_set else 0.0
+        
+        passed = recall >= 0.5  # At least 50% of expected evidence present
+        
+        return JudgeResult(
+            pass=passed,
+            reason=f"Evidence recall: {recall*100:.1f}%, precision: {precision*100:.1f}%",
+            score=recall,
+            metrics={
+                "expected_evidence_ids": list(expected_set),
+                "actual_evidence_ids": list(actual_set),
+                "overlap": list(overlap),
+                "recall": recall,
+                "precision": precision
+            }
+        )
+
+
+class RefusalJudge:
+    """Judge that evaluates refusal correctness."""
+    
+    def judge(
+        self,
+        result: SystemResult,
+        expected: Dict[str, Any]
+    ) -> JudgeResult:
+        """
+        Judge if refusal is correct.
+        
+        Args:
+            result: System result
+            expected: Expected verdict and refusal reason
+            
+        Returns:
+            JudgeResult
+        """
+        expected_verdict = expected.get("expected_verdict", "VERIFIED")
+        actual_verdict = result.verdict
+        
+        if expected_verdict == "REFUSED":
+            if actual_verdict == "REFUSED":
+                # Check if refusal reason matches
+                expected_reason = expected.get("refusal_reason", "")
+                if expected_reason:
+                    reasons_text = " ".join(result.reasons or []).lower()
+                    if expected_reason.lower() in reasons_text:
+                        return JudgeResult(
+                            pass=True,
+                            reason="Correct refusal with matching reason",
+                            score=1.0
+                        )
+                    else:
+                        return JudgeResult(
+                            pass=True,
+                            reason="Correct refusal but reason mismatch",
+                            score=0.8
+                        )
+                else:
+                    return JudgeResult(
+                        pass=True,
+                        reason="Correct refusal",
+                        score=1.0
+                    )
+            else:
+                return JudgeResult(
+                    pass=False,
+                    reason=f"Should refuse but got {actual_verdict}",
+                    score=0.0
+                )
+        else:
+            if actual_verdict == "REFUSED":
+                return JudgeResult(
+                    pass=False,
+                    reason=f"Should answer but got REFUSED",
+                    score=0.0
+                )
+            else:
+                return JudgeResult(
+                    pass=True,
+                    reason="Correctly did not refuse",
+                    score=1.0
+                )
+
+
+class VerificationJudge:
+    """Judge that evaluates post-verification effectiveness."""
+    
+    def judge(
+        self,
+        result: SystemResult,
+        expected: Dict[str, Any]
+    ) -> JudgeResult:
+        """
+        Judge verification effectiveness.
+        
+        Args:
+            result: System result
+            expected: Expected answer
+            
+        Returns:
+            JudgeResult
+        """
+        verification_data = result.verification_data or {}
+        
+        # Check if verification was performed
+        verification_performed = "verification_failed" in verification_data or \
+                                "verification_passed" in verification_data
+        
+        if not verification_performed:
+            return JudgeResult(
+                pass=True,
+                reason="Verification not required",
+                score=1.0
+            )
+        
+        # Check if verification caught issues
+        if verification_data.get("verification_failed"):
+            # Verification caught an issue
+            if result.verdict == "REFUSED":
+                return JudgeResult(
+                    pass=True,
+                    reason="Verification correctly caught issue",
+                    score=1.0
+                )
+            else:
+                return JudgeResult(
+                    pass=False,
+                    reason="Verification failed but result still VERIFIED",
+                    score=0.0
+                )
+        else:
+            # Verification passed
+            return JudgeResult(
+                pass=True,
+                reason="Verification passed",
+                score=1.0
+            )
+
+
+class CompositeJudge:
+    """Composite judge that combines multiple judges."""
+    
+    def __init__(self, judges: List[Any]):
+        """
+        Initialize composite judge.
+        
+        Args:
+            judges: List of judge instances
+        """
+        self.judges = judges
+    
+    def judge(
+        self,
+        result: SystemResult,
+        expected: Dict[str, Any]
+    ) -> JudgeResult:
+        """
+        Judge using all sub-judges.
+        
+        Returns:
+            Composite JudgeResult
+        """
+        results = []
+        all_metrics = {}
+        
+        for judge in self.judges:
+            judge_result = judge.judge(result, expected)
+            results.append(judge_result)
+            all_metrics[judge.__class__.__name__] = {
+                "pass": judge_result.pass,
+                "score": judge_result.score,
+                "reason": judge_result.reason,
+                "metrics": judge_result.metrics
+            }
+        
+        # Overall pass if all judges pass
+        overall_pass = all(r.pass for r in results)
+        avg_score = sum(r.score for r in results) / len(results) if results else 0.0
+        
+        reasons = [r.reason for r in results]
+        
+        return JudgeResult(
+            pass=overall_pass,
+            reason="; ".join(reasons),
+            score=avg_score,
+            metrics=all_metrics
+        )
+

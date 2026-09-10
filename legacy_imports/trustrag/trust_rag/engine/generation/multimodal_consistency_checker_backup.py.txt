@@ -1,0 +1,585 @@
+"""
+GA-Level Multimodal Consistency Checker.
+Validates factual consistency across different evidence modalities.
+Executed after answer generation, before citation verification.
+"""
+import logging
+import re
+from typing import List, Dict, Any, Optional, Set, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+class ConsistencyChecker:
+    """
+    Core consistency checking logic.
+    """
+
+    def check_numeric_consistency(self, answer_text: str, evidence: List[Any]) -> List['ConsistencyIssue']:
+        """Check for numeric contradictions between answer and evidence."""
+        issues = []
+        # Placeholder implementation - would extract numbers from answer and evidence
+        return issues
+
+    def check_temporal_consistency(self, answer_text: str, evidence: List[Any]) -> List['ConsistencyIssue']:
+        """Check for temporal inconsistencies."""
+        issues = []
+        # Placeholder implementation
+        return issues
+
+    def check_entity_consistency(self, answer_text: str, evidence: List[Any]) -> List['ConsistencyIssue']:
+        """Check for entity mismatches."""
+        issues = []
+        # Placeholder implementation
+        return issues
+
+
+class ConsistencyViolation(Enum):
+    """Types of consistency violations."""
+    NUMERIC_CONTRADICTION = "numeric_contradiction"
+    TEMPORAL_INCONSISTENCY = "temporal_inconsistency"
+    ENTITY_MISMATCH = "entity_mismatch"
+    FACTUAL_CONFLICT = "factual_conflict"
+    MODALITY_CONFLICT = "modality_conflict"
+
+
+@dataclass
+class ConsistencyIssue:
+    """A detected consistency issue."""
+    violation_type: ConsistencyViolation
+    severity: str  # "low", "medium", "high"
+    description: str
+    conflicting_evidence: List[str]  # evidence_ids
+    suggested_resolution: str
+    confidence_impact: float = 0.0
+
+
+@dataclass
+class MultimodalConsistencyReport:
+    """Complete consistency check report."""
+    answer_text: str
+    issues: List[ConsistencyIssue] = field(default_factory=list)
+    overall_consistent: bool = True
+    confidence_adjustment: float = 0.0
+    critical_violations: int = 0
+
+    def has_critical_issues(self) -> bool:
+        """Check if there are critical consistency violations."""
+        return self.critical_violations > 0 or not self.overall_consistent
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Consistency Checker.
+    Validates that facts presented in multimodal evidence are consistent.
+    Executed after generation, before citation verification.
+    """
+
+    def check_consistency(
+        self,
+        answer_text: str,
+        evidence_list: List[Any],
+        query: str = ""
+    ) -> MultimodalConsistencyReport:
+        """
+        GA REQUIREMENT: Check multimodal consistency in generated answer.
+
+        Args:
+            answer_text: Generated answer text
+            evidence_list: All evidence used
+            query: Original query for context
+
+        Returns:
+            Consistency report
+        """
+        report = MultimodalConsistencyReport(answer_text=answer_text)
+        issues = []
+
+        # Extract facts from answer
+        answer_facts = self._extract_answer_facts(answer_text)
+
+        if not answer_facts:
+            # No extractable facts - consider consistent
+            report.overall_consistent = True
+            return report
+
+        # Group evidence by modality
+        modality_groups = self._group_evidence_by_modality(evidence_list)
+
+        # Check consistency across modalities
+        issues.extend(self._check_numeric_consistency(answer_facts, modality_groups))
+        issues.extend(self._check_temporal_consistency(answer_facts, modality_groups))
+        issues.extend(self._check_entity_consistency(answer_facts, modality_groups))
+        issues.extend(self._check_factual_consistency(answer_facts, modality_groups))
+
+        # Assess overall consistency
+        report.issues = issues
+        report.critical_violations = sum(1 for issue in issues if issue.severity == "high")
+        report.overall_consistent = report.critical_violations == 0
+
+        # Calculate confidence adjustment
+        total_impact = sum(issue.confidence_impact for issue in issues)
+        report.confidence_adjustment = min(0.5, total_impact)  # Cap at 50% reduction
+
+        if not report.overall_consistent:
+            logger.warning(f"Multimodal consistency check failed: {len(issues)} issues, "
+                         f"{report.critical_violations} critical")
+
+        return report
+
+    def _extract_answer_facts(self, answer_text: str) -> Dict[str, Any]:
+        """Extract factual claims from answer text."""
+        facts = {
+            "numbers": [],
+            "dates": [],
+            "entities": [],
+            "claims": []
+        }
+
+        # Extract numbers with context
+        number_pattern = r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*(\w+)?'
+        for match in re.finditer(number_pattern, answer_text):
+            number, unit = match.groups()
+            facts["numbers"].append({
+                "value": float(number.replace(',', '')),
+                "unit": unit,
+                "context": answer_text[max(0, match.start()-20):match.end()+20]
+            })
+
+        # Extract dates
+        date_patterns = [
+            r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b',  # MM/DD/YYYY
+            r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2})\b',     # YYYY/MM/DD
+            r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b'
+        ]
+        for pattern in date_patterns:
+            for match in re.finditer(pattern, answer_text, re.IGNORECASE):
+                facts["dates"].append({
+                    "date": match.group(1),
+                    "context": answer_text[max(0, match.start()-15):match.end()+15]
+                })
+
+        # Extract named entities (simplified)
+        entity_pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b'  # Title case phrases
+        for match in re.finditer(entity_pattern, answer_text):
+            entity = match.group(1)
+            if len(entity.split()) >= 2:  # At least 2 words
+                facts["entities"].append({
+                    "name": entity,
+                    "context": answer_text[max(0, match.start()-10):match.end()+10]
+                })
+
+        # Extract factual claims (sentences with numbers or specific assertions)
+        sentences = re.split(r'[.!?]+', answer_text)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if re.search(r'\d', sentence) or re.search(r'\b(is|was|were|are|has|have|had)\b', sentence, re.IGNORECASE):
+                facts["claims"].append(sentence)
+
+        return facts
+
+    def _group_evidence_by_modality(self, evidence_list: List[Any]) -> Dict[str, List[Any]]:
+        """Group evidence by modality type."""
+        groups = {
+            "text": [],
+            "table": [],
+            "audio": [],
+            "ocr": [],
+            "mixed": []
+        }
+
+        for evidence in evidence_list:
+            modality = self._get_evidence_modality(evidence)
+            groups[modality].append(evidence)
+
+        return groups
+
+    def _get_evidence_modality(self, evidence: Any) -> str:
+        """Get modality from evidence object."""
+        if hasattr(evidence, 'evidence_type'):
+            return evidence.evidence_type
+        if hasattr(evidence, 'metadata') and evidence.metadata:
+            return evidence.metadata.get('evidence_type', 'text')
+        if hasattr(evidence, 'modality'):
+            return evidence.modality
+        return 'text'
+
+    def _check_numeric_consistency(
+        self,
+        answer_facts: Dict[str, Any],
+        modality_groups: Dict[str, List[Any]]
+    ) -> List[ConsistencyIssue]:
+        """Check numeric consistency across modalities."""
+        issues = []
+        answer_numbers = [num["value"] for num in answer_facts["numbers"]]
+
+        if not answer_numbers:
+            return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues
+
+        # Check each modality for conflicting numbers
+        for modality, evidence_list in modality_groups.items():
+            if not evidence_list:
+                continue
+
+            modality_numbers = []
+            for evidence in evidence_list:
+                text = getattr(evidence, 'text', '')
+                # Extract numbers from evidence
+                numbers = re.findall(r'\d+(?:,\d{3})*(?:\.\d+)?', text)
+                modality_numbers.extend([float(n.replace(',', '')) for n in numbers])
+
+            # Check for significant discrepancies
+            for answer_num in answer_numbers:
+                conflicting_numbers = [
+                    mod_num for mod_num in modality_numbers
+                    if abs(mod_num - answer_num) / max(abs(answer_num), abs(mod_num)) > 0.1  # 10% difference
+                    and abs(mod_num - answer_num) > 1  # Not just rounding differences
+                ]
+
+                if conflicting_numbers:
+                    issues.append(ConsistencyIssue(
+                        violation_type=ConsistencyViolation.NUMERIC_CONTRADICTION,
+                        severity="high",
+                        description=f"Numeric contradiction: answer claims {answer_num} but {modality} evidence contains {conflicting_numbers}",
+                        conflicting_evidence=[getattr(ev, 'evidence_id', 'unknown') for ev in evidence_list],
+                        suggested_resolution="Verify numbers across all modalities",
+                        confidence_impact=0.3
+                    ))
+
+        return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues
+
+    def _check_temporal_consistency(
+        self,
+        answer_facts: Dict[str, Any],
+        modality_groups: Dict[str, List[Any]]
+    ) -> List[ConsistencyIssue]:
+        """Check temporal consistency across modalities."""
+        issues = []
+        answer_dates = [date["date"] for date in answer_facts["dates"]]
+
+        if not answer_dates:
+            return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues
+
+        # This is a simplified check - real implementation would parse dates properly
+        # For now, just check if dates appear in different modalities
+        all_dates_per_modality = {}
+
+        for modality, evidence_list in modality_groups.items():
+            dates = set()
+            for evidence in evidence_list:
+                text = getattr(evidence, 'text', '')
+                # Simple date extraction
+                date_matches = re.findall(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', text)
+                dates.update(date_matches)
+
+            all_dates_per_modality[modality] = dates
+
+        # Check for date conflicts
+        for answer_date in answer_dates:
+            found_in_modalities = [
+                modality for modality, dates in all_dates_per_modality.items()
+                if answer_date in dates
+            ]
+
+            if not found_in_modalities:
+                issues.append(ConsistencyIssue(
+                    violation_type=ConsistencyViolation.TEMPORAL_INCONSISTENCY,
+                    severity="medium",
+                    description=f"Date {answer_date} not found in any evidence modality",
+                    conflicting_evidence=[],
+                    suggested_resolution="Verify date accuracy across evidence",
+                    confidence_impact=0.2
+                ))
+
+        return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues
+
+    def _check_entity_consistency(
+        self,
+        answer_facts: Dict[str, Any],
+        modality_groups: Dict[str, List[Any]]
+    ) -> List[ConsistencyIssue]:
+        """Check entity consistency across modalities."""
+        issues = []
+        answer_entities = [ent["name"] for ent in answer_facts["entities"]]
+
+        if not answer_entities:
+            return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues
+
+        # Check entity mentions across modalities
+        for entity in answer_entities:
+            entity_lower = entity.lower()
+            found_in_modalities = []
+
+            for modality, evidence_list in modality_groups.items():
+                found = False
+                for evidence in evidence_list:
+                    text = getattr(evidence, 'text', '').lower()
+                    if entity_lower in text:
+                        found = True
+                        break
+                if found:
+                    found_in_modalities.append(modality)
+
+            # If entity not found in any modality, flag as potential issue
+            if not found_in_modalities:
+                issues.append(ConsistencyIssue(
+                    violation_type=ConsistencyViolation.ENTITY_MISMATCH,
+                    severity="low",
+                    description=f"Entity '{entity}' not found in any evidence modality",
+                    conflicting_evidence=[],
+                    suggested_resolution="Verify entity accuracy",
+                    confidence_impact=0.1
+                ))
+
+        return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues
+
+    def _check_factual_consistency(
+        self,
+        answer_facts: Dict[str, Any],
+        modality_groups: Dict[str, List[Any]]
+    ) -> List[ConsistencyIssue]:
+        """Check factual consistency of claims."""
+        issues = []
+        claims = answer_facts["claims"]
+
+        # Simplified factual consistency check
+        # In practice, this would use more sophisticated NLP
+        for claim in claims:
+            claim_lower = claim.lower()
+
+            # Check if claim appears in any evidence
+            found_in_evidence = False
+            supporting_evidence = []
+
+            for modality, evidence_list in modality_groups.items():
+                for evidence in evidence_list:
+                    text = getattr(evidence, 'text', '').lower()
+                    # Simple substring check (could be improved with semantic similarity)
+                    if any(word in text for word in claim_lower.split() if len(word) > 3):
+                        found_in_evidence = True
+                        supporting_evidence.append(getattr(evidence, 'evidence_id', 'unknown'))
+                        break
+
+            if not found_in_evidence:
+                issues.append(ConsistencyIssue(
+                    violation_type=ConsistencyViolation.FACTUAL_CONFLICT,
+                    severity="medium",
+                    description=f"Claim '{claim[:50]}...' not supported by evidence",
+                    conflicting_evidence=[],
+                    suggested_resolution="Verify factual accuracy",
+                    confidence_impact=0.2
+                ))
+
+        return issues
+
+
+class MultimodalConsistencyChecker:
+    """
+    GA-Level Multimodal Consistency Checker.
+    Validates factual consistency across different evidence modalities.
+    """
+
+    def __init__(self):
+        self.consistency_checker = ConsistencyChecker()
+
+    def check_consistency(self, answer_text: str, evidence: List[Any]) -> List[ConsistencyIssue]:
+        """
+        Check consistency of answer against multimodal evidence.
+
+        Args:
+            answer_text: Generated answer text
+            evidence: List of evidence objects
+
+        Returns:
+            List of consistency issues found
+        """
+        issues = []
+
+# Run all consistency checks
+issues.extend(self.consistency_checker.check_numeric_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_temporal_consistency(answer_text, evidence))
+issues.extend(self.consistency_checker.check_entity_consistency(answer_text, evidence))
+
+return issues

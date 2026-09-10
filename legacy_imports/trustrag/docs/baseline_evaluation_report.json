@@ -1,0 +1,411 @@
+{
+  "summary": {
+    "total_queries": 54,
+    "passed": 1,
+    "failed": 53,
+    "pass_rate": 0.018518518518518517
+  },
+  "bucket_breakdown": {
+    "exact_numeric": {
+      "total": 28,
+      "passed": 1
+    },
+    "metric_alignment": {
+      "total": 12,
+      "passed": 0
+    },
+    "cross_doc_conflict": {
+      "total": 3,
+      "passed": 0
+    },
+    "insufficient_evidence": {
+      "total": 7,
+      "passed": 0
+    },
+    "version_scope_boundary": {
+      "total": 2,
+      "passed": 0
+    },
+    "table_reconstruction": {
+      "total": 2,
+      "passed": 0
+    }
+  },
+  "performance": {
+    "avg_cost_usd": 0.0020000000000000013,
+    "avg_latency_ms": 150.0
+  },
+  "failures": [
+    {
+      "query_id": "exact_002",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_003",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_004",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_005",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_006",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_007",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_008",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_009",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_010",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_011",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_012",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_013",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_014",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "exact_015",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_001",
+      "errors": [
+        "Value mismatch: expected 125.9 percent, got 60922.0 million USD"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_002",
+      "errors": [
+        "Value mismatch: expected 12.96 USD, got 5.16 USD"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_003",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_004",
+      "errors": [
+        "Value mismatch: expected 16.8 percent, got 125.9 percent"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_005",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_006",
+      "errors": [],
+      "warnings": [
+        "Refusal lacks clear boundary or suggestion"
+      ]
+    },
+    {
+      "query_id": "alignment_007",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_008",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_009",
+      "errors": [
+        "Value mismatch: expected 88.0 percent, got 125.9 percent"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_010",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "conflict_001",
+      "errors": [
+        "Conflict detection mismatch: expected True, got False"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "conflict_002",
+      "errors": [
+        "Conflict detection mismatch: expected True, got False"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "conflict_003",
+      "errors": [
+        "Conflict detection mismatch: expected True, got False"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_001",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_002",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_003",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_004",
+      "errors": [],
+      "warnings": [
+        "Refusal lacks clear boundary or suggestion"
+      ]
+    },
+    {
+      "query_id": "boundary_005",
+      "errors": [],
+      "warnings": [
+        "Refusal lacks clear boundary or suggestion"
+      ]
+    },
+    {
+      "query_id": "boundary_006",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_007",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_008",
+      "errors": [],
+      "warnings": [
+        "Refusal lacks clear boundary or suggestion"
+      ]
+    },
+    {
+      "query_id": "boundary_009",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "boundary_010",
+      "errors": [],
+      "warnings": [
+        "Refusal lacks clear boundary or suggestion"
+      ]
+    },
+    {
+      "query_id": "edge_001",
+      "errors": [],
+      "warnings": [
+        "Refusal lacks clear boundary or suggestion"
+      ]
+    },
+    {
+      "query_id": "edge_002",
+      "errors": [
+        "System should have refused but gave an answer"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_003",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_004",
+      "errors": [
+        "Value mismatch: expected 2.18 million USD per employee, got 60922.0 million USD"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_005",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_006",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_007",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_008",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_009",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_010",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_011",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "alignment_012",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_011",
+      "errors": [
+        "Value mismatch: expected 1091.0 million USD, got 60922.0 million USD"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "edge_012",
+      "errors": [
+        "No numeric value in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "table_001",
+      "errors": [
+        "No table data in actual result"
+      ],
+      "warnings": []
+    },
+    {
+      "query_id": "table_002",
+      "errors": [
+        "No table data in actual result"
+      ],
+      "warnings": []
+    }
+  ]
+}

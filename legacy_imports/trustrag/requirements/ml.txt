@@ -1,0 +1,51 @@
+# --- ML Core ---
+numpy==1.26.2
+pandas==2.1.3
+torch==2.1.2
+transformers==4.36.2
+sentence-transformers==2.2.2
+
+# --- OCR (CPU-safe) ---
+pytesseract==0.3.10
+Pillow==10.1.0
+# paddlepaddle and paddleocr excluded: no manylinux wheels for Python 3.10 staging
+# Install manually on GPU inference servers if OCR pipeline needed
+
+# --- Audio ---
+speechrecognition==3.10.0
+pydub==0.25.1
+# openai-whisper excluded: wheel build fails in Docker (missing pkg_resources); install manually on GPU servers
+
+# --- Advanced AI ---
+FlagEmbedding>=1.2.0
+accelerate>=0.25.0
+bitsandbytes>=0.41.0
+peft>=0.7.0
+optimum>=1.14.0
+
+# --- Vision & Multimodal (CPU-safe subset) ---
+torchvision>=0.16.0
+qwen-vl-utils
+pdf2image>=1.17.0
+opencv-python-headless>=4.8.1.78
+timm>=0.9.12
+layoutparser>=0.3.4
+# detectron2 excluded: requires CUDA source build
+# unstructured[local-inference] excluded: heavy native deps
+
+# --- GNN ---
+# torch-geometric / torch-scatter / torch-sparse / torch-cluster excluded: custom CUDA compile
+# dgl excluded: CUDA dependency
+
+# --- Retrieval ---
+faiss-cpu==1.7.4
+# faiss-gpu excluded: requires CUDA
+# colbert-ai excluded: build issues on linux
+
+# --- Multilingual ---
+transformers[sentencepiece]>=4.36.0
+sacremoses>=0.1.1
+
+# --- Optimization ---
+onnx>=1.15.0
+onnxruntime>=1.16.0

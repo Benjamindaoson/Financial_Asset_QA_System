@@ -1,3 +1,6 @@
+> **Portfolio role: PUBLIC PRODUCT CASE STUDY**  
+> Deterministic market-data retrieval, financial QA, validation, and guarded answer synthesis. This is not an investment-thesis workspace, an evidence-retrieval research benchmark, or a reward-model training project.
+
 # 华尔街见闻：金融资产智能问答系统 (Financial Asset QA System)
 
 
